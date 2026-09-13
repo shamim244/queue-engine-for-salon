@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Engine Que System - Salon SaaS Hub</title>
+  <link rel="stylesheet" href="/app.css">
+  <style>
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .action-link {
+      display: block;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      color: #93c5fd;
+      text-decoration: none;
+      font-weight: 600;
+      transition: background 0.15s;
+    }
+    .action-link:hover {
+      background: rgba(37, 99, 235, 0.2);
+    }
+    .notif-box {
+      max-height: 260px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.85rem;
+      background: #020617;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+  </style>
+</head>
+<body>
+  <div class="container-wide">
+    <div class="header-bar" style="margin-top: 12px;">
+      <div>
+        <h1 style="font-size: 1.6rem; font-weight: 800;">💈 Engine Que System</h1>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">High-Concurrency Hybrid Queue Engine for Salons (Powered by Bun & MySQL 8.0)</p>
+      </div>
+      <div>
+        <a href="/swagger" target="_blank" class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.9rem;">
+          📖 Swagger API Docs
+        </a>
+      </div>
+    </div>
+
+    <!-- Active Salons / Operating Modes -->
+    <div class="demo-grid">
+      <!-- 1. Rural / Solo Barber -->
+      <div class="card" style="border-top: 4px solid var(--accent);">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+          <h2 style="font-size: 1.25rem;">Ramesh Traditional Barber</h2>
+          <span class="salon-badge badge-rural">🌾 Rural Solo-Barber Mode</span>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 16px;">
+          <strong>Zero Receptionist • Zero TV Hardware</strong><br>
+          Operated 100% from the barber's phone on the mirror shelf with 1-tap buttons, WhatsApp notifications, and phone voice announcements.
+        </p>
+
+        <div style="margin-top: 12px;">
+          <a href="/barber.html?salon=ramesh-barber" target="_blank" class="action-link" style="background: rgba(249, 115, 22, 0.15); color: #fb923c;">
+            📱 <strong>Launch Barber Phone Interface</strong> (1-Tap & Voice TTS) ➔
+          </a>
+          <a href="/customer.html?salon=ramesh-barber" target="_blank" class="action-link">
+            🚪 <strong>Customer Door QR Check-in</strong> (&lt;250KB Web Flow) ➔
+          </a>
+        </div>
+      </div>
+
+      <!-- 2. Modern Multi-Station Salon -->
+      <div class="card" style="border-top: 4px solid var(--primary);">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+          <h2 style="font-size: 1.25rem;">Aura Premium Salon & Spa</h2>
+          <span class="salon-badge">🏙️ Modern Multi-Station Mode</span>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 16px;">
+          <strong>Multi-Stylist • Front Desk • Lobby TV</strong><br>
+          For full-service salons with a receptionist command center, appointment gap-filling, stylist companions, and lobby departure board.
+        </p>
+
+        <div style="margin-top: 12px;">
+          <a href="/desk.html?salon=aura-salon" target="_blank" class="action-link" style="background: rgba(37, 99, 235, 0.15); color: #60a5fa;">
+            💻 <strong>Receptionist Master Command Desk</strong> ➔
+          </a>
+          <a href="/tv.html?salon=aura-salon" target="_blank" class="action-link">
+            📺 <strong>Lobby TV Digital Departure Board</strong> ➔
+          </a>
+          <a href="/customer.html?salon=aura-salon" target="_blank" class="action-link">
+            🚪 <strong>Customer Door QR Check-in</strong> ➔
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live WhatsApp Dispatch Simulator Feed -->
+    <div class="card" style="margin-top: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="font-size: 1.1rem;">📲 Real-time WhatsApp Notification Dispatcher</h3>
+        <button onclick="fetchNotifications()" class="btn btn-secondary" style="padding: 4px 12px; font-size: 0.8rem; width: auto;">
+          🔄 Refresh
+        </button>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 10px;">
+        Simulating live customer alerts (T-10m Warning, Chair Ready, Soft-Bump, Confirmation) sent via WhatsApp Cloud API.
+      </p>
+      <div id="notifFeed" class="notif-box">
+        <div style="color: #64748b;">No recent dispatches yet. Check in a customer to see live alerts...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function fetchNotifications() {
+      try {
+        const res = await fetch('/api/queue/notifications');
+        const data = await res.json();
+        const box = document.getElementById('notifFeed');
+        if (!data || data.length === 0) {
+          box.innerHTML = '<div style="color: #64748b;">No recent dispatches yet. Check in a customer to see live alerts...</div>';
+          return;
+        }
+        box.innerHTML = data.map(n => `
+          <div style="margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #1e293b;">
+            <div style="color: #38bdf8; font-weight: bold;">[${n.type}] to ${n.recipientName} (${n.recipientPhone}) - <span style="color:#64748b;">${new Date(n.sentAt).toLocaleTimeString()}</span></div>
+            <div style="white-space: pre-wrap; color: #cbd5e1; margin-top: 4px;">${n.message}</div>
+          </div>
+        `).join('');
+      } catch (e) {
+        console.error('Failed to fetch notifications', e);
+      }
+    }
+
+    fetchNotifications();
+    setInterval(fetchNotifications, 4000);
+  </script>
+</body>
+</html>

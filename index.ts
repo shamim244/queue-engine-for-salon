@@ -1,0 +1,69 @@
+import { Elysia } from 'elysia';
+import { cors } from '@elysiajs/cors';
+import { swagger } from '@elysiajs/swagger';
+import { staticPlugin } from '@elysiajs/static';
+import { config } from './src/config';
+import { initDatabase } from './src/db/mysql';
+import { seedDemoData } from './src/db/repository';
+import { websocketHub } from './src/websocket/hub';
+import { salonRoutes } from './src/routes/salon.routes';
+import { queueRoutes } from './src/routes/queue.routes';
+
+console.log(`\n======================================================`);
+console.log(`🚀 ENGINE QUE SYSTEM FOR SALONS (BUN RUNTIME)`);
+console.log(`======================================================\n`);
+
+// Initialize Database & Seeds
+await initDatabase();
+seedDemoData();
+
+const app = new Elysia()
+  .use(cors())
+  .use(swagger({
+    path: '/swagger',
+    documentation: {
+      info: {
+        title: 'Engine Que System API',
+        description: 'Real-time Hybrid Queue Engine for Salons (Rural Solo-Barber & Modern Multi-Station)',
+        version: '1.0.0',
+      },
+    },
+  }))
+  .use(staticPlugin({
+    assets: 'src/public',
+    prefix: '',
+  }))
+  .use(salonRoutes)
+  .use(queueRoutes)
+
+  // Real-time WebSocket Endpoint
+  .ws('/ws', {
+    open(ws) {
+      const salonId = (ws.data.query?.salonId as string) || 'salon-rural-01';
+      websocketHub.addClient(ws.id, salonId, (data) => ws.send(data));
+    },
+    message(ws, message) {
+      // Handle optional ping/subscribe
+      if (typeof message === 'object' && message !== null && (message as any).action === 'subscribe') {
+        const salonId = (message as any).salonId;
+        if (salonId) {
+          websocketHub.addClient(ws.id, salonId, (data) => ws.send(data));
+        }
+      }
+    },
+    close(ws) {
+      websocketHub.removeClient(ws.id);
+    },
+  })
+
+  .listen(config.port, ({ hostname, port }) => {
+    console.log(`\n✨ Engine Que Server running at: http://${hostname}:${port}`);
+    console.log(`📖 Swagger API Docs available at: http://${hostname}:${port}/swagger`);
+    console.log(`💈 Salon Portal: http://${hostname}:${port}/index.html`);
+    console.log(`📱 Rural Solo-Barber Phone: http://${hostname}:${port}/barber.html?salon=ramesh-barber`);
+    console.log(`🚪 Customer Door QR Check-in: http://${hostname}:${port}/customer.html?salon=ramesh-barber`);
+    console.log(`💻 Modern Reception Desk: http://${hostname}:${port}/desk.html?salon=aura-salon`);
+    console.log(`📺 Modern Lobby TV: http://${hostname}:${port}/tv.html?salon=aura-salon\n`);
+  });
+
+export type App = typeof app;

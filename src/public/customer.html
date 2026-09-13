@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Salon Queue - Check In</title>
+  <link rel="stylesheet" href="/app.css">
+  <style>
+    .step-box { display: none; }
+    .step-box.active { display: block; }
+    .live-pulse {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      background: #22c55e;
+      border-radius: 50%;
+      margin-right: 6px;
+      box-shadow: 0 0 8px #22c55e;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header-bar" style="margin-top: 8px;">
+      <div>
+        <h1 id="salonName" style="font-size: 1.35rem; font-weight: 800;">Salon Queue</h1>
+        <p id="salonAddress" style="font-size: 0.82rem; color: var(--text-muted);">Loading...</p>
+      </div>
+      <span id="queueBadge" class="salon-badge">⏳ Live Queue</span>
+    </div>
+
+    <!-- STEP 1: CHECK-IN FORM -->
+    <div id="checkinStep" class="step-box active">
+      <div class="card">
+        <h2 style="font-size: 1.15rem; margin-bottom: 14px;">✂️ Select Your Service</h2>
+        <div id="serviceList">
+          <!-- Dynamic services -->
+        </div>
+
+        <h3 style="font-size: 0.95rem; margin: 16px 0 10px; color: var(--text-muted);">✨ 1-Tap Add-ons (Optional)</h3>
+        <div id="addOnList">
+          <!-- Dynamic add-ons -->
+        </div>
+
+        <div style="margin-top: 18px;">
+          <div class="input-group">
+            <label class="input-label">Your Mobile Phone (WhatsApp Alert)</label>
+            <input type="tel" id="customerPhone" class="input-field" placeholder="e.g. 9876543210" required>
+          </div>
+          <div class="input-group">
+            <label class="input-label">Your Name</label>
+            <input type="text" id="customerName" class="input-field" placeholder="e.g. Rajesh Kumar" required>
+          </div>
+        </div>
+
+        <div style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 10px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 0.9rem; color: var(--text-muted);">Total Estimate:</span>
+          <span id="totalSummary" style="font-size: 1.25rem; font-weight: 800; color: #60a5fa;">₹0 (0 mins)</span>
+        </div>
+
+        <button onclick="submitCheckIn()" id="submitBtn" class="btn btn-primary btn-giant">
+          🎟️ Get Ticket & Join Line
+        </button>
+      </div>
+    </div>
+
+    <!-- STEP 2: LIVE TICKET TRACKER -->
+    <div id="ticketStep" class="step-box">
+      <div class="ticket-hero">
+        <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 4px;">
+          <span class="live-pulse"></span>
+          <span style="font-size: 0.85rem; color: #86efac; font-weight: 700;">LIVE WAITLIST TICKET</span>
+        </div>
+        <div class="ticket-number" id="ticketNumber">#101</div>
+        <div id="ticketCustomerName" style="font-size: 1.2rem; font-weight: 700; color: white;">Rajesh Kumar</div>
+        <div id="ticketServiceName" style="font-size: 0.9rem; color: #94a3b8; margin-top: 2px;">Haircut (बाल कटिंग)</div>
+        <div style="margin-top: 14px;">
+          <span id="statusTag" class="status-tag status-waiting">WAITING IN QUEUE</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: center; margin-bottom: 14px;">
+          <div style="background: rgba(0,0,0,0.3); padding: 14px; border-radius: 12px;">
+            <div style="font-size: 0.8rem; color: var(--text-muted);">ESTIMATED WAIT</div>
+            <div id="waitEstimate" style="font-size: 1.4rem; font-weight: 800; color: #fb923c; margin-top: 4px;">~15 - 20 min</div>
+          </div>
+          <div style="background: rgba(0,0,0,0.3); padding: 14px; border-radius: 12px;">
+            <div style="font-size: 0.8rem; color: var(--text-muted);">AHEAD OF YOU</div>
+            <div id="queuePosition" style="font-size: 1.4rem; font-weight: 800; color: #60a5fa; margin-top: 4px;">1 person</div>
+          </div>
+        </div>
+
+        <div style="font-size: 0.88rem; color: #cbd5e1; background: rgba(255,255,255,0.04); padding: 12px; border-radius: 10px; line-height: 1.4;">
+          ☕ <strong>Feel free to relax nearby:</strong> We will send you an alert on <strong>WhatsApp</strong> and play an audio chime on this screen when your chair is ready!
+        </div>
+
+        <div id="upiPaymentBox" style="display: none; margin-top: 16px; text-align: center; border-top: 1px solid var(--border); padding-top: 14px;">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">Direct Barber UPI QR:</p>
+          <div style="background: white; color: black; display: inline-block; padding: 10px; border-radius: 8px; font-weight: bold;">
+            Scan & Pay: <span id="upiIdText"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const salonSlug = urlParams.get('salon') || 'ramesh-barber';
+    let currentSalon = null;
+    let selectedServiceId = null;
+    let selectedAddOnIds = [];
+    let currentTicket = null;
+    let socket = null;
+
+    // Audio chime using Web Audio API
+    function playChime() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15); // A5
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.6);
+      } catch (e) {}
+    }
+
+    // Load Salon Details
+    async function loadSalon() {
+      try {
+        const res = await fetch(`/api/salons/${salonSlug}`);
+        const data = await res.json();
+        currentSalon = data.salon;
+
+        document.getElementById('salonName').innerText = currentSalon.name;
+        document.getElementById('salonAddress').innerText = currentSalon.address || 'Traditional Barber & Hair Lounge';
+        document.getElementById('queueBadge').innerText = `${data.activeQueueCount} Waiting in line`;
+
+        if (currentSalon.upiPaymentId) {
+          document.getElementById('upiIdText').innerText = currentSalon.upiPaymentId;
+          document.getElementById('upiPaymentBox').style.display = 'block';
+        }
+
+        renderServices();
+        initWebSocket();
+
+        // Check local storage for existing session
+        const savedPhone = localStorage.getItem('last_phone');
+        const savedName = localStorage.getItem('last_name');
+        if (savedPhone) document.getElementById('customerPhone').value = savedPhone;
+        if (savedName) document.getElementById('customerName').value = savedName;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function renderServices() {
+      const container = document.getElementById('serviceList');
+      const addOnContainer = document.getElementById('addOnList');
+
+      const primary = currentSalon.services.filter(s => !s.isAddOn);
+      const addOns = currentSalon.services.filter(s => s.isAddOn);
+
+      if (primary.length > 0 && !selectedServiceId) {
+        selectedServiceId = primary[0].id;
+      }
+
+      container.innerHTML = primary.map(s => `
+        <div class="service-item ${s.id === selectedServiceId ? 'selected' : ''}" onclick="selectService('${s.id}')">
+          <div style="display: flex; align-items: center;">
+            <span class="service-icon">${s.icon || '✂️'}</span>
+            <div>
+              <div style="font-weight: 700;">${s.name}</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">~${s.estimatedDurationMinutes} mins</div>
+            </div>
+          </div>
+          <div style="font-weight: 800; font-size: 1.1rem; color: #60a5fa;">₹${s.basePrice}</div>
+        </div>
+      `).join('');
+
+      addOnContainer.innerHTML = addOns.map(a => `
+        <div class="service-item ${selectedAddOnIds.includes(a.id) ? 'selected' : ''}" onclick="toggleAddOn('${a.id}')" style="padding: 10px 14px;">
+          <div style="display: flex; align-items: center;">
+            <span class="service-icon" style="font-size: 1.2rem;">${a.icon || '✨'}</span>
+            <div style="font-weight: 600; font-size: 0.95rem;">${a.name}</div>
+          </div>
+          <div style="font-weight: 700; color: #93c5fd;">+₹${a.basePrice}</div>
+        </div>
+      `).join('');
+
+      updateSummary();
+    }
+
+    function selectService(id) {
+      selectedServiceId = id;
+      renderServices();
+    }
+
+    function toggleAddOn(id) {
+      if (selectedAddOnIds.includes(id)) {
+        selectedAddOnIds = selectedAddOnIds.filter(x => x !== id);
+      } else {
+        selectedAddOnIds.push(id);
+      }
+      renderServices();
+    }
+
+    function updateSummary() {
+      const s = currentSalon.services.find(x => x.id === selectedServiceId);
+      if (!s) return;
+      let total = s.basePrice;
+      let duration = s.estimatedDurationMinutes;
+
+      for (const id of selectedAddOnIds) {
+        const a = currentSalon.services.find(x => x.id === id);
+        if (a) {
+          total += a.basePrice;
+          duration += a.estimatedDurationMinutes;
+        }
+      }
+      document.getElementById('totalSummary').innerText = `₹${total} (~${duration} mins)`;
+    }
+
+    // Submit Check-in
+    async function submitCheckIn() {
+      const phone = document.getElementById('customerPhone').value.trim();
+      const name = document.getElementById('customerName').value.trim();
+
+      if (!phone || !name) {
+        alert('Please enter your name and phone number for WhatsApp updates.');
+        return;
+      }
+
+      localStorage.setItem('last_phone', phone);
+      localStorage.setItem('last_name', name);
+
+      const btn = document.getElementById('submitBtn');
+      btn.innerText = 'Joining Line...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/queue/checkin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            salonSlug,
+            customerName: name,
+            customerPhone: phone,
+            serviceId: selectedServiceId,
+            addOnIds: selectedAddOnIds,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.ticket) {
+          showTicket(data.ticket);
+        }
+      } catch (err) {
+        alert('Could not join queue. Please check connection.');
+      } finally {
+        btn.innerText = '🎟️ Get Ticket & Join Line';
+        btn.disabled = false;
+      }
+    }
+
+    function showTicket(ticket) {
+      currentTicket = ticket;
+      document.getElementById('checkinStep').classList.remove('active');
+      document.getElementById('ticketStep').classList.add('active');
+
+      document.getElementById('ticketNumber').innerText = `#${ticket.ticketNumber}`;
+      document.getElementById('ticketCustomerName').innerText = ticket.customerName;
+      document.getElementById('ticketServiceName').innerText = ticket.serviceName;
+      updateTicketStatus(ticket.status, ticket.estimatedWaitMinutes, ticket.positionInQueue);
+    }
+
+    function updateTicketStatus(status, waitMins, position) {
+      const tag = document.getElementById('statusTag');
+      tag.className = 'status-tag';
+
+      if (status === 'WAITING') {
+        tag.classList.add('status-waiting');
+        tag.innerText = 'WAITING IN LINE';
+        document.getElementById('waitEstimate').innerText = `~${Math.max(5, waitMins)} mins`;
+        document.getElementById('queuePosition').innerText = `${position || 1} ahead`;
+      } else if (status === 'SUMMONED') {
+        tag.classList.add('status-summoned');
+        tag.innerText = '🎉 YOUR CHAIR IS READY!';
+        document.getElementById('waitEstimate').innerText = 'READY NOW!';
+        document.getElementById('queuePosition').innerText = 'Please step in!';
+        playChime();
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      } else if (status === 'IN_CHAIR') {
+        tag.classList.add('status-inchair');
+        tag.innerText = '✂️ CURRENTLY IN CHAIR';
+        document.getElementById('waitEstimate').innerText = 'In Service';
+        document.getElementById('queuePosition').innerText = 'Being groomed';
+      } else if (status === 'COMPLETED') {
+        tag.classList.add('status-completed');
+        tag.innerText = '✅ SERVICE COMPLETED';
+        document.getElementById('waitEstimate').innerText = 'Done';
+        document.getElementById('queuePosition').innerText = 'Thank you!';
+      }
+    }
+
+    function initWebSocket() {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      socket = new WebSocket(`${proto}//${window.location.host}/ws?salonId=${currentSalon.id}`);
+
+      socket.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (currentTicket && payload.ticket && payload.ticket.id === currentTicket.id) {
+            currentTicket = payload.ticket;
+            updateTicketStatus(payload.ticket.status, payload.ticket.estimatedWaitMinutes, payload.ticket.positionInQueue);
+          }
+        } catch (e) {}
+      };
+
+      socket.onclose = () => {
+        setTimeout(initWebSocket, 3000);
+      };
+    }
+
+    loadSalon();
+  </script>
+</body>
+</html>

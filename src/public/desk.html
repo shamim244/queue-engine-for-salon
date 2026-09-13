@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Receptionist Master Command Desk</title>
+  <link rel="stylesheet" href="/app.css">
+  <style>
+    .desk-layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 850px) {
+      .desk-layout { grid-template-columns: 1fr; }
+    }
+    .stylist-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stylist-card {
+      background: var(--surface-light);
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .table-ticket {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .table-ticket th, .table-ticket td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--surface-light);
+    }
+    .table-ticket th {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <div class="container-wide">
+    <div class="header-bar">
+      <div>
+        <h1 id="salonTitle" style="font-size: 1.4rem; font-weight: 800;">Receptionist Master Command Desk</h1>
+        <p id="salonSubtitle" style="color: var(--text-muted); font-size: 0.85rem;">Multi-Station Real-time Control Center</p>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <span class="salon-badge">🏙️ Modern Multi-Station</span>
+        <a href="/tv.html?salon=aura-salon" target="_blank" class="btn btn-secondary" style="width: auto; padding: 8px 14px; font-size: 0.85rem;">
+          📺 Open Lobby TV
+        </a>
+      </div>
+    </div>
+
+    <!-- STYLIST CHAIR STATIONS -->
+    <h2 style="font-size: 1.1rem; margin-bottom: 10px;">✂️ Workstation & Stylist Status</h2>
+    <div id="stylistGrid" class="stylist-grid">
+      <!-- Dynamic Stylists -->
+    </div>
+
+    <div class="desk-layout">
+      <!-- LEFT: QUICK INTAKE DESK -->
+      <div class="card">
+        <h3 style="font-size: 1.1rem; margin-bottom: 12px;">➕ Front-Desk Walk-in Intake</h3>
+        <div class="input-group">
+          <label class="input-label">Customer Name</label>
+          <input type="text" id="deskName" class="input-field" placeholder="Full name">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Phone Number</label>
+          <input type="tel" id="deskPhone" class="input-field" placeholder="10-digit phone">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Select Service</label>
+          <select id="deskService" class="input-field" style="background:#0f172a;">
+            <!-- Options -->
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Assign Stylist</label>
+          <select id="deskStylist" class="input-field" style="background:#0f172a;">
+            <option value="">⚡ First Available (Shortest Wait)</option>
+          </select>
+        </div>
+        <button onclick="deskCheckIn()" class="btn btn-primary" style="margin-top: 10px;">
+          Add to Queue
+        </button>
+      </div>
+
+      <!-- RIGHT: LIVE QUEUE TABLE -->
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <h3 style="font-size: 1.1rem;">📋 Active Queue (<span id="deskQueueCount">0</span>)</h3>
+          <button onclick="deskCallNext()" class="btn btn-success" style="width: auto; padding: 8px 18px; font-size: 0.9rem;">
+            📢 Call Next Available
+          </button>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="table-ticket">
+            <thead>
+              <tr>
+                <th>Ticket</th>
+                <th>Client</th>
+                <th>Service</th>
+                <th>Wait</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="queueTableBody">
+              <!-- Dynamic queue rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const salonSlug = urlParams.get('salon') || 'aura-salon';
+    let currentSalon = null;
+    let activeTickets = [];
+    let socket = null;
+
+    async function loadDesk() {
+      try {
+        const res = await fetch(`/api/salons/${salonSlug}`);
+        const data = await res.json();
+        currentSalon = data.salon;
+        document.getElementById('salonTitle').innerText = `${currentSalon.name} - Front Desk`;
+
+        // Populate services and stylists in intake dropdown
+        const sSelect = document.getElementById('deskService');
+        sSelect.innerHTML = currentSalon.services.filter(s => !s.isAddOn).map(s => `
+          <option value="${s.id}">${s.name} - ₹${s.basePrice} (~${s.estimatedDurationMinutes}m)</option>
+        `).join('');
+
+        const stSelect = document.getElementById('deskStylist');
+        stSelect.innerHTML = '<option value="">⚡ First Available (Shortest Wait)</option>' +
+          currentSalon.stylists.map(st => `<option value="${st.id}">${st.name}</option>`).join('');
+
+        await refreshDesk();
+        initWebSocket();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function refreshDesk() {
+      if (!currentSalon) return;
+      const res = await fetch(`/api/queue/active/${currentSalon.id}`);
+      const data = await res.json();
+      activeTickets = data.tickets;
+
+      renderStylists();
+      renderQueueTable();
+    }
+
+    function renderStylists() {
+      const grid = document.getElementById('stylistGrid');
+      grid.innerHTML = currentSalon.stylists.map(st => {
+        const activeClient = activeTickets.find(t => t.stylistId === st.id && t.status === 'IN_CHAIR');
+        const summonedClient = activeTickets.find(t => t.stylistId === st.id && t.status === 'SUMMONED');
+
+        let statusHtml = '<span style="color:#22c55e; font-weight:bold;">🟢 Free & Ready</span>';
+        let clientInfo = '<div style="color:var(--text-muted); font-size:0.8rem; margin-top:4px;">No client seated</div>';
+
+        if (activeClient) {
+          statusHtml = '<span style="color:#38bdf8; font-weight:bold;">✂️ In Service</span>';
+          clientInfo = `<div style="color:white; font-weight:600; font-size:0.85rem; margin-top:4px;">#${activeClient.ticketNumber} - ${activeClient.customerName}</div>
+                        <button onclick="finishTicket('${activeClient.id}', ${activeClient.totalPrice})" class="btn btn-secondary" style="padding:4px 8px; font-size:0.75rem; margin-top:6px;">Finish & Cash</button>`;
+        } else if (summonedClient) {
+          statusHtml = '<span style="color:#fb923c; font-weight:bold;">⏳ Summoned</span>';
+          clientInfo = `<div style="color:white; font-weight:600; font-size:0.85rem; margin-top:4px;">#${summonedClient.ticketNumber} - ${summonedClient.customerName}</div>
+                        <button onclick="seatTicket('${summonedClient.id}')" class="btn btn-success" style="padding:4px 8px; font-size:0.75rem; margin-top:6px;">Seat in Chair</button>`;
+        }
+
+        return `
+          <div class="stylist-card">
+            <div style="font-weight: 700; font-size: 0.95rem;">${st.name}</div>
+            <div style="font-size: 0.8rem; margin-top: 2px;">${statusHtml}</div>
+            ${clientInfo}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderQueueTable() {
+      document.getElementById('deskQueueCount').innerText = activeTickets.length;
+      const tbody = document.getElementById('queueTableBody');
+
+      if (activeTickets.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Queue is empty</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = activeTickets.map(t => {
+        let actionBtn = '';
+        if (t.status === 'WAITING' || t.status === 'SOFT_BUMPED') {
+          actionBtn = `<button onclick="seatTicket('${t.id}')" class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem; width:auto;">Seat Now</button>`;
+        } else if (t.status === 'SUMMONED') {
+          actionBtn = `<button onclick="seatTicket('${t.id}')" class="btn btn-success" style="padding:6px 12px; font-size:0.8rem; width:auto;">Seat</button>
+                       <button onclick="softBumpTicket('${t.id}')" class="btn btn-warning" style="padding:6px 10px; font-size:0.75rem; width:auto;">Bump</button>`;
+        } else if (t.status === 'IN_CHAIR') {
+          actionBtn = `<button onclick="finishTicket('${t.id}', ${t.totalPrice})" class="btn btn-success" style="padding:6px 12px; font-size:0.8rem; width:auto;">Checkout (₹${t.totalPrice})</button>`;
+        }
+
+        return `
+          <tr>
+            <td style="font-weight:900; color:#60a5fa;">#${t.ticketNumber}</td>
+            <td>
+              <div style="font-weight:700;">${t.customerName}</div>
+              <div style="font-size:0.78rem; color:var(--text-muted);">${t.customerPhone}</div>
+            </td>
+            <td>${t.serviceName}</td>
+            <td style="color:#fb923c; font-weight:700;">~${Math.max(5, t.estimatedWaitMinutes)}m</td>
+            <td><span class="status-tag status-${t.status.toLowerCase().replace('_','')}">${t.status}</span></td>
+            <td>${actionBtn}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function deskCheckIn() {
+      const name = document.getElementById('deskName').value.trim();
+      const phone = document.getElementById('deskPhone').value.trim();
+      const serviceId = document.getElementById('deskService').value;
+      const stylistId = document.getElementById('deskStylist').value || null;
+
+      if (!name || !phone) {
+        alert('Please fill in customer name and phone');
+        return;
+      }
+
+      await fetch('/api/queue/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          salonSlug,
+          customerName: name,
+          customerPhone: phone,
+          serviceId,
+          stylistId,
+        }),
+      });
+
+      document.getElementById('deskName').value = '';
+      document.getElementById('deskPhone').value = '';
+      await refreshDesk();
+    }
+
+    async function deskCallNext() {
+      const res = await fetch('/api/queue/call-next', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ salonId: currentSalon.id }),
+      });
+      const data = await res.json();
+      if (!data.success) alert(data.message || 'No clients waiting');
+      await refreshDesk();
+    }
+
+    async function seatTicket(ticketId) {
+      await fetch('/api/queue/seat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticketId }),
+      });
+      await refreshDesk();
+    }
+
+    async function finishTicket(ticketId, amount) {
+      await fetch('/api/queue/finish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId,
+          paymentStatus: 'CASH_PAID',
+          paymentAmount: amount,
+        }),
+      });
+      await refreshDesk();
+    }
+
+    async function softBumpTicket(ticketId) {
+      await fetch('/api/queue/soft-bump', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticketId }),
+      });
+      await refreshDesk();
+    }
+
+    function initWebSocket() {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      socket = new WebSocket(`${proto}//${window.location.host}/ws?salonId=${currentSalon.id}`);
+      socket.onmessage = () => refreshDesk();
+      socket.onclose = () => setTimeout(initWebSocket, 3000);
+    }
+
+    loadDesk();
+  </script>
+</body>
+</html>

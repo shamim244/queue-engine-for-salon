@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Barber Mirror Screen - 1-Tap Queue Control</title>
+  <link rel="stylesheet" href="/app.css">
+  <style>
+    .mirror-screen {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+    .current-chair-box {
+      background: linear-gradient(180deg, rgba(22, 163, 74, 0.25) 0%, rgba(30, 41, 59, 0.9) 100%);
+      border: 2px solid var(--success);
+      border-radius: 18px;
+      padding: 18px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .waiting-chip {
+      background: rgba(255, 255, 255, 0.06);
+      padding: 12px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="mirror-screen">
+    <!-- Header -->
+    <div class="header-bar" style="margin-top: 6px; margin-bottom: 12px;">
+      <div>
+        <h1 id="barberName" style="font-size: 1.25rem; font-weight: 800;">Barber Mirror Screen</h1>
+        <div style="font-size: 0.8rem; color: #fb923c; font-weight: 700;">🌾 Rural Solo Mode (1-Tap + Voice)</div>
+      </div>
+      <button onclick="toggleVoice()" id="voiceToggleBtn" class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 0.8rem;">
+        🔊 Voice ON
+      </button>
+    </div>
+
+    <!-- CURRENT CHAIR STATUS -->
+    <div id="chairBox" class="current-chair-box" style="display: none;">
+      <div style="font-size: 0.85rem; color: #86efac; font-weight: 800; letter-spacing: 1px;">✂️ CURRENTLY IN CHAIR</div>
+      <div id="chairCustomerName" style="font-size: 2rem; font-weight: 900; color: white; margin: 4px 0;">Ramesh Kumar</div>
+      <div id="chairServiceName" style="font-size: 1.05rem; color: #cbd5e1;">Hair Cut + Shave Combo</div>
+      <div id="chairPrice" style="font-size: 1.5rem; font-weight: 900; color: #4ade80; margin: 8px 0;">₹110</div>
+
+      <button onclick="finishService()" id="finishBtn" class="btn btn-success btn-giant" style="margin-top: 10px;">
+        💵 Finish & Cash Received
+      </button>
+    </div>
+
+    <!-- GIANT [CALL NEXT] BUTTON -->
+    <div id="callNextContainer">
+      <button onclick="callNextCustomer()" id="callNextBtn" class="btn btn-primary btn-giant" style="background: #2563eb; height: 110px; font-size: 1.6rem; border-radius: 20px;">
+        📢 CALL NEXT CUSTOMER
+      </button>
+    </div>
+
+    <!-- QUICK ACTIONS -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px;">
+      <button onclick="showQuickAddModal()" class="btn btn-secondary" style="padding: 14px; font-size: 0.95rem;">
+        ⚡ + Quick Walk-in
+      </button>
+      <button onclick="triggerSoftBump()" id="softBumpBtn" class="btn btn-warning" style="padding: 14px; font-size: 0.95rem; display: none;">
+        ⏳ Not Here (Bump 3m)
+      </button>
+    </div>
+
+    <!-- WAITING QUEUE LIST -->
+    <div class="card" style="margin-top: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="font-size: 1.05rem;">📋 Waiting in Line (<span id="waitingCount">0</span>)</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Real-time</span>
+      </div>
+
+      <div id="waitingList">
+        <div style="text-align: center; color: var(--text-muted); padding: 20px 0;">
+          No waiting clients right now.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUICK ADD MODAL (For non-smartphone clients) -->
+  <div id="quickModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; align-items: center; justify-content: center; padding: 16px;">
+    <div class="card" style="width: 100%; max-width: 400px; background: #1e293b;">
+      <h3 style="margin-bottom: 12px;">⚡ Add Walk-in Client (3 Seconds)</h3>
+      <div class="input-group">
+        <label class="input-label">Customer Name</label>
+        <input type="text" id="quickName" class="input-field" placeholder="e.g. Uncle Joe, Verma Ji" autofocus>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Phone Number (Optional)</label>
+        <input type="tel" id="quickPhone" class="input-field" placeholder="Optional for SMS/WhatsApp">
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 16px;">
+        <button onclick="submitQuickAdd()" class="btn btn-primary">Add to Queue</button>
+        <button onclick="closeQuickModal()" class="btn btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const salonSlug = urlParams.get('salon') || 'ramesh-barber';
+    let currentSalon = null;
+    let activeTickets = [];
+    let currentInChairTicket = null;
+    let currentSummonedTicket = null;
+    let voiceEnabled = true;
+    let socket = null;
+
+    // Web Speech API: Text-to-Speech Voice Announcement
+    function speakAnnouncement(text) {
+      if (!voiceEnabled || !('speechSynthesis' in window)) return;
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+        utterance.lang = 'hi-IN'; // Works for Hindi / Indian English
+        window.speechSynthesis.speak(utterance);
+      } catch (e) {
+        console.warn('TTS error:', e);
+      }
+    }
+
+    function toggleVoice() {
+      voiceEnabled = !voiceEnabled;
+      const btn = document.getElementById('voiceToggleBtn');
+      btn.innerText = voiceEnabled ? '🔊 Voice ON' : '🔇 Voice OFF';
+      if (voiceEnabled) speakAnnouncement('Voice announcements enabled');
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch(`/api/salons/${salonSlug}`);
+        const data = await res.json();
+        currentSalon = data.salon;
+        document.getElementById('barberName').innerText = currentSalon.name;
+
+        await refreshQueue();
+        initWebSocket();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function refreshQueue() {
+      if (!currentSalon) return;
+      const res = await fetch(`/api/queue/active/${currentSalon.id}`);
+      const data = await res.json();
+      activeTickets = data.tickets;
+      renderQueueUI();
+    }
+
+    function renderQueueUI() {
+      currentInChairTicket = activeTickets.find(t => t.status === 'IN_CHAIR') || null;
+      currentSummonedTicket = activeTickets.find(t => t.status === 'SUMMONED') || null;
+
+      const chairBox = document.getElementById('chairBox');
+      const callNextBtn = document.getElementById('callNextBtn');
+      const softBumpBtn = document.getElementById('softBumpBtn');
+
+      // 1. If someone is in chair
+      if (currentInChairTicket) {
+        chairBox.style.display = 'block';
+        document.getElementById('chairCustomerName').innerText = currentInChairTicket.customerName;
+        document.getElementById('chairServiceName').innerText = currentInChairTicket.serviceName;
+        document.getElementById('chairPrice').innerText = `₹${currentInChairTicket.totalPrice}`;
+        callNextBtn.innerText = '✂️ CHAIR OCCUPIED';
+        callNextBtn.disabled = true;
+        callNextBtn.style.opacity = '0.5';
+        softBumpBtn.style.display = 'none';
+      } else if (currentSummonedTicket) {
+        chairBox.style.display = 'none';
+        callNextBtn.disabled = false;
+        callNextBtn.style.opacity = '1';
+        callNextBtn.innerText = `🪑 SEAT: ${currentSummonedTicket.customerName}`;
+        callNextBtn.style.background = '#16a34a';
+        softBumpBtn.style.display = 'block';
+      } else {
+        chairBox.style.display = 'none';
+        callNextBtn.disabled = false;
+        callNextBtn.style.opacity = '1';
+        callNextBtn.innerText = '📢 CALL NEXT CUSTOMER';
+        callNextBtn.style.background = '#2563eb';
+        softBumpBtn.style.display = 'none';
+      }
+
+      // Waiting list
+      const waiting = activeTickets.filter(t => t.status === 'WAITING' || t.status === 'SOFT_BUMPED');
+      document.getElementById('waitingCount').innerText = waiting.length;
+
+      const list = document.getElementById('waitingList');
+      if (waiting.length === 0) {
+        list.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px 0;">No waiting clients right now.</div>';
+        return;
+      }
+
+      list.innerHTML = waiting.map((t, index) => `
+        <div class="waiting-chip">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-weight: 900; color: #60a5fa; font-size: 1.15rem;">#${t.ticketNumber}</span>
+            <div>
+              <div style="font-weight: 700; color: white;">${t.customerName}</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">${t.serviceName} (~${t.totalDurationMinutes}m)</div>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 0.85rem; font-weight: 800; color: #fb923c;">~${Math.max(5, t.estimatedWaitMinutes)}m</div>
+            ${t.status === 'SOFT_BUMPED' ? '<span style="font-size: 0.72rem; color: #f59e0b; font-weight: bold;">(HELD)</span>' : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Barber Actions
+    async function callNextCustomer() {
+      // If someone was summoned, seat them
+      if (currentSummonedTicket) {
+        await fetch('/api/queue/seat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticketId: currentSummonedTicket.id }),
+        });
+        await refreshQueue();
+        return;
+      }
+
+      // Otherwise call next
+      const res = await fetch('/api/queue/call-next', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ salonId: currentSalon.id }),
+      });
+      const data = await res.json();
+      if (data.success && data.ticket) {
+        speakAnnouncement(`Next customer, ${data.ticket.customerName}. Please come in.`);
+        await refreshQueue();
+      } else {
+        speakAnnouncement('No waiting customers in line.');
+      }
+    }
+
+    async function finishService() {
+      if (!currentInChairTicket) return;
+      const res = await fetch('/api/queue/finish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId: currentInChairTicket.id,
+          paymentStatus: 'CASH_PAID',
+          paymentAmount: currentInChairTicket.totalPrice,
+        }),
+      });
+      await refreshQueue();
+    }
+
+    async function triggerSoftBump() {
+      if (!currentSummonedTicket) return;
+      await fetch('/api/queue/soft-bump', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticketId: currentSummonedTicket.id }),
+      });
+      speakAnnouncement(`${currentSummonedTicket.customerName} not present. Calling next client.`);
+      await refreshQueue();
+    }
+
+    // Quick Add Modal
+    function showQuickAddModal() {
+      document.getElementById('quickModal').style.display = 'flex';
+      document.getElementById('quickName').focus();
+    }
+    function closeQuickModal() {
+      document.getElementById('quickModal').style.display = 'none';
+      document.getElementById('quickName').value = '';
+      document.getElementById('quickPhone').value = '';
+    }
+    async function submitQuickAdd() {
+      const name = document.getElementById('quickName').value.trim();
+      const phone = document.getElementById('quickPhone').value.trim();
+      if (!name) {
+        alert('Please enter a name');
+        return;
+      }
+
+      await fetch('/api/queue/quick-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          salonSlug,
+          customerName: name,
+          customerPhone: phone || '0000000000',
+        }),
+      });
+
+      closeQuickModal();
+      await refreshQueue();
+    }
+
+    function initWebSocket() {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      socket = new WebSocket(`${proto}//${window.location.host}/ws?salonId=${currentSalon.id}`);
+
+      socket.onmessage = (event) => {
+        try {
+          refreshQueue();
+        } catch (e) {}
+      };
+
+      socket.onclose = () => {
+        setTimeout(initWebSocket, 3000);
+      };
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
