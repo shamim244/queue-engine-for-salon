@@ -3,6 +3,11 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "start": "bun index.ts",
+    "test": "bun test",
+    "docs": "bun C:/Users/bccbo/.gemini/antigravity/mcp/bun-docs-mcp/cli.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
