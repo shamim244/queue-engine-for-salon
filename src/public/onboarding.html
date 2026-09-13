@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Set Up Your Salon - Engine Que</title>
+  <link rel="stylesheet" href="/app.css">
+  <style>
+    .wizard-card {
+      max-width: 640px;
+      margin: 20px auto;
+    }
+    .mode-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .mode-option {
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      cursor: pointer;
+      background: rgba(255,255,255,0.02);
+      transition: all 0.15s;
+    }
+    .mode-option.selected {
+      border-color: var(--primary);
+      background: rgba(37, 99, 235, 0.15);
+    }
+    .service-row {
+      display: grid;
+      grid-template-columns: 1fr 90px 80px 40px;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-bar" style="margin-top: 10px;">
+      <div>
+        <h1 style="font-size: 1.35rem; font-weight: 800;">💈 Salon Setup Wizard</h1>
+        <p style="color: var(--text-muted); font-size: 0.85rem;">Get your queue running and print your mirror poster in 2 minutes</p>
+      </div>
+      <a href="/index.html" class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 0.8rem;">
+        Home
+      </a>
+    </div>
+
+    <div class="card wizard-card">
+      <form id="setupForm" onsubmit="handleRegister(event)">
+        <!-- Operating Mode Selection -->
+        <label class="input-label">1. Choose Salon Operating Mode</label>
+        <div class="mode-selector">
+          <div id="modeSolo" class="mode-option selected" onclick="selectMode('RURAL_SOLO')">
+            <div style="font-size: 1.4rem; margin-bottom: 4px;">🌾</div>
+            <div style="font-weight: 700; font-size: 0.95rem;">Solo-Barber / Express</div>
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">
+              No receptionist. Controlled 100% from your phone with 1-tap buttons and voice callouts.
+            </div>
+          </div>
+
+          <div id="modeMulti" class="mode-option" onclick="selectMode('MODERN_MULTI')">
+            <div style="font-size: 1.4rem; margin-bottom: 4px;">🏙️</div>
+            <div style="font-weight: 700; font-size: 0.95rem;">Multi-Station Salon</div>
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">
+              Full-service salon with front-desk reception desk and lobby TV departure board.
+            </div>
+          </div>
+        </div>
+
+        <!-- Basic Details -->
+        <label class="input-label">2. Shop & Contact Information</label>
+        <div class="input-group">
+          <input type="text" id="salonName" class="input-field" placeholder="Salon / Barbershop Name (e.g. Apex Barber Co.)" required>
+        </div>
+        <div class="input-group">
+          <input type="tel" id="salonPhone" class="input-field" placeholder="Owner WhatsApp / Phone (e.g. 9876543210)" required>
+        </div>
+        <div class="input-group">
+          <input type="text" id="salonAddress" class="input-field" placeholder="Location / Address (e.g. 14 Market Street, Downtown)">
+        </div>
+        <div class="input-group">
+          <input type="text" id="salonUpi" class="input-field" placeholder="Direct UPI ID or Payment Tag (e.g. apexbarber@upi)">
+        </div>
+
+        <!-- Services Menu -->
+        <div style="margin-top: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label class="input-label" style="margin-bottom: 0;">3. Service Menu & Prices</label>
+            <button type="button" onclick="addServiceRow()" class="btn btn-secondary" style="width: auto; padding: 4px 10px; font-size: 0.75rem;">
+              + Add Service
+            </button>
+          </div>
+
+          <div id="servicesContainer">
+            <!-- Dynamic Service Rows -->
+          </div>
+        </div>
+
+        <button type="submit" id="submitBtn" class="btn btn-primary btn-giant" style="margin-top: 24px;">
+          ✨ Complete Setup & Generate Poster
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let selectedMode = 'RURAL_SOLO';
+
+    const defaultServicesSolo = [
+      { name: 'Signature Haircut', price: 80, duration: 20 },
+      { name: 'Classic Beard Shave', price: 40, duration: 15 },
+      { name: 'Haircut + Shave Combo', price: 110, duration: 30 },
+      { name: 'Head Massage / Champy', price: 50, duration: 15 },
+    ];
+
+    const defaultServicesMulti = [
+      { name: 'Signature Cut & Styling', price: 450, duration: 30 },
+      { name: 'Beard Sculpt & Hot Towel', price: 200, duration: 20 },
+      { name: 'Hair Spa Deep Conditioning', price: 750, duration: 45 },
+      { name: 'Scalp Massage Treatment', price: 250, duration: 20 },
+    ];
+
+    function selectMode(mode) {
+      selectedMode = mode;
+      document.getElementById('modeSolo').className = `mode-option ${mode === 'RURAL_SOLO' ? 'selected' : ''}`;
+      document.getElementById('modeMulti').className = `mode-option ${mode === 'MODERN_MULTI' ? 'selected' : ''}`;
+      populateDefaultServices();
+    }
+
+    function populateDefaultServices() {
+      const container = document.getElementById('servicesContainer');
+      const list = selectedMode === 'RURAL_SOLO' ? defaultServicesSolo : defaultServicesMulti;
+      container.innerHTML = '';
+      for (const s of list) {
+        addServiceRow(s.name, s.price, s.duration);
+      }
+    }
+
+    function addServiceRow(name = '', price = 100, duration = 20) {
+      const container = document.getElementById('servicesContainer');
+      const div = document.createElement('div');
+      div.className = 'service-row';
+      div.innerHTML = `
+        <input type="text" class="input-field s-name" placeholder="Service Name" value="${name}" required style="padding:10px;">
+        <input type="number" class="input-field s-price" placeholder="Price" value="${price}" required style="padding:10px;">
+        <input type="number" class="input-field s-duration" placeholder="Mins" value="${duration}" required style="padding:10px;">
+        <button type="button" onclick="this.parentElement.remove()" style="background:none; border:none; color:#ef4444; font-size:1.2rem; cursor:pointer;">✕</button>
+      `;
+      container.appendChild(div);
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      btn.innerText = 'Creating Salon & Generating Poster...';
+      btn.disabled = true;
+
+      const name = document.getElementById('salonName').value.trim();
+      const phone = document.getElementById('salonPhone').value.trim();
+      const address = document.getElementById('salonAddress').value.trim();
+      const upi = document.getElementById('salonUpi').value.trim();
+
+      const serviceRows = document.querySelectorAll('.service-row');
+      const services = [];
+      serviceRows.forEach(row => {
+        const sName = row.querySelector('.s-name').value.trim();
+        const sPrice = Number(row.querySelector('.s-price').value);
+        const sDuration = Number(row.querySelector('.s-duration').value);
+        if (sName) {
+          services.push({
+            name: sName,
+            basePrice: sPrice,
+            estimatedDurationMinutes: sDuration,
+            isAddOn: false,
+          });
+        }
+      });
+
+      try {
+        const res = await fetch('/api/salons/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            phone,
+            address,
+            upiPaymentId: upi,
+            operatingMode: selectedMode,
+            services,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.success && data.salon) {
+          window.location.href = `/poster.html?salon=${data.salon.slug}`;
+        } else {
+          alert('Registration failed: ' + (data.message || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network error while creating salon');
+      } finally {
+        btn.innerText = '✨ Complete Setup & Generate Poster';
+        btn.disabled = false;
+      }
+    }
+
+    populateDefaultServices();
+  </script>
+</body>
+</html>

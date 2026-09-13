@@ -195,6 +195,112 @@ export const repository = {
     return Array.from(unique);
   },
 
+  async createSalon(params: {
+    name: string;
+    slug?: string;
+    phone: string;
+    operatingMode: 'RURAL_SOLO' | 'MODERN_MULTI';
+    currency?: string;
+    countryCode?: string;
+    address?: string;
+    upiPaymentId?: string;
+    stylists?: { name: string; phone?: string; avgDurationMinutes?: number }[];
+    services?: { name: string; basePrice: number; estimatedDurationMinutes: number; isAddOn?: boolean; icon?: string }[];
+  }): Promise<Salon> {
+    const rawSlug = (params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')) || 'salon';
+    let slug = rawSlug;
+    let counter = 1;
+
+    // Ensure unique slug
+    while (await repository.getSalonBySlug(slug)) {
+      slug = `${rawSlug}-${counter++}`;
+    }
+
+    const salonId = 'salon-' + Math.random().toString(36).substring(2, 9);
+    const newSalon: Salon = {
+      id: salonId,
+      name: params.name,
+      slug,
+      phone: params.phone,
+      operatingMode: params.operatingMode || 'RURAL_SOLO',
+      countryCode: params.countryCode || '+91',
+      currency: params.currency || 'INR',
+      address: params.address,
+      upiPaymentId: params.upiPaymentId,
+      createdAt: new Date(),
+      stylists: [],
+      services: [],
+    };
+
+    // Default stylist if none provided
+    const stylistInputs = params.stylists && params.stylists.length > 0
+      ? params.stylists
+      : [{ name: params.operatingMode === 'RURAL_SOLO' ? `${params.name} Owner` : 'Master Stylist' }];
+
+    newSalon.stylists = stylistInputs.map((st, idx) => ({
+      id: `stylist-${salonId}-${idx + 1}`,
+      salonId,
+      name: st.name,
+      phone: st.phone || params.phone,
+      isActive: true,
+      historicalAvgDurationMinutes: st.avgDurationMinutes || (params.operatingMode === 'RURAL_SOLO' ? 20 : 30),
+    }));
+
+    // Default services if none provided
+    const serviceInputs = params.services && params.services.length > 0
+      ? params.services
+      : [
+          { name: 'Signature Haircut', basePrice: params.operatingMode === 'RURAL_SOLO' ? 80 : 350, estimatedDurationMinutes: 25, isAddOn: false, icon: '✂️' },
+          { name: 'Beard Trim & Sculpt', basePrice: params.operatingMode === 'RURAL_SOLO' ? 40 : 150, estimatedDurationMinutes: 15, isAddOn: false, icon: '🧔' },
+          { name: 'Hair Wash & Styling', basePrice: params.operatingMode === 'RURAL_SOLO' ? 50 : 200, estimatedDurationMinutes: 15, isAddOn: true, icon: '💆' },
+        ];
+
+    newSalon.services = serviceInputs.map((srv, idx) => ({
+      id: `srv-${salonId}-${idx + 1}`,
+      salonId,
+      name: srv.name,
+      basePrice: Number(srv.basePrice),
+      estimatedDurationMinutes: Number(srv.estimatedDurationMinutes),
+      isAddOn: Boolean(srv.isAddOn),
+      icon: srv.icon || (srv.isAddOn ? '✨' : '✂️'),
+    }));
+
+    // Save in memory
+    memoryStore.salons.set(newSalon.id, newSalon);
+    memoryStore.salons.set(newSalon.slug, newSalon);
+    for (const st of newSalon.stylists) memoryStore.stylists.set(st.id, st);
+    for (const srv of newSalon.services) memoryStore.services.set(srv.id, srv);
+    memoryStore.ticketSequence.set(newSalon.id, 100);
+
+    // Save in MySQL if connected
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query(
+        `INSERT INTO salons (id, name, slug, phone, operating_mode, country_code, currency, address, upi_payment_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newSalon.id, newSalon.name, newSalon.slug, newSalon.phone, newSalon.operatingMode, newSalon.countryCode, newSalon.currency, newSalon.address || null, newSalon.upiPaymentId || null]
+      );
+
+      for (const st of newSalon.stylists) {
+        await db.query(
+          `INSERT INTO stylists (id, salon_id, name, phone, is_active, historical_avg_duration_minutes)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [st.id, st.salonId, st.name, st.phone, st.isActive, st.historicalAvgDurationMinutes]
+        );
+      }
+
+      for (const srv of newSalon.services) {
+        await db.query(
+          `INSERT INTO services (id, salon_id, name, base_price, estimated_duration_minutes, is_add_on, icon)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [srv.id, srv.salonId, srv.name, srv.basePrice, srv.estimatedDurationMinutes, srv.isAddOn, srv.icon || null]
+        );
+      }
+    }
+
+    return newSalon;
+  },
+
   async updateSalonOperatingMode(salonId: string, mode: 'RURAL_SOLO' | 'MODERN_MULTI') {
     if (isMySqlConnected) {
       const db = getDb();
