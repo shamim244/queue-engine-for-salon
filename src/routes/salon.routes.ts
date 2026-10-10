@@ -5,28 +5,9 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
   .get('/', async () => {
     return await repository.getAllSalons();
   })
-  .get('/:slug', async ({ params, error }) => {
-    const salon = await repository.getSalonBySlug(params.slug);
-    if (!salon) return error(404, { message: 'Salon not found' });
-    const activeTickets = await repository.getActiveTickets(salon.id);
-    return {
-      salon,
-      activeQueueCount: activeTickets.length,
-    };
-  })
-  .post('/:id/mode', async ({ params, body, error }) => {
-    const { mode } = body as { mode: 'RURAL_SOLO' | 'MODERN_MULTI' };
-    if (!['RURAL_SOLO', 'MODERN_MULTI'].includes(mode)) {
-      return error(400, { message: 'Invalid mode' });
-    }
-    await repository.updateSalonOperatingMode(params.id, mode);
-    return { success: true, mode };
-  }, {
-    body: t.Object({
-      mode: t.Union([t.Literal('RURAL_SOLO'), t.Literal('MODERN_MULTI')]),
-    })
-  })
-  .post('/register', async ({ body, error }) => {
+
+  // 1. Salon Self-Registration (Static route first)
+  .post('/register', async ({ body, set }) => {
     try {
       const salon = await repository.createSalon(body as any);
       return {
@@ -39,7 +20,8 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
         }
       };
     } catch (err: any) {
-      return error(400, { message: err.message });
+      set.status = 400;
+      return { message: err.message };
     }
   }, {
     body: t.Object({
@@ -66,8 +48,38 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
     })
   })
 
+  // 2. Get Salon by Slug or ID
+  .get('/:id', async ({ params, set }) => {
+    const salon = (await repository.getSalonBySlug(params.id)) ||
+                  (await repository.getAllSalons()).find(s => s.id === params.id);
+    if (!salon) {
+      set.status = 404;
+      return { message: 'Salon not found' };
+    }
+    const activeTickets = await repository.getActiveTickets(salon.id);
+    return {
+      salon,
+      activeQueueCount: activeTickets.length,
+    };
+  })
+
+  // 3. Update Operating Mode
+  .post('/:id/mode', async ({ params, body, set }) => {
+    const { mode } = body as { mode: 'RURAL_SOLO' | 'MODERN_MULTI' };
+    if (!['RURAL_SOLO', 'MODERN_MULTI'].includes(mode)) {
+      set.status = 400;
+      return { message: 'Invalid mode' };
+    }
+    await repository.updateSalonOperatingMode(params.id, mode);
+    return { success: true, mode };
+  }, {
+    body: t.Object({
+      mode: t.Union([t.Literal('RURAL_SOLO'), t.Literal('MODERN_MULTI')]),
+    })
+  })
+
   // 4. Add Service (Salon Owner)
-  .post('/:id/services', async ({ params, body, error }) => {
+  .post('/:id/services', async ({ params, body, set }) => {
     try {
       const b = body as {
         name: string;
@@ -90,7 +102,8 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
       });
       return { success: true, service };
     } catch (err: any) {
-      return error(400, { message: err.message });
+      set.status = 400;
+      return { message: err.message };
     }
   }, {
     body: t.Object({

@@ -5,12 +5,13 @@ import { notificationService } from '../notifications/whatsapp';
 
 export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   // 1. Customer Check-in via Door QR
-  .post('/checkin', async ({ body, error }) => {
+  .post('/checkin', async ({ body, set }) => {
     try {
       const ticket = await queueEngine.checkIn(body as any);
       return { success: true, ticket };
     } catch (err: any) {
-      return error(400, { message: err.message });
+      set.status = 400;
+      return { message: err.message };
     }
   }, {
     body: t.Object({
@@ -24,12 +25,13 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   })
 
   // 2. Barber 1-Tap Quick Add (for zero-tech or elderly walk-ins)
-  .post('/quick-add', async ({ body, error }) => {
+  .post('/quick-add', async ({ body, set }) => {
     try {
       const ticket = await queueEngine.barberQuickAdd(body as any);
       return { success: true, ticket };
     } catch (err: any) {
-      return error(400, { message: err.message });
+      set.status = 400;
+      return { message: err.message };
     }
   }, {
     body: t.Object({
@@ -50,14 +52,17 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   })
 
   // 4. Get Ticket Details by ID
-  .get('/ticket/:ticketId', async ({ params, error }) => {
+  .get('/ticket/:ticketId', async ({ params, set }) => {
     const ticket = await repository.getTicketById(params.ticketId);
-    if (!ticket) return error(404, { message: 'Ticket not found' });
+    if (!ticket) {
+      set.status = 404;
+      return { message: 'Ticket not found' };
+    }
     return ticket;
   })
 
   // 5. Barber 1-Tap [CALL NEXT]
-  .post('/call-next', async ({ body, error }) => {
+  .post('/call-next', async ({ body }) => {
     const { salonId, stylistId } = body as { salonId: string; stylistId?: string };
     const ticket = await queueEngine.callNext(salonId, stylistId);
     if (!ticket) {
@@ -72,10 +77,13 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   })
 
   // 6. Seat Customer in Chair
-  .post('/seat', async ({ body, error }) => {
+  .post('/seat', async ({ body, set }) => {
     const { ticketId, stylistId } = body as { ticketId: string; stylistId?: string };
     const ticket = await queueEngine.seatCustomer(ticketId, stylistId);
-    if (!ticket) return error(404, { message: 'Ticket not found' });
+    if (!ticket) {
+      set.status = 404;
+      return { message: 'Ticket not found' };
+    }
     return { success: true, ticket };
   }, {
     body: t.Object({
@@ -85,14 +93,17 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   })
 
   // 7. Finish Service & Log Payment (Cash or Online)
-  .post('/finish', async ({ body, error }) => {
+  .post('/finish', async ({ body, set }) => {
     const { ticketId, paymentStatus, paymentAmount } = body as {
       ticketId: string;
       paymentStatus: 'CASH_PAID' | 'ONLINE_PAID';
       paymentAmount?: number;
     };
     const ticket = await queueEngine.finishService(ticketId, paymentStatus, paymentAmount);
-    if (!ticket) return error(404, { message: 'Ticket not found' });
+    if (!ticket) {
+      set.status = 404;
+      return { message: 'Ticket not found' };
+    }
     return { success: true, ticket };
   }, {
     body: t.Object({
@@ -103,10 +114,13 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   })
 
   // 8. 3-Minute Soft Bump (No-show grace hold)
-  .post('/soft-bump', async ({ body, error }) => {
+  .post('/soft-bump', async ({ body, set }) => {
     const { ticketId } = body as { ticketId: string };
     const ticket = await queueEngine.softBump(ticketId);
-    if (!ticket) return error(404, { message: 'Ticket not found' });
+    if (!ticket) {
+      set.status = 404;
+      return { message: 'Ticket not found' };
+    }
     return { success: true, ticket };
   }, {
     body: t.Object({

@@ -5,6 +5,7 @@ import { staticPlugin } from '@elysiajs/static';
 import { config } from './src/config';
 import { initDatabase } from './src/db/mysql';
 import { seedDemoData } from './src/db/repository';
+import { authService } from './src/auth/auth-service';
 import { websocketHub } from './src/websocket/hub';
 import { salonRoutes } from './src/routes/salon.routes';
 import { queueRoutes } from './src/routes/queue.routes';
@@ -17,6 +18,7 @@ console.log(`======================================================\n`);
 // Initialize Database & Seeds
 await initDatabase();
 seedDemoData();
+await authService.seedDefaultUsers();
 
 const app = new Elysia()
   .use(cors())

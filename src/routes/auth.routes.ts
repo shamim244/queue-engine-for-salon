@@ -5,11 +5,12 @@ import { isMySqlConnected, getDb } from '../db/mysql';
 
 export const authRoutes = new Elysia({ prefix: '/api/auth' })
   // 1. User Login (Super Admin, Owner, Staff)
-  .post('/login', async ({ body, error }) => {
+  .post('/login', async ({ body, set }) => {
     const { username, password } = body as { username: string; password: string };
     const user = await authService.authenticateUser(username, password);
     if (!user) {
-      return error(401, { message: 'Invalid username or password' });
+      set.status = 401;
+      return { message: 'Invalid username or password' };
     }
 
     let salon = null;
@@ -42,10 +43,11 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
   })
 
   // 2. Change Password (Staff preference panel)
-  .post('/change-password', async ({ body, error }) => {
+  .post('/change-password', async ({ body, set }) => {
     const { userId, newPassword } = body as { userId: string; newPassword: string };
     if (!newPassword || newPassword.length < 6) {
-      return error(400, { message: 'Password must be at least 6 characters long' });
+      set.status = 400;
+      return { message: 'Password must be at least 6 characters long' };
     }
     const updated = await authService.updatePassword(userId, newPassword);
     return { success: updated };
@@ -57,7 +59,7 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
   })
 
   // 3. Create Staff User ID & Password (Owner Panel)
-  .post('/staff/create', async ({ body, error }) => {
+  .post('/staff/create', async ({ body, set }) => {
     try {
       const { salonId, staffId, username, password } = body as {
         salonId: string;
@@ -76,7 +78,8 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
 
       return { success: true, user: { id: user.id, username: user.username, staffId: user.staffId } };
     } catch (err: any) {
-      return error(400, { message: err.message });
+      set.status = 400;
+      return { message: err.message };
     }
   }, {
     body: t.Object({
@@ -111,7 +114,7 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
   })
 
   // 6. Optional Customer Account Registration from Live Ticket Screen
-  .post('/customer/register', async ({ body, error }) => {
+  .post('/customer/register', async ({ body, set }) => {
     const { name, phone, password } = body as { name: string; phone: string; password?: string };
     const id = 'cust-' + Math.random().toString(36).substring(2, 9);
     let passwordHash: string | null = null;
@@ -131,7 +134,8 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
       }
       return { success: true, customer: { id, name, phone } };
     } catch (err: any) {
-      return error(400, { message: err.message });
+      set.status = 400;
+      return { message: err.message };
     }
   }, {
     body: t.Object({
