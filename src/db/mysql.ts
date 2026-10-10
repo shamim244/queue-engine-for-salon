@@ -119,11 +119,47 @@ async function runMigrations() {
         service_id VARCHAR(36) NOT NULL,
         actual_duration_minutes INT NOT NULL,
         completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB;`,
+
+    `CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(36) PRIMARY KEY,
+        salon_id VARCHAR(36) NULL,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        role ENUM('SUPER_ADMIN', 'SALON_OWNER', 'STAFF') NOT NULL,
+        staff_id VARCHAR(36) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_user_salon (salon_id)
+    ) ENGINE=InnoDB;`,
+
+    `CREATE TABLE IF NOT EXISTS customers (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        phone VARCHAR(20) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB;`
   ];
 
   for (const sql of tables) {
     await pool.query(sql);
+  }
+
+  // Safe Column additions for existing installations
+  const safeColumns = [
+    `ALTER TABLE services ADD COLUMN pricing_type ENUM('FIXED', 'STARTING_AT', 'FLEXIBLE_CHAIR') DEFAULT 'FIXED';`,
+    `ALTER TABLE queue_tickets ADD COLUMN routing_preference ENUM('AUTO_FASTEST', 'SPECIFIC_STYLIST') DEFAULT 'AUTO_FASTEST';`,
+    `ALTER TABLE queue_tickets ADD COLUMN customer_id VARCHAR(36) NULL;`,
+    `ALTER TABLE stylists ADD COLUMN username VARCHAR(100) NULL;`,
+    `ALTER TABLE stylists ADD COLUMN custom_avg_duration_minutes INT NULL;`
+  ];
+
+  for (const colSql of safeColumns) {
+    try {
+      await pool.query(colSql);
+    } catch (e) {
+      // Column already exists, ignore
+    }
   }
 }
 

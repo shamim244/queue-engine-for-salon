@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { repository, seedDemoData } from '../src/db/repository';
 import { queueEngine } from '../src/engine/queue-engine';
+import { authService } from '../src/auth/auth-service';
 
 describe('Engine Que System - Core Queue State Machine Tests', () => {
   beforeEach(() => {
@@ -117,5 +118,59 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
     const reSummoned = await queueEngine.callNext(salon!.id);
     expect(reSummoned?.id).toBe(ticket.id);
     expect(reSummoned?.status).toBe('SUMMONED');
+  });
+
+  it('should authenticate Super Admin, Owner, and Staff with bcrypt', async () => {
+    await authService.seedDefaultUsers();
+
+    // 1. Super Admin login
+    const admin = await authService.authenticateUser('admin', 'Admin@123');
+    expect(admin).not.toBeNull();
+    expect(admin?.role).toBe('SUPER_ADMIN');
+
+    // 2. Rural Barber staff login
+    const ramesh = await authService.authenticateUser('ramesh', 'Ramesh@123');
+    expect(ramesh).not.toBeNull();
+    expect(ramesh?.role).toBe('STAFF');
+    expect(ramesh?.staffId).toBe('stylist-ramesh-01');
+
+    // 3. Modern Salon Owner login
+    const owner = await authService.authenticateUser('aura_owner', 'Aura@123');
+    expect(owner).not.toBeNull();
+    expect(owner?.role).toBe('SALON_OWNER');
+
+    // 4. Invalid password rejection
+    const invalid = await authService.authenticateUser('admin', 'WrongPassword');
+    expect(invalid).toBeNull();
+  });
+
+  it('should support flexible rural pricing checkout with custom cash amount', async () => {
+    const ticket = await queueEngine.checkIn({
+      salonSlug: 'ramesh-barber',
+      customerName: 'Suresh Kumar',
+      customerPhone: '9871112223',
+      serviceId: 'srv-r-1', // Default base price ₹80
+    });
+
+    const salon = await repository.getSalonBySlug('ramesh-barber');
+    const summoned = await queueEngine.callNext(salon!.id);
+    const seated = await queueEngine.seatCustomer(summoned!.id);
+
+    // In chair, barber decides to charge ₹100 instead of standard ₹80
+    const finished = await queueEngine.finishService(seated!.id, 'CASH_PAID', 100);
+    expect(finished?.status).toBe('COMPLETED');
+    expect(finished?.paymentStatus).toBe('CASH_PAID');
+    expect(finished?.paymentAmount).toBe(100); // Confirmed flexible custom amount
+  });
+
+  it('should update stylist speed calibration in repository', async () => {
+    const updated = await repository.updateStylistPreference('stylist-ramesh-01', {
+      customAvgDurationMinutes: 15,
+    });
+    expect(updated).toBe(true);
+
+    const salon = await repository.getSalonBySlug('ramesh-barber');
+    const ramesh = salon?.stylists.find(s => s.id === 'stylist-ramesh-01');
+    expect(ramesh?.customAvgDurationMinutes).toBe(15);
   });
 });

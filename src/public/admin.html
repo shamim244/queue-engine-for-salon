@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Super Admin Platform - Engine Que</title>
+  <link rel="stylesheet" href="/app.css">
+  <style>
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      text-align: center;
+    }
+    .kpi-val {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #38bdf8;
+    }
+    .kpi-lbl {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .tenant-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container-wide">
+    <div class="header-bar">
+      <div>
+        <h1 style="font-size: 1.4rem; font-weight: 800;">⚡ Super Admin Platform Oversight</h1>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Engine Que Multi-Tenant SaaS Engine (Bun + MySQL)</p>
+      </div>
+      <div>
+        <span class="salon-badge" id="adminBadge">🔒 Platform Locked</span>
+      </div>
+    </div>
+
+    <!-- 1. LOGIN VIEW -->
+    <div id="adminLoginView" class="card" style="max-width: 480px; margin: 40px auto;">
+      <h2 style="font-size: 1.2rem; margin-bottom: 12px;">Super Admin Authentication</h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+        Requires Super Admin credentials to oversee all tenant salons and platform metrics.
+      </p>
+
+      <form onsubmit="handleAdminLogin(event)">
+        <div style="margin-bottom: 12px;">
+          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Username</label>
+          <input type="text" id="adminUsername" required placeholder="admin" style="width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text); font-size:1rem;">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Password</label>
+          <input type="password" id="adminPassword" required placeholder="••••••••" style="width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text); font-size:1rem;">
+        </div>
+        <button type="submit" class="btn btn-primary">Sign In as Super Admin</button>
+      </form>
+
+      <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; text-align: center;">
+        <button type="button" class="btn" style="background: rgba(255,255,255,0.08); padding: 8px 14px; font-size: 0.85rem;" onclick="fillAdminDemo()">
+          ⚡ Quick Demo Login (admin / Admin@123)
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. ADMIN DASHBOARD -->
+    <div id="adminApp" style="display: none;">
+      <!-- KPIs -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-val" id="kpiSalons">0</div>
+          <div class="kpi-lbl">Total Salons</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="kpiActiveWaiting">0</div>
+          <div class="kpi-lbl">Live In Queue</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="kpiTotalServed">0</div>
+          <div class="kpi-lbl">Customers Served</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="kpiPlatformRev">₹0</div>
+          <div class="kpi-lbl">Platform Volume</div>
+        </div>
+      </div>
+
+      <!-- Tenants List -->
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <h2 style="font-size: 1.2rem;">Tenant Salons & Operating Modes</h2>
+          <button class="btn btn-danger" style="width: auto; padding: 6px 14px; font-size: 0.8rem;" onclick="handleAdminLogout()">Log Out</button>
+        </div>
+        <div id="tenantsList">
+          <p style="color: var(--text-muted); font-size: 0.85rem;">Loading tenant directory...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentAdmin = null;
+
+    const stored = sessionStorage.getItem('admin_session');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed.user.role === 'SUPER_ADMIN') applyAdminSession(parsed);
+      } catch (e) {}
+    }
+
+    function fillAdminDemo() {
+      document.getElementById('adminUsername').value = 'admin';
+      document.getElementById('adminPassword').value = 'Admin@123';
+    }
+
+    async function handleAdminLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('adminUsername').value.trim();
+      const password = document.getElementById('adminPassword').value;
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.message || 'Login failed');
+          return;
+        }
+
+        if (data.user.role !== 'SUPER_ADMIN') {
+          alert('Access denied: You must be a Super Admin.');
+          return;
+        }
+
+        sessionStorage.setItem('admin_session', JSON.stringify(data));
+        applyAdminSession(data);
+      } catch (err) {
+        alert('Sign in failed: ' + err.message);
+      }
+    }
+
+    function applyAdminSession(data) {
+      currentAdmin = data.user;
+      document.getElementById('adminLoginView').style.display = 'none';
+      document.getElementById('adminApp').style.display = 'block';
+      document.getElementById('adminBadge').innerText = '🛡️ Super Admin: ' + currentAdmin.username;
+      document.getElementById('adminBadge').className = 'salon-badge';
+
+      loadPlatformMetrics();
+    }
+
+    function handleAdminLogout() {
+      sessionStorage.removeItem('admin_session');
+      location.reload();
+    }
+
+    async function loadPlatformMetrics() {
+      try {
+        const res = await fetch('/api/auth/platform/metrics');
+        const data = await res.json();
+
+        document.getElementById('kpiSalons').innerText = data.totalSalons || 0;
+        document.getElementById('kpiActiveWaiting').innerText = data.totalActiveTickets || 0;
+        document.getElementById('kpiTotalServed').innerText = data.totalServedAllTime || 0;
+        document.getElementById('kpiPlatformRev').innerText = '₹' + (data.totalRevenueAllTime || 0);
+
+        renderTenants(data.salons || []);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function renderTenants(salons) {
+      const container = document.getElementById('tenantsList');
+      if (salons.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted); font-size:0.85rem;">No salons registered in database.</p>';
+        return;
+      }
+
+      container.innerHTML = salons.map(s => `
+        <div class="tenant-card">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+            <div>
+              <h3 style="font-size: 1.15rem; font-weight: 700;">${s.name}</h3>
+              <div style="font-size: 0.85rem; color: var(--text-muted);">
+                Slug: <code>/s/${s.slug}</code> • Phone: ${s.phone} • Stylists: ${s.stylistCount} • Services: ${s.serviceCount}
+              </div>
+            </div>
+            <div>
+              <button class="salon-badge ${s.operatingMode === 'RURAL_SOLO' ? 'badge-rural' : ''}" style="cursor: pointer; border: 1px solid var(--border);" onclick="toggleMode('${s.id}', '${s.operatingMode}')">
+                🔄 Mode: <b>${s.operatingMode}</b> (Click to toggle)
+              </button>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px;">
+            <a href="/s/${s.slug}" target="_blank" class="quick-chip">📱 Customer Door QR</a>
+            <a href="/s/${s.slug}/poster" target="_blank" class="quick-chip">🪞 Mirror Poster</a>
+            <a href="/s/${s.slug}/tv" target="_blank" class="quick-chip">📺 Lobby TV</a>
+            <a href="/s/${s.slug}/desk" target="_blank" class="quick-chip">💻 Front Desk</a>
+            <a href="/s/${s.slug}/staff" target="_blank" class="quick-chip">💈 Staff Station</a>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function toggleMode(salonId, currentMode) {
+      const newMode = currentMode === 'RURAL_SOLO' ? 'MODERN_MULTI' : 'RURAL_SOLO';
+      if (!confirm(`Switch this salon from ${currentMode} to ${newMode}?`)) return;
+
+      try {
+        const res = await fetch(`/api/salons/${salonId}/mode`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: newMode }),
+        });
+        if (res.ok) {
+          loadPlatformMetrics();
+        }
+      } catch (e) {
+        alert('Toggle failed');
+      }
+    }
+  </script>
+</body>
+</html>

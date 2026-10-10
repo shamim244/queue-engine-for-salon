@@ -1,5 +1,11 @@
 export type SalonOperatingMode = 'RURAL_SOLO' | 'MODERN_MULTI';
 
+export type UserRole = 'SUPER_ADMIN' | 'SALON_OWNER' | 'STAFF';
+
+export type PricingType = 'FIXED' | 'STARTING_AT' | 'FLEXIBLE_CHAIR';
+
+export type RoutingPreference = 'AUTO_FASTEST' | 'SPECIFIC_STYLIST';
+
 export type TicketStatus = 
   | 'WAITING'       // Waiting in virtual queue
   | 'SUMMONED'      // Called to chair (T-10m warning or Ready)
@@ -12,6 +18,24 @@ export type TicketStatus =
 export type TicketSource = 'QR_SCAN' | 'BARBER_QUICK_ADD' | 'RECEPTIONIST' | 'REMOTE_WEB';
 
 export type PaymentStatus = 'PENDING' | 'CASH_PAID' | 'ONLINE_PAID';
+
+export interface User {
+  id: string;
+  salonId?: string | null;
+  username: string;
+  passwordHash: string;
+  role: UserRole;
+  staffId?: string | null;
+  createdAt: Date | string;
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  passwordHash?: string | null;
+  createdAt: Date | string;
+}
 
 export interface ServiceAddOn {
   id: string;
@@ -26,6 +50,7 @@ export interface ServiceDefinition {
   name: string;
   basePrice: number;
   estimatedDurationMinutes: number;
+  pricingType?: PricingType;
   isAddOn: boolean;
   icon?: string;
 }
@@ -35,6 +60,8 @@ export interface Stylist {
   salonId: string;
   name: string;
   phone: string;
+  username?: string | null;
+  customAvgDurationMinutes?: number | null;
   isActive: boolean;
   historicalAvgDurationMinutes: number;
   currentTicketId?: string | null;
@@ -62,6 +89,7 @@ export interface QueueTicket {
   ticketNumber: number;
   customerName: string;
   customerPhone: string;
+  customerId?: string | null;
   serviceId: string;
   serviceName: string;
   selectedAddOns: ServiceAddOn[];
@@ -69,6 +97,7 @@ export interface QueueTicket {
   totalDurationMinutes: number;
   status: TicketStatus;
   source: TicketSource;
+  routingPreference: RoutingPreference;
   estimatedWaitMinutes: number;
   checkInTime: string;
   summonedTime?: string | null;

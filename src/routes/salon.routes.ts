@@ -64,4 +64,52 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
         icon: t.Optional(t.String()),
       }))),
     })
+  })
+
+  // 4. Add Service (Salon Owner)
+  .post('/:id/services', async ({ params, body, error }) => {
+    try {
+      const b = body as {
+        name: string;
+        basePrice: number;
+        estimatedDurationMinutes: number;
+        pricingType?: 'FIXED' | 'STARTING_AT' | 'FLEXIBLE_CHAIR';
+        isAddOn?: boolean;
+        icon?: string;
+      };
+      const serviceId = 'srv-' + Math.random().toString(36).substring(2, 9);
+      const service = await repository.addService({
+        id: serviceId,
+        salonId: params.id,
+        name: b.name.trim(),
+        basePrice: b.basePrice,
+        estimatedDurationMinutes: b.estimatedDurationMinutes,
+        pricingType: b.pricingType || 'FIXED',
+        isAddOn: Boolean(b.isAddOn),
+        icon: b.icon || '✂️',
+      });
+      return { success: true, service };
+    } catch (err: any) {
+      return error(400, { message: err.message });
+    }
+  }, {
+    body: t.Object({
+      name: t.String(),
+      basePrice: t.Number(),
+      estimatedDurationMinutes: t.Number(),
+      pricingType: t.Optional(t.Union([t.Literal('FIXED'), t.Literal('STARTING_AT'), t.Literal('FLEXIBLE_CHAIR')])),
+      isAddOn: t.Optional(t.Boolean()),
+      icon: t.Optional(t.String()),
+    })
+  })
+
+  // 5. Delete Service (Salon Owner)
+  .delete('/:id/services/:serviceId', async ({ params }) => {
+    await repository.deleteService(params.serviceId);
+    return { success: true };
+  })
+
+  // 6. Salon Performance Metrics
+  .get('/:id/metrics', async ({ params }) => {
+    return await repository.getSalonMetrics(params.id);
   });

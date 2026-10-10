@@ -8,6 +8,7 @@ import { seedDemoData } from './src/db/repository';
 import { websocketHub } from './src/websocket/hub';
 import { salonRoutes } from './src/routes/salon.routes';
 import { queueRoutes } from './src/routes/queue.routes';
+import { authRoutes } from './src/routes/auth.routes';
 
 console.log(`\n======================================================`);
 console.log(`🚀 ENGINE QUE SYSTEM FOR SALONS (BUN RUNTIME)`);
@@ -35,6 +36,16 @@ const app = new Elysia()
   }))
   .use(salonRoutes)
   .use(queueRoutes)
+  .use(authRoutes)
+
+  // Subdirectory Shortcuts (/s/:slug)
+  .get('/s/:slug', ({ params, redirect }) => redirect(`/customer.html?salon=${params.slug}`))
+  .get('/s/:slug/poster', ({ params, redirect }) => redirect(`/poster.html?salon=${params.slug}`))
+  .get('/s/:slug/tv', ({ params, redirect }) => redirect(`/tv.html?salon=${params.slug}`))
+  .get('/s/:slug/desk', ({ params, redirect }) => redirect(`/desk.html?salon=${params.slug}`))
+  .get('/s/:slug/barber', ({ params, redirect }) => redirect(`/barber.html?salon=${params.slug}`))
+  .get('/s/:slug/staff', ({ params, redirect }) => redirect(`/staff.html?salon=${params.slug}`))
+  .get('/s/:slug/owner', ({ params, redirect }) => redirect(`/owner.html?salon=${params.slug}`))
 
   // Real-time WebSocket Endpoint
   .ws('/ws', {

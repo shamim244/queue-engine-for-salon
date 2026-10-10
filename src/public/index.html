@@ -45,14 +45,21 @@
         <h1 style="font-size: 1.6rem; font-weight: 800;">💈 Engine Que System</h1>
         <p style="color: var(--text-muted); font-size: 0.9rem;">High-Concurrency Hybrid Queue Engine for Salons (Powered by Bun & MySQL 8.0)</p>
       </div>
-      <div>
-        <a href="/swagger" target="_blank" class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.9rem;">
-      <div style="display: flex; gap: 8px;">
-        <a href="/onboarding.html" class="btn btn-primary" style="padding: 8px 16px; font-size: 0.9rem; width: auto;">
-          ➕ Set Up New Salon
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <a href="/staff.html" class="btn" style="padding: 8px 14px; font-size: 0.85rem; width: auto; background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.4);">
+          💈 Staff Station
         </a>
-        <a href="/swagger" target="_blank" class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.9rem; width: auto;">
-          📖 Swagger API
+        <a href="/owner.html" class="btn" style="padding: 8px 14px; font-size: 0.85rem; width: auto; background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.4);">
+          👑 Owner Hub
+        </a>
+        <a href="/admin.html" class="btn" style="padding: 8px 14px; font-size: 0.85rem; width: auto; background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.4);">
+          🛡️ Super Admin
+        </a>
+        <a href="/onboarding.html" class="btn btn-primary" style="padding: 8px 14px; font-size: 0.85rem; width: auto;">
+          ➕ New Salon
+        </a>
+        <a href="/swagger" target="_blank" class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.85rem; width: auto;">
+          📖 Swagger
         </a>
       </div>
     </div>
@@ -71,14 +78,17 @@
         </p>
 
         <div style="margin-top: 12px;">
-          <a href="/poster.html?salon=ramesh-barber" target="_blank" class="action-link" style="background: rgba(255, 255, 255, 0.08); color: #f8fafc;">
-            🖨️ <strong>Printable Mirror Poster</strong> (Minimalist QR) ➔
+          <a href="/s/ramesh-barber/poster" target="_blank" class="action-link" style="background: rgba(255, 255, 255, 0.08); color: #f8fafc;">
+            🖨️ <strong>Printable Mirror Poster</strong> (<code>/s/ramesh-barber/poster</code>) ➔
           </a>
-          <a href="/barber.html?salon=ramesh-barber" target="_blank" class="action-link" style="background: rgba(249, 115, 22, 0.15); color: #fb923c;">
-            📱 <strong>Launch Barber Phone Interface</strong> (1-Tap & Voice TTS) ➔
+          <a href="/s/ramesh-barber/staff" target="_blank" class="action-link" style="background: rgba(34, 197, 94, 0.15); color: #4ade80;">
+            💈 <strong>Staff Station (Ramesh)</strong> (<code>ramesh / Ramesh@123</code>) ➔
           </a>
-          <a href="/customer.html?salon=ramesh-barber" target="_blank" class="action-link">
-            🚪 <strong>Customer Door QR Check-in</strong> (&lt;250KB Web Flow) ➔
+          <a href="/s/ramesh-barber/barber" target="_blank" class="action-link" style="background: rgba(249, 115, 22, 0.15); color: #fb923c;">
+            📱 <strong>Legacy Barber Phone UI</strong> (1-Tap & Voice TTS) ➔
+          </a>
+          <a href="/s/ramesh-barber" target="_blank" class="action-link">
+            🚪 <strong>Customer Door QR Check-in</strong> (<code>/s/ramesh-barber</code>) ➔
           </a>
         </div>
       </div>
@@ -95,17 +105,23 @@
         </p>
 
         <div style="margin-top: 12px;">
-          <a href="/poster.html?salon=aura-salon" target="_blank" class="action-link" style="background: rgba(255, 255, 255, 0.08); color: #f8fafc;">
-            🖨️ <strong>Printable Mirror Poster</strong> (Minimalist QR) ➔
+          <a href="/s/aura-salon/owner" target="_blank" class="action-link" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+            👑 <strong>Salon Owner Hub</strong> (<code>aura_owner / Aura@123</code>) ➔
           </a>
-          <a href="/desk.html?salon=aura-salon" target="_blank" class="action-link" style="background: rgba(37, 99, 235, 0.15); color: #60a5fa;">
+          <a href="/s/aura-salon/staff" target="_blank" class="action-link" style="background: rgba(34, 197, 94, 0.15); color: #4ade80;">
+            💈 <strong>Stylist Station (Leo)</strong> (<code>leo / Leo@123</code>) ➔
+          </a>
+          <a href="/s/aura-salon/poster" target="_blank" class="action-link" style="background: rgba(255, 255, 255, 0.08); color: #f8fafc;">
+            🖨️ <strong>Printable Mirror Poster</strong> (<code>/s/aura-salon/poster</code>) ➔
+          </a>
+          <a href="/s/aura-salon/desk" target="_blank" class="action-link" style="background: rgba(37, 99, 235, 0.15); color: #60a5fa;">
             💻 <strong>Receptionist Master Command Desk</strong> ➔
           </a>
-          <a href="/tv.html?salon=aura-salon" target="_blank" class="action-link">
+          <a href="/s/aura-salon/tv" target="_blank" class="action-link">
             📺 <strong>Lobby TV Digital Departure Board</strong> ➔
           </a>
-          <a href="/customer.html?salon=aura-salon" target="_blank" class="action-link">
-            🚪 <strong>Customer Door QR Check-in</strong> ➔
+          <a href="/s/aura-salon" target="_blank" class="action-link">
+            🚪 <strong>Customer Door QR Check-in</strong> (<code>/s/aura-salon</code>) ➔
           </a>
         </div>
       </div>

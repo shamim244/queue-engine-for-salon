@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salon Owner Hub - Engine Que</title>
+  <link rel="stylesheet" href="/app.css">
+  <style>
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .metric-card {
+      background: var(--surface-light);
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      text-align: center;
+    }
+    .metric-val {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #38bdf8;
+    }
+    .metric-lbl {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .tab-nav {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      background: var(--surface-light);
+      padding: 4px;
+      border-radius: 12px;
+      overflow-x: auto;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: var(--primary);
+      color: #fff;
+    }
+    .staff-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .quick-link-box {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container-wide">
+    <!-- Header -->
+    <div class="header-bar">
+      <div>
+        <h1 style="font-size: 1.4rem; font-weight: 800;" id="ownerTitle">👑 Salon Owner Command</h1>
+        <p style="font-size: 0.85rem; color: var(--text-muted);" id="ownerSubtitle">Engine Que System</p>
+      </div>
+      <div id="authStatusPill">
+        <span class="salon-badge" id="ownerRoleBadge">🔒 Sign In Required</span>
+      </div>
+    </div>
+
+    <!-- 1. LOGIN VIEW -->
+    <div id="ownerLoginView" class="card" style="max-width: 500px; margin: 0 auto 30px auto;">
+      <h2 style="font-size: 1.2rem; margin-bottom: 10px;">Salon Owner Sign In</h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+        Sign in to manage your stylists, User IDs, service menu prices, and mirror QR posters.
+      </p>
+
+      <form onsubmit="handleOwnerLogin(event)">
+        <div style="margin-bottom: 12px;">
+          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Username</label>
+          <input type="text" id="ownerUsernameInput" required placeholder="e.g. aura_owner" style="width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text); font-size:1rem;">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Password</label>
+          <input type="password" id="ownerPasswordInput" required placeholder="••••••••" style="width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text); font-size:1rem;">
+        </div>
+        <button type="submit" class="btn btn-primary">Sign In as Owner</button>
+      </form>
+
+      <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; text-align: center;">
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Quick Demo Login:</span>
+        <button type="button" class="btn" style="background: rgba(255,255,255,0.08); padding: 8px 14px; font-size: 0.85rem; margin-top: 6px;" onclick="fillOwnerDemo('aura_owner', 'Aura@123')">
+          👑 Aura Salon Owner (Aura@123)
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. LOGGED-IN OWNER DASHBOARD -->
+    <div id="ownerApp" style="display: none;">
+      <!-- Live Metrics Bar -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-val" id="metServed">0</div>
+          <div class="metric-lbl">Served Today</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-val" id="metRevenue">₹0</div>
+          <div class="metric-lbl">Revenue Today</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-val" id="metWaiting">0</div>
+          <div class="metric-lbl">Active Waiting</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-val" id="metAvgWait">0m</div>
+          <div class="metric-lbl">Avg Wait</div>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="tab-nav">
+        <button class="tab-btn active" id="tabStaffBtn" onclick="switchOwnerTab('staff')">👥 Staff & Logins</button>
+        <button class="tab-btn" id="tabMenuBtn" onclick="switchOwnerTab('menu')">✂️ Services & Pricing</button>
+        <button class="tab-btn" id="tabLinksBtn" onclick="switchOwnerTab('links')">🔗 Posters & Links</button>
+        <button class="tab-btn" style="color: var(--danger);" onclick="handleOwnerLogout()">🚪 Log Out</button>
+      </div>
+
+      <!-- TAB 1: STAFF & LOGINS -->
+      <div id="ownerTabStaff">
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <h3 style="font-size: 1.1rem;">Stylist User Accounts</h3>
+            <button class="btn btn-primary" style="width: auto; padding: 8px 16px; font-size: 0.85rem;" onclick="toggleAddStaffModal()">
+              + Create Staff Login
+            </button>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+            Stylists log in at <code>/staff.html</code> using their unique alphanumeric Username and Password to manage chairs.
+          </p>
+
+          <div id="staffListContainer">
+            <p style="color: var(--text-muted); font-size: 0.85rem;">Loading staff list...</p>
+          </div>
+        </div>
+
+        <!-- Add Staff Login Form (Collapsible) -->
+        <div id="addStaffModal" class="card" style="display: none; border: 2px solid var(--primary);">
+          <h4 style="font-size: 1rem; margin-bottom: 10px;">Create Staff Login Credentials</h4>
+          <form onsubmit="handleCreateStaff(event)">
+            <div style="margin-bottom: 10px;">
+              <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Select Stylist</label>
+              <select id="staffStylistSelect" required style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
+              </select>
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+              <div style="flex: 1;">
+                <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Username</label>
+                <input type="text" id="newStaffUsername" required placeholder="e.g. maria_stylist" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
+              </div>
+              <div style="flex: 1;">
+                <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Initial Password</label>
+                <input type="text" id="newStaffPassword" required minlength="6" placeholder="Min 6 chars" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="submit" class="btn btn-success" style="flex: 1; padding: 10px;">Save Credentials</button>
+              <button type="button" class="btn" style="flex: 1; padding: 10px; background: var(--surface-light);" onclick="toggleAddStaffModal()">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- TAB 2: SERVICES & PRICING -->
+      <div id="ownerTabMenu" style="display: none;">
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <h3 style="font-size: 1.1rem;">Service Catalog & Rural Pricing Models</h3>
+            <button class="btn btn-primary" style="width: auto; padding: 8px 16px; font-size: 0.85rem;" onclick="toggleAddServiceModal()">
+              + Add New Service
+            </button>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+            Choose <b>FIXED</b> for standard salons, or <b>STARTING_AT / FLEXIBLE_CHAIR</b> for rural barber shops where final prices are agreed at the chair.
+          </p>
+
+          <div id="servicesListContainer">
+            <p style="color: var(--text-muted); font-size: 0.85rem;">Loading services...</p>
+          </div>
+        </div>
+
+        <!-- Add Service Modal -->
+        <div id="addServiceModal" class="card" style="display: none; border: 2px solid var(--primary);">
+          <h4 style="font-size: 1rem; margin-bottom: 10px;">Add Service to Menu</h4>
+          <form onsubmit="handleCreateService(event)">
+            <div style="margin-bottom: 10px;">
+              <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Service Name</label>
+              <input type="text" id="newServiceName" required placeholder="e.g. Traditional Haircut & Wash" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+              <div style="flex: 1;">
+                <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Base Price (₹)</label>
+                <input type="number" id="newServicePrice" required min="0" placeholder="100" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
+              </div>
+              <div style="flex: 1;">
+                <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Est. Duration (mins)</label>
+                <input type="number" id="newServiceDuration" required min="5" value="25" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
+              </div>
+            </div>
+            <div style="margin-bottom: 12px;">
+              <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Pricing Strategy</label>
+              <select id="newServicePricingType" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
+                <option value="FIXED">FIXED (Fixed exact price)</option>
+                <option value="STARTING_AT">STARTING_AT (Price starts from ₹X)</option>
+                <option value="FLEXIBLE_CHAIR">FLEXIBLE_CHAIR (Rural flexible, adjusted in chair)</option>
+              </select>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="submit" class="btn btn-success" style="flex: 1; padding: 10px;">Add Service</button>
+              <button type="button" class="btn" style="flex: 1; padding: 10px; background: var(--surface-light);" onclick="toggleAddServiceModal()">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- TAB 3: POSTERS & VANITY LINKS -->
+      <div id="ownerTabLinks" style="display: none;">
+        <div class="card">
+          <h3 style="font-size: 1.1rem; margin-bottom: 12px;">Salon Direct QR & Station Links</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+            One-click links using your clean salon short URL (<code>/s/<span id="slugDisplay">salon</span></code>):
+          </p>
+
+          <div class="quick-link-box">
+            <div>
+              <div style="font-weight: 700;">🪞 Printable Mirror Poster</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Minimalist English high-contrast QR poster for barber mirrors</div>
+            </div>
+            <a id="linkPoster" href="#" target="_blank" class="btn btn-primary" style="width: auto; padding: 8px 14px; font-size: 0.85rem;">Print Poster</a>
+          </div>
+
+          <div class="quick-link-box">
+            <div>
+              <div style="font-weight: 700;">📱 Customer Door QR Check-in</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Self-service check-in & live wait tracker</div>
+            </div>
+            <a id="linkCustomer" href="#" target="_blank" class="btn" style="width: auto; padding: 8px 14px; font-size: 0.85rem; background: var(--surface-light); border: 1px solid var(--border);">Open Page</a>
+          </div>
+
+          <div class="quick-link-box">
+            <div>
+              <div style="font-weight: 700;">📺 TV Departure Board</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">High-contrast lobby TV queue board with privacy phone masking</div>
+            </div>
+            <a id="linkTv" href="#" target="_blank" class="btn" style="width: auto; padding: 8px 14px; font-size: 0.85rem; background: var(--surface-light); border: 1px solid var(--border);">Open TV</a>
+          </div>
+
+          <div class="quick-link-box">
+            <div>
+              <div style="font-weight: 700;">💻 Reception Desk</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Multi-station command desk for front-desk receptionists</div>
+            </div>
+            <a id="linkDesk" href="#" target="_blank" class="btn" style="width: auto; padding: 8px 14px; font-size: 0.85rem; background: var(--surface-light); border: 1px solid var(--border);">Open Desk</a>
+          </div>
+
+          <div class="quick-link-box">
+            <div>
+              <div style="font-weight: 700;">💈 Staff Station Panel</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Stylist login, chair control & pace calibration</div>
+            </div>
+            <a id="linkStaff" href="#" target="_blank" class="btn" style="width: auto; padding: 8px 14px; font-size: 0.85rem; background: var(--surface-light); border: 1px solid var(--border);">Open Staff</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentOwner = null;
+    let currentSalon = null;
+    let salonStylists = [];
+    let staffUsers = [];
+
+    const stored = sessionStorage.getItem('owner_session');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        applyOwnerSession(parsed);
+      } catch (e) {}
+    }
+
+    function fillOwnerDemo(u, p) {
+      document.getElementById('ownerUsernameInput').value = u;
+      document.getElementById('ownerPasswordInput').value = p;
+    }
+
+    async function handleOwnerLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('ownerUsernameInput').value.trim();
+      const password = document.getElementById('ownerPasswordInput').value;
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.message || 'Login failed');
+          return;
+        }
+
+        if (data.user.role !== 'SALON_OWNER' && data.user.role !== 'SUPER_ADMIN') {
+          alert('Access denied: You must be a Salon Owner or Super Admin.');
+          return;
+        }
+
+        sessionStorage.setItem('owner_session', JSON.stringify(data));
+        applyOwnerSession(data);
+      } catch (err) {
+        alert('Error signing in: ' + err.message);
+      }
+    }
+
+    function applyOwnerSession(data) {
+      currentOwner = data.user;
+      currentSalon = data.salon;
+
+      document.getElementById('ownerLoginView').style.display = 'none';
+      document.getElementById('ownerApp').style.display = 'block';
+
+      document.getElementById('ownerTitle').innerText = '👑 ' + (currentSalon ? currentSalon.name : 'Salon Owner');
+      document.getElementById('ownerSubtitle').innerText = currentSalon ? `Slug: /s/${currentSalon.slug}` : 'Engine Que System';
+      document.getElementById('ownerRoleBadge').innerText = `Owner: ${currentOwner.username}`;
+      document.getElementById('slugDisplay').innerText = currentSalon ? currentSalon.slug : 'salon';
+
+      // Setup short links
+      if (currentSalon) {
+        document.getElementById('linkPoster').href = `/s/${currentSalon.slug}/poster`;
+        document.getElementById('linkCustomer').href = `/s/${currentSalon.slug}`;
+        document.getElementById('linkTv').href = `/s/${currentSalon.slug}/tv`;
+        document.getElementById('linkDesk').href = `/s/${currentSalon.slug}/desk`;
+        document.getElementById('linkStaff').href = `/s/${currentSalon.slug}/staff`;
+      }
+
+      loadSalonData();
+      loadMetrics();
+    }
+
+    function handleOwnerLogout() {
+      sessionStorage.removeItem('owner_session');
+      location.reload();
+    }
+
+    function switchOwnerTab(tab) {
+      document.getElementById('ownerTabStaff').style.display = tab === 'staff' ? 'block' : 'none';
+      document.getElementById('ownerTabMenu').style.display = tab === 'menu' ? 'block' : 'none';
+      document.getElementById('ownerTabLinks').style.display = tab === 'links' ? 'block' : 'none';
+
+      document.getElementById('tabStaffBtn').className = tab === 'staff' ? 'tab-btn active' : 'tab-btn';
+      document.getElementById('tabMenuBtn').className = tab === 'menu' ? 'tab-btn active' : 'tab-btn';
+      document.getElementById('tabLinksBtn').className = tab === 'links' ? 'tab-btn active' : 'tab-btn';
+    }
+
+    async function loadSalonData() {
+      if (!currentSalon) return;
+      try {
+        const res = await fetch(`/api/salons/${currentSalon.slug}`);
+        const data = await res.json();
+        currentSalon = data.salon;
+        salonStylists = currentSalon.stylists || [];
+
+        // Populate stylist select
+        const sel = document.getElementById('staffStylistSelect');
+        sel.innerHTML = salonStylists.map(s => `<option value="${s.id}">${s.name} (${s.phone})</option>`).join('');
+
+        loadStaffLogins();
+        renderServices(currentSalon.services || []);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadStaffLogins() {
+      if (!currentSalon) return;
+      try {
+        const res = await fetch(`/api/auth/staff/${currentSalon.id}`);
+        const data = await res.json();
+        staffUsers = data.staffUsers || [];
+
+        const container = document.getElementById('staffListContainer');
+        if (salonStylists.length === 0) {
+          container.innerHTML = '<p style="color:var(--text-muted); font-size:0.85rem;">No stylists found for this salon.</p>';
+          return;
+        }
+
+        container.innerHTML = salonStylists.map(st => {
+          const user = staffUsers.find(u => u.staffId === st.id);
+          return `
+            <div class="staff-row">
+              <div>
+                <div style="font-weight: 700; font-size: 0.95rem;">${st.name}</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">
+                  Phone: ${st.phone} • Avg Pace: ${st.customAvgDurationMinutes || st.historicalAvgDurationMinutes || 25}m
+                </div>
+              </div>
+              <div style="text-align: right;">
+                ${user ? `
+                  <span class="salon-badge" style="background: rgba(34, 197, 94, 0.15); color: #4ade80;">
+                    🔑 Username: <b>${user.username}</b>
+                  </span>
+                ` : `
+                  <button class="btn btn-primary" style="width:auto; padding:6px 12px; font-size:0.8rem;" onclick="promptCreateUserFor('${st.id}', '${st.name}')">
+                    + Set Credentials
+                  </button>
+                `}
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function renderServices(services) {
+      const container = document.getElementById('servicesListContainer');
+      if (services.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted); font-size:0.85rem;">No services created yet.</p>';
+        return;
+      }
+
+      container.innerHTML = services.map(s => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-weight:700; font-size:0.95rem;">${s.icon || '✂️'} ${s.name}</div>
+            <div style="font-size:0.8rem; color:var(--text-muted);">
+              ${s.estimatedDurationMinutes} mins • Type: <span class="salon-badge" style="font-size:0.75rem;">${s.pricingType || 'FIXED'}</span>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span style="font-size:1.1rem; font-weight:700; color:#38bdf8;">₹${s.basePrice}</span>
+            <button class="btn btn-danger" style="width:auto; padding:6px 10px; font-size:0.8rem;" onclick="handleDeleteService('${s.id}')">✕</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function loadMetrics() {
+      if (!currentSalon) return;
+      try {
+        const res = await fetch(`/api/salons/${currentSalon.id}/metrics`);
+        const data = await res.json();
+        document.getElementById('metServed').innerText = data.totalServedToday || 0;
+        document.getElementById('metRevenue').innerText = '₹' + (data.totalRevenueToday || 0);
+        document.getElementById('metWaiting').innerText = data.activeQueueCount || 0;
+        document.getElementById('metAvgWait').innerText = (data.avgWaitTime || 0) + 'm';
+      } catch (e) {}
+    }
+
+    function toggleAddStaffModal() {
+      const m = document.getElementById('addStaffModal');
+      m.style.display = m.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function promptCreateUserFor(staffId, staffName) {
+      document.getElementById('staffStylistSelect').value = staffId;
+      document.getElementById('newStaffUsername').value = staffName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      document.getElementById('newStaffPassword').value = 'Pass@123';
+      document.getElementById('addStaffModal').style.display = 'block';
+    }
+
+    async function handleCreateStaff(e) {
+      e.preventDefault();
+      const staffId = document.getElementById('staffStylistSelect').value;
+      const username = document.getElementById('newStaffUsername').value.trim();
+      const password = document.getElementById('newStaffPassword').value;
+
+      try {
+        const res = await fetch('/api/auth/staff/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            salonId: currentSalon.id,
+            staffId,
+            username,
+            password,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`Staff credentials created for '${username}'!`);
+          document.getElementById('addStaffModal').style.display = 'none';
+          loadStaffLogins();
+        } else {
+          alert(data.message || 'Failed to create staff credentials');
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    function toggleAddServiceModal() {
+      const m = document.getElementById('addServiceModal');
+      m.style.display = m.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function handleCreateService(e) {
+      e.preventDefault();
+      const name = document.getElementById('newServiceName').value.trim();
+      const basePrice = parseFloat(document.getElementById('newServicePrice').value);
+      const estimatedDurationMinutes = parseInt(document.getElementById('newServiceDuration').value);
+      const pricingType = document.getElementById('newServicePricingType').value;
+
+      try {
+        const res = await fetch(`/api/salons/${currentSalon.id}/services`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            basePrice,
+            estimatedDurationMinutes,
+            pricingType,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Service added!');
+          document.getElementById('addServiceModal').style.display = 'none';
+          loadSalonData();
+        } else {
+          alert(data.message || 'Failed to add service');
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function handleDeleteService(serviceId) {
+      if (!confirm('Are you sure you want to remove this service?')) return;
+      try {
+        await fetch(`/api/salons/${currentSalon.id}/services/${serviceId}`, {
+          method: 'DELETE',
+        });
+        loadSalonData();
+      } catch (err) {
+        alert('Delete failed');
+      }
+    }
+  </script>
+</body>
+</html>

@@ -165,6 +165,7 @@ export const repository = {
           phone: r.phone,
           isActive: Boolean(r.is_active),
           historicalAvgDurationMinutes: r.historical_avg_duration_minutes,
+          customAvgDurationMinutes: r.custom_avg_duration_minutes || null,
         })),
         services: serviceRows.map((r: any) => ({
           id: r.id,
@@ -172,6 +173,7 @@ export const repository = {
           name: r.name,
           basePrice: Number(r.base_price),
           estimatedDurationMinutes: Number(r.estimated_duration_minutes),
+          pricingType: r.pricing_type || 'FIXED',
           isAddOn: Boolean(r.is_add_on),
           icon: r.icon,
         })),
@@ -483,5 +485,156 @@ export const repository = {
     }
 
     return ticket;
+  },
+
+  async updateStylistPreference(
+    stylistId: string,
+    updates: { customAvgDurationMinutes?: number; isActive?: boolean }
+  ): Promise<boolean> {
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query(
+        `UPDATE stylists 
+         SET custom_avg_duration_minutes = COALESCE(?, custom_avg_duration_minutes),
+             is_active = COALESCE(?, is_active)
+         WHERE id = ?`,
+        [
+          updates.customAvgDurationMinutes !== undefined ? updates.customAvgDurationMinutes : null,
+          updates.isActive !== undefined ? updates.isActive : null,
+          stylistId,
+        ]
+      );
+    }
+
+    const stylist = memoryStore.stylists.get(stylistId);
+    if (stylist) {
+      if (updates.customAvgDurationMinutes !== undefined) {
+        stylist.customAvgDurationMinutes = updates.customAvgDurationMinutes;
+      }
+      if (updates.isActive !== undefined) {
+        stylist.isActive = updates.isActive;
+      }
+    }
+    return true;
+  },
+
+  async addService(service: ServiceDefinition): Promise<ServiceDefinition> {
+    memoryStore.services.set(service.id, service);
+    for (const salon of memoryStore.salons.values()) {
+      if (salon.id === service.salonId) {
+        salon.services.push(service);
+        break;
+      }
+    }
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query(
+        `INSERT INTO services (id, salon_id, name, base_price, estimated_duration_minutes, pricing_type, is_add_on, icon)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          service.id,
+          service.salonId,
+          service.name,
+          service.basePrice,
+          service.estimatedDurationMinutes,
+          service.pricingType || 'FIXED',
+          service.isAddOn ? 1 : 0,
+          service.icon || '✂️',
+        ]
+      );
+    }
+    return service;
+  },
+
+  async deleteService(serviceId: string): Promise<boolean> {
+    memoryStore.services.delete(serviceId);
+    for (const salon of memoryStore.salons.values()) {
+      salon.services = salon.services.filter((s) => s.id !== serviceId);
+    }
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query('DELETE FROM services WHERE id = ?', [serviceId]);
+    }
+    return true;
+  },
+
+  async getSalonMetrics(salonId: string) {
+    const activeTickets = await repository.getActiveTickets(salonId);
+    let totalServedToday = 0;
+    let totalRevenueToday = 0;
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      const [rows]: any = await db.query(
+        `SELECT COUNT(*) as served, COALESCE(SUM(payment_amount), 0) as revenue
+         FROM queue_tickets
+         WHERE salon_id = ? AND status = 'COMPLETED' AND DATE(completed_time) = CURRENT_DATE()`,
+        [salonId]
+      );
+      if (rows.length > 0) {
+        totalServedToday = Number(rows[0].served);
+        totalRevenueToday = Number(rows[0].revenue);
+      }
+    } else {
+      const completed = Array.from(memoryStore.tickets.values()).filter(
+        (t) => t.salonId === salonId && t.status === 'COMPLETED'
+      );
+      totalServedToday = completed.length;
+      totalRevenueToday = completed.reduce((sum, t) => sum + (t.paymentAmount || t.totalPrice), 0);
+    }
+
+    const avgWaitTime = activeTickets.length > 0
+      ? Math.round(activeTickets.reduce((sum, t) => sum + t.estimatedWaitMinutes, 0) / activeTickets.length)
+      : 0;
+
+    return {
+      salonId,
+      activeQueueCount: activeTickets.length,
+      totalServedToday,
+      totalRevenueToday,
+      avgWaitTime,
+    };
+  },
+
+  async getPlatformMetrics() {
+    const salons = await repository.getAllSalons();
+    let totalActiveTickets = 0;
+    let totalServedAllTime = 0;
+    let totalRevenueAllTime = 0;
+
+    for (const s of salons) {
+      const active = await repository.getActiveTickets(s.id);
+      totalActiveTickets += active.length;
+    }
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      const [rows]: any = await db.query(
+        `SELECT COUNT(*) as served, COALESCE(SUM(payment_amount), 0) as revenue
+         FROM queue_tickets WHERE status = 'COMPLETED'`
+      );
+      if (rows.length > 0) {
+        totalServedAllTime = Number(rows[0].served);
+        totalRevenueAllTime = Number(rows[0].revenue);
+      }
+    }
+
+    return {
+      totalSalons: salons.length,
+      totalActiveTickets,
+      totalServedAllTime,
+      totalRevenueAllTime,
+      salons: salons.map((s) => ({
+        id: s.id,
+        name: s.name,
+        slug: s.slug,
+        operatingMode: s.operatingMode,
+        phone: s.phone,
+        stylistCount: s.stylists.length,
+        serviceCount: s.services.length,
+      })),
+    };
   },
 };
