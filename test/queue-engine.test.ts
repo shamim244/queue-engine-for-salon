@@ -173,4 +173,57 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
     const ramesh = salon?.stylists.find(s => s.id === 'stylist-ramesh-01');
     expect(ramesh?.customAvgDurationMinutes).toBe(15);
   });
+
+  it('should support enterprise multi-identifier login (phone, email, username)', async () => {
+    await authService.seedDefaultUsers();
+
+    // 1. Phone number login
+    const byPhone = await authService.authenticateUser('9876543210', 'Ramesh@123');
+    expect(byPhone).not.toBeNull();
+    expect(byPhone?.username).toBe('ramesh');
+    expect(byPhone?.session).toBeDefined();
+    expect(byPhone?.session.token.length).toBeGreaterThanOrEqual(32);
+
+    // 2. Email login
+    const byEmail = await authService.authenticateUser('owner@aurasalon.com', 'Aura@123');
+    expect(byEmail).not.toBeNull();
+    expect(byEmail?.username).toBe('aura_owner');
+    expect(byEmail?.organization).not.toBeNull();
+    expect(byEmail?.organization?.tier).toBe('PRO');
+
+    // 3. Session validation
+    const validated = await authService.validateSession(byPhone!.session.token);
+    expect(validated).not.toBeNull();
+    expect(validated?.user.id).toBe(byPhone!.id);
+  });
+
+  it('should authenticate stylists on shared mirror tablets via 4-digit PIN', async () => {
+    await authService.seedDefaultUsers();
+
+    // 1. Valid 4-digit PIN for Ramesh (1234)
+    const staffLogin = await authService.authenticateByPin('salon-rural-01', 'stylist-ramesh-01', '1234');
+    expect(staffLogin).not.toBeNull();
+    expect(staffLogin?.username).toBe('ramesh');
+    expect(staffLogin?.session.token).toBeDefined();
+
+    // 2. Invalid PIN rejection
+    const invalidPin = await authService.authenticateByPin('salon-rural-01', 'stylist-ramesh-01', '9999');
+    expect(invalidPin).toBeNull();
+  });
+
+  it('should support zero-trust session revocation (logout & owner kill switch)', async () => {
+    await authService.seedDefaultUsers();
+
+    const login = await authService.authenticateUser('admin', 'Admin@123');
+    const token = login!.session.token;
+
+    // Validate active session
+    const active = await authService.validateSession(token);
+    expect(active).not.toBeNull();
+
+    // Revoke session
+    await authService.revokeSession(token);
+    const revoked = await authService.validateSession(token);
+    expect(revoked).toBeNull();
+  });
 });

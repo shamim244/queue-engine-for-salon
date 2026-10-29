@@ -138,6 +138,29 @@ async function runMigrations() {
         phone VARCHAR(20) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB;`,
+
+    `CREATE TABLE IF NOT EXISTS organizations (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(150) NOT NULL,
+        slug VARCHAR(100) UNIQUE NOT NULL,
+        tier ENUM('SOLO', 'PRO', 'ENTERPRISE') DEFAULT 'SOLO',
+        owner_id VARCHAR(36) NULL,
+        max_branches INT DEFAULT 1,
+        max_stylists_per_branch INT DEFAULT 2,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB;`,
+
+    `CREATE TABLE IF NOT EXISTS sessions (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        token VARCHAR(128) UNIQUE NOT NULL,
+        ip_address VARCHAR(45) NULL,
+        user_agent VARCHAR(255) NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_session_token (token),
+        INDEX idx_session_user (user_id)
     ) ENGINE=InnoDB;`
   ];
 
@@ -147,11 +170,19 @@ async function runMigrations() {
 
   // Safe Column additions for existing installations
   const safeColumns = [
+    `ALTER TABLE salons ADD COLUMN organization_id VARCHAR(36) NULL;`,
     `ALTER TABLE services ADD COLUMN pricing_type ENUM('FIXED', 'STARTING_AT', 'FLEXIBLE_CHAIR') DEFAULT 'FIXED';`,
     `ALTER TABLE queue_tickets ADD COLUMN routing_preference ENUM('AUTO_FASTEST', 'SPECIFIC_STYLIST') DEFAULT 'AUTO_FASTEST';`,
     `ALTER TABLE queue_tickets ADD COLUMN customer_id VARCHAR(36) NULL;`,
     `ALTER TABLE stylists ADD COLUMN username VARCHAR(100) NULL;`,
-    `ALTER TABLE stylists ADD COLUMN custom_avg_duration_minutes INT NULL;`
+    `ALTER TABLE stylists ADD COLUMN custom_avg_duration_minutes INT NULL;`,
+    `ALTER TABLE users ADD COLUMN organization_id VARCHAR(36) NULL;`,
+    `ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL;`,
+    `ALTER TABLE users ADD COLUMN email VARCHAR(100) NULL;`,
+    `ALTER TABLE users ADD COLUMN pin_hash VARCHAR(255) NULL;`,
+    `ALTER TABLE users ADD COLUMN status ENUM('ACTIVE', 'SUSPENDED', 'INACTIVE') DEFAULT 'ACTIVE';`,
+    `ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP NULL;`,
+    `ALTER TABLE users MODIFY COLUMN role ENUM('SUPER_ADMIN', 'SALON_OWNER', 'BRANCH_MANAGER', 'STAFF') NOT NULL;`
   ];
 
   for (const colSql of safeColumns) {

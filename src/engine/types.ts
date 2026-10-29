@@ -1,6 +1,10 @@
 export type SalonOperatingMode = 'RURAL_SOLO' | 'MODERN_MULTI';
 
-export type UserRole = 'SUPER_ADMIN' | 'SALON_OWNER' | 'STAFF';
+export type SubscriptionTier = 'SOLO' | 'PRO' | 'ENTERPRISE';
+
+export type UserRole = 'SUPER_ADMIN' | 'SALON_OWNER' | 'BRANCH_MANAGER' | 'STAFF' | 'CUSTOMER';
+
+export type UserStatus = 'ACTIVE' | 'SUSPENDED' | 'INACTIVE';
 
 export type PricingType = 'FIXED' | 'STARTING_AT' | 'FLEXIBLE_CHAIR';
 
@@ -19,13 +23,40 @@ export type TicketSource = 'QR_SCAN' | 'BARBER_QUICK_ADD' | 'RECEPTIONIST' | 'RE
 
 export type PaymentStatus = 'PENDING' | 'CASH_PAID' | 'ONLINE_PAID';
 
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  tier: SubscriptionTier;
+  ownerId?: string | null;
+  maxBranches: number;
+  maxStylistsPerBranch: number;
+  createdAt: Date | string;
+}
+
+export interface Session {
+  id: string;
+  userId: string;
+  token: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  expiresAt: Date | string;
+  createdAt: Date | string;
+}
+
 export interface User {
   id: string;
+  organizationId?: string | null;
   salonId?: string | null;
   username: string;
+  phone?: string | null;
+  email?: string | null;
   passwordHash: string;
+  pinHash?: string | null; // 4-digit quick PIN for mirror tablets
   role: UserRole;
   staffId?: string | null;
+  status: UserStatus;
+  lastLoginAt?: Date | string | null;
   createdAt: Date | string;
 }
 
@@ -69,6 +100,7 @@ export interface Stylist {
 
 export interface Salon {
   id: string;
+  organizationId?: string | null;
   name: string;
   slug: string;
   phone: string;

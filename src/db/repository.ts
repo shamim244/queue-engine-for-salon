@@ -1,8 +1,9 @@
 import { isMySqlConnected, getDb } from './mysql';
-import type { Salon, Stylist, ServiceDefinition, QueueTicket, TicketStatus } from '../engine/types';
+import type { Salon, Stylist, ServiceDefinition, QueueTicket, TicketStatus, Organization } from '../engine/types';
 
 // In-Memory fallback store
 const memoryStore = {
+  organizations: new Map<string, Organization>(),
   salons: new Map<string, Salon>(),
   stylists: new Map<string, Stylist>(),
   services: new Map<string, ServiceDefinition>(),
@@ -12,9 +13,36 @@ const memoryStore = {
 
 // Seed initial demo data
 export function seedDemoData() {
+  // 0. Seed Organizations
+  const rameshOrg: Organization = {
+    id: 'org-ramesh',
+    name: 'Ramesh Traditional Grooming',
+    slug: 'ramesh-grooming',
+    tier: 'SOLO',
+    maxBranches: 1,
+    maxStylistsPerBranch: 1,
+    createdAt: new Date(),
+  };
+
+  const auraOrg: Organization = {
+    id: 'org-aura',
+    name: 'Aura Luxury Wellness Group',
+    slug: 'aura-wellness',
+    tier: 'PRO',
+    maxBranches: 5,
+    maxStylistsPerBranch: 8,
+    createdAt: new Date(),
+  };
+
+  memoryStore.organizations.set(rameshOrg.id, rameshOrg);
+  memoryStore.organizations.set(rameshOrg.slug, rameshOrg);
+  memoryStore.organizations.set(auraOrg.id, auraOrg);
+  memoryStore.organizations.set(auraOrg.slug, auraOrg);
+
   // 1. Rural Solo-Barber Shop
   const ruralSalon: Salon = {
     id: 'salon-rural-01',
+    organizationId: rameshOrg.id,
     name: 'Ramesh Traditional Barber',
     slug: 'ramesh-barber',
     phone: '+91 98765 43210',
@@ -49,6 +77,7 @@ export function seedDemoData() {
   // 2. Modern Multi-Station Salon
   const modernSalon: Salon = {
     id: 'salon-modern-01',
+    organizationId: auraOrg.id,
     name: 'Aura Premium Salon & Spa',
     slug: 'aura-salon',
     phone: '+91 99887 76655',
@@ -103,12 +132,23 @@ export function seedDemoData() {
 
 async function syncDemoToMySql(salons: Salon[]) {
   const db = getDb();
+
+  // Sync Organizations first
+  for (const org of memoryStore.organizations.values()) {
+    await db.query(
+      `INSERT INTO organizations (id, name, slug, tier, max_branches, max_stylists_per_branch)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE name=VALUES(name), tier=VALUES(tier)`,
+      [org.id, org.name, org.slug, org.tier, org.maxBranches, org.maxStylistsPerBranch]
+    );
+  }
+
   for (const salon of salons) {
     await db.query(
-      `INSERT INTO salons (id, name, slug, phone, operating_mode, country_code, currency, address, upi_payment_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE name=VALUES(name), operating_mode=VALUES(operating_mode)`,
-      [salon.id, salon.name, salon.slug, salon.phone, salon.operatingMode, salon.countryCode, salon.currency, salon.address || null, salon.upiPaymentId || null]
+      `INSERT INTO salons (id, organization_id, name, slug, phone, operating_mode, country_code, currency, address, upi_payment_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE name=VALUES(name), organization_id=VALUES(organization_id), operating_mode=VALUES(operating_mode)`,
+      [salon.id, salon.organizationId || null, salon.name, salon.slug, salon.phone, salon.operatingMode, salon.countryCode, salon.currency, salon.address || null, salon.upiPaymentId || null]
     );
 
     for (const st of salon.stylists) {
@@ -136,6 +176,71 @@ async function syncDemoToMySql(salons: Salon[]) {
 // -------------------------------------------------------------
 
 export const repository = {
+  // Organizations
+  async getOrganizationById(id: string): Promise<Organization | null> {
+    if (isMySqlConnected) {
+      const db = getDb();
+      const [rows]: any = await db.query('SELECT * FROM organizations WHERE id = ? LIMIT 1', [id]);
+      if (rows.length === 0) return null;
+      const r = rows[0];
+      return {
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        tier: r.tier,
+        ownerId: r.owner_id,
+        maxBranches: Number(r.max_branches),
+        maxStylistsPerBranch: Number(r.max_stylists_per_branch),
+        createdAt: r.created_at,
+      };
+    }
+    return memoryStore.organizations.get(id) || null;
+  },
+
+  async getOrganizationBySlug(slug: string): Promise<Organization | null> {
+    if (isMySqlConnected) {
+      const db = getDb();
+      const [rows]: any = await db.query('SELECT * FROM organizations WHERE slug = ? LIMIT 1', [slug]);
+      if (rows.length === 0) return null;
+      const r = rows[0];
+      return {
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        tier: r.tier,
+        ownerId: r.owner_id,
+        maxBranches: Number(r.max_branches),
+        maxStylistsPerBranch: Number(r.max_stylists_per_branch),
+        createdAt: r.created_at,
+      };
+    }
+    return memoryStore.organizations.get(slug) || null;
+  },
+
+  async getAllOrganizations(): Promise<Organization[]> {
+    if (isMySqlConnected) {
+      const db = getDb();
+      const [rows]: any = await db.query('SELECT * FROM organizations');
+      return rows.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        tier: r.tier,
+        ownerId: r.owner_id,
+        maxBranches: Number(r.max_branches),
+        maxStylistsPerBranch: Number(r.max_stylists_per_branch),
+        createdAt: r.created_at,
+      }));
+    }
+    const unique = new Set(memoryStore.organizations.values());
+    return Array.from(unique);
+  },
+
+  async getSalonsByOrganizationId(orgId: string): Promise<Salon[]> {
+    const all = await repository.getAllSalons();
+    return all.filter((s) => s.organizationId === orgId);
+  },
+
   // Salons
   async getSalonBySlug(slug: string): Promise<Salon | null> {
     if (isMySqlConnected) {
@@ -149,6 +254,7 @@ export const repository = {
 
       return {
         id: salonRow.id,
+        organizationId: salonRow.organization_id || null,
         name: salonRow.name,
         slug: salonRow.slug,
         phone: salonRow.phone,
