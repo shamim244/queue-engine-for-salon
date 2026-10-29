@@ -226,4 +226,73 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
     const revoked = await authService.validateSession(token);
     expect(revoked).toBeNull();
   });
+
+  it('should enforce tier quota gating when adding branches or stylists', async () => {
+    // 1. Check Ramesh organization (SOLO tier: max 1 branch, max 1 stylist)
+    const rameshOrg = await repository.getOrganizationById('org-ramesh');
+    expect(rameshOrg).not.toBeNull();
+    expect(rameshOrg?.tier).toBe('SOLO');
+    expect(rameshOrg?.maxBranches).toBe(1);
+    expect(rameshOrg?.maxStylistsPerBranch).toBe(1);
+
+    // 2. Branch quota check for SOLO (already has 1 branch salon-rural-01)
+    const branchQuota = await repository.checkOrganizationBranchQuota('org-ramesh');
+    expect(branchQuota.allowed).toBe(false);
+    expect(branchQuota.current).toBe(1);
+
+    // Attempting to create 2nd branch under SOLO tier throws error
+    expect(
+      repository.createSalon({
+        name: 'Ramesh Branch 2',
+        phone: '9876543211',
+        operatingMode: 'RURAL_SOLO',
+        organizationId: 'org-ramesh',
+      })
+    ).rejects.toThrow(/Branch quota limit/);
+
+    // 3. Stylist quota check for rural salon (already has 1 stylist)
+    const stylistQuota = await repository.checkSalonStylistQuota('salon-rural-01');
+    expect(stylistQuota.allowed).toBe(false);
+
+    // Attempting to add 2nd stylist to SOLO tier salon throws error
+    expect(
+      repository.addStylist('salon-rural-01', {
+        name: 'Assistant Barber',
+        phone: '9876543299',
+      })
+    ).rejects.toThrow(/Stylist quota limit/);
+  });
+
+  it('should dynamically upgrade organization tier and adjust quotas', async () => {
+    // 1. Upgrade Ramesh Org from SOLO to PRO (maxBranches: 3, maxStylists: 10)
+    const upgraded = await repository.updateOrganizationTier('org-ramesh', 'PRO');
+    expect(upgraded).not.toBeNull();
+    expect(upgraded?.tier).toBe('PRO');
+    expect(upgraded?.maxBranches).toBe(3);
+    expect(upgraded?.maxStylistsPerBranch).toBe(10);
+
+    // 2. Now branch quota allows adding a new branch
+    const branchQuota = await repository.checkOrganizationBranchQuota('org-ramesh');
+    expect(branchQuota.allowed).toBe(true);
+
+    const newBranch = await repository.createSalon({
+      name: 'Ramesh Express Branch 2',
+      phone: '9876543212',
+      operatingMode: 'RURAL_SOLO',
+      organizationId: 'org-ramesh',
+    });
+    expect(newBranch).toBeDefined();
+    expect(newBranch.organizationId).toBe('org-ramesh');
+
+    // 3. Stylist quota now allows adding another stylist
+    const stylistQuota = await repository.checkSalonStylistQuota('salon-rural-01');
+    expect(stylistQuota.allowed).toBe(true);
+
+    const newStylist = await repository.addStylist('salon-rural-01', {
+      name: 'Assistant Barber Sanjay',
+      phone: '9876543299',
+    });
+    expect(newStylist).toBeDefined();
+    expect(newStylist.name).toBe('Assistant Barber Sanjay');
+  });
 });

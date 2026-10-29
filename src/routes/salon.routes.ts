@@ -27,6 +27,7 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
     body: t.Object({
       name: t.String(),
       slug: t.Optional(t.String()),
+      organizationId: t.Optional(t.String()),
       phone: t.String(),
       operatingMode: t.Union([t.Literal('RURAL_SOLO'), t.Literal('MODERN_MULTI')]),
       currency: t.Optional(t.String()),
@@ -45,6 +46,76 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
         isAddOn: t.Optional(t.Boolean()),
         icon: t.Optional(t.String()),
       }))),
+    })
+  })
+
+  // 1.1 List All Organizations
+  .get('/organizations', async () => {
+    const orgs = await repository.getAllOrganizations();
+    const result = [];
+    for (const org of orgs) {
+      const branches = await repository.getSalonsByOrganizationId(org.id);
+      result.push({
+        ...org,
+        branchCount: branches.length,
+        branches: branches.map(b => ({ id: b.id, name: b.name, slug: b.slug, stylistsCount: b.stylists.length })),
+      });
+    }
+    return { organizations: result };
+  })
+
+  // 1.2 Get Specific Organization and Quota Usage
+  .get('/organizations/:id', async ({ params, set }) => {
+    const org = (await repository.getOrganizationById(params.id)) || (await repository.getOrganizationBySlug(params.id));
+    if (!org) {
+      set.status = 404;
+      return { message: 'Organization not found' };
+    }
+    const branches = await repository.getSalonsByOrganizationId(org.id);
+    return {
+      organization: org,
+      usage: {
+        currentBranches: branches.length,
+        maxBranches: org.maxBranches,
+        tier: org.tier,
+      },
+      branches,
+    };
+  })
+
+  // 1.3 Upgrade or Downgrade Organization Tier
+  .post('/organizations/:id/tier', async ({ params, body, set }) => {
+    const { tier } = body as { tier: 'SOLO' | 'PRO' | 'ENTERPRISE' };
+    const updated = await repository.updateOrganizationTier(params.id, tier);
+    if (!updated) {
+      set.status = 404;
+      return { message: 'Organization not found' };
+    }
+    return {
+      success: true,
+      message: `Organization tier updated to ${tier}`,
+      organization: updated,
+    };
+  }, {
+    body: t.Object({
+      tier: t.Union([t.Literal('SOLO'), t.Literal('PRO'), t.Literal('ENTERPRISE')]),
+    })
+  })
+
+  // 1.4 Add Stylist to Salon (Gated by Tier Limits)
+  .post('/:id/stylists', async ({ params, body, set }) => {
+    try {
+      const stylist = await repository.addStylist(params.id, body as any);
+      return { success: true, stylist };
+    } catch (err: any) {
+      set.status = 400;
+      return { message: err.message };
+    }
+  }, {
+    body: t.Object({
+      name: t.String(),
+      phone: t.Optional(t.String()),
+      avgDurationMinutes: t.Optional(t.Number()),
     })
   })
 

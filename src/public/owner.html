@@ -60,8 +60,10 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px;
+      padding: 14px;
       border-bottom: 1px solid var(--border);
+      gap: 12px;
+      flex-wrap: wrap;
     }
     .quick-link-box {
       background: rgba(255, 255, 255, 0.05);
@@ -72,6 +74,29 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+    }
+    .tier-card {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(30, 41, 59, 0.7) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 16px;
     }
   </style>
 </head>
@@ -97,8 +122,8 @@
 
       <form onsubmit="handleOwnerLogin(event)">
         <div style="margin-bottom: 12px;">
-          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Username</label>
-          <input type="text" id="ownerUsernameInput" required placeholder="e.g. aura_owner" style="width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text); font-size:1rem;">
+          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Username / Mobile / Email</label>
+          <input type="text" id="ownerUsernameInput" required placeholder="e.g. aura_owner or 9988776655" style="width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text); font-size:1rem;">
         </div>
         <div style="margin-bottom: 16px;">
           <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Password</label>
@@ -117,6 +142,25 @@
 
     <!-- 2. LOGGED-IN OWNER DASHBOARD -->
     <div id="ownerApp" style="display: none;">
+      <!-- Tier & Quota Bar -->
+      <div class="tier-card" id="tierCard">
+        <div>
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+            <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);">SUBSCRIPTION TIER:</span>
+            <span id="tierBadge" class="salon-badge" style="background: #38bdf8; color: #0f172a; font-weight: 800;">PRO</span>
+            <span id="orgNameBadge" style="font-size: 0.85rem; font-weight: 600; color: var(--text);">Organization</span>
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-muted);" id="tierQuotaText">
+            Branches: 1 / 3 • Stylists/Branch: 4 / 10
+          </div>
+        </div>
+        <div>
+          <button class="btn btn-primary" style="width: auto; padding: 8px 16px; font-size: 0.85rem;" onclick="promptUpgradePlan()">
+            ⚡ Upgrade / Change Plan
+          </button>
+        </div>
+      </div>
+
       <!-- Live Metrics Bar -->
       <div class="metrics-grid">
         <div class="metric-card">
@@ -148,38 +192,80 @@
       <!-- TAB 1: STAFF & LOGINS -->
       <div id="ownerTabStaff">
         <div class="card">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-            <h3 style="font-size: 1.1rem;">Stylist User Accounts</h3>
-            <button class="btn btn-primary" style="width: auto; padding: 8px 16px; font-size: 0.85rem;" onclick="toggleAddStaffModal()">
-              + Create Staff Login
-            </button>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <h3 style="font-size: 1.1rem; margin-bottom: 2px;">Stylist Accounts & Shared Tablets</h3>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">
+                Configure stylist credentials, 4-digit quick mirror PINs, and zero-trust session kill-switches.
+              </p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn" style="width: auto; padding: 8px 14px; font-size: 0.85rem; background: var(--surface-light); border: 1px solid var(--border);" onclick="toggleAddStylistModal()">
+                + Add Stylist
+              </button>
+              <button class="btn btn-primary" style="width: auto; padding: 8px 16px; font-size: 0.85rem;" onclick="toggleAddStaffModal()">
+                + Create Staff Login
+              </button>
+            </div>
           </div>
-          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
-            Stylists log in at <code>/staff.html</code> using their unique alphanumeric Username and Password to manage chairs.
-          </p>
 
           <div id="staffListContainer">
             <p style="color: var(--text-muted); font-size: 0.85rem;">Loading staff list...</p>
           </div>
         </div>
 
+        <!-- Add Stylist Form Modal -->
+        <div id="addStylistModal" class="card" style="display: none; border: 2px solid var(--accent); margin-top: 14px;">
+          <h4 style="font-size: 1rem; margin-bottom: 10px;">Add New Stylist to Salon</h4>
+          <form onsubmit="handleCreateStylist(event)">
+            <div style="margin-bottom: 10px;">
+              <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Stylist Name</label>
+              <input type="text" id="newStylistName" required placeholder="e.g. Rahul Sharma" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+              <div style="flex: 1;">
+                <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Mobile Phone</label>
+                <input type="text" id="newStylistPhone" placeholder="e.g. 9876543210" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
+              </div>
+              <div style="flex: 1;">
+                <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Avg Service Pace (mins)</label>
+                <input type="number" id="newStylistPace" value="25" min="10" max="90" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="submit" class="btn btn-success" style="flex: 1; padding: 10px;">Save Stylist</button>
+              <button type="button" class="btn" style="flex: 1; padding: 10px; background: var(--surface-light);" onclick="toggleAddStylistModal()">Cancel</button>
+            </div>
+          </form>
+        </div>
+
         <!-- Add Staff Login Form (Collapsible) -->
-        <div id="addStaffModal" class="card" style="display: none; border: 2px solid var(--primary);">
-          <h4 style="font-size: 1rem; margin-bottom: 10px;">Create Staff Login Credentials</h4>
+        <div id="addStaffModal" class="card" style="display: none; border: 2px solid var(--primary); margin-top: 14px;">
+          <h4 style="font-size: 1rem; margin-bottom: 10px;">Create Staff Login & Mirror PIN</h4>
           <form onsubmit="handleCreateStaff(event)">
             <div style="margin-bottom: 10px;">
               <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Select Stylist</label>
               <select id="staffStylistSelect" required style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
               </select>
             </div>
-            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
               <div style="flex: 1;">
                 <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Username</label>
                 <input type="text" id="newStaffUsername" required placeholder="e.g. maria_stylist" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
               </div>
               <div style="flex: 1;">
-                <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Initial Password</label>
+                <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Password</label>
                 <input type="text" id="newStaffPassword" required minlength="6" placeholder="Min 6 chars" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
+              </div>
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+              <div style="flex: 1;">
+                <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Mobile Phone (Optional)</label>
+                <input type="text" id="newStaffPhone" placeholder="e.g. 9988776655" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
+              </div>
+              <div style="flex: 1;">
+                <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">4-Digit Mirror PIN (Optional)</label>
+                <input type="password" id="newStaffPin" maxlength="4" placeholder="e.g. 1234" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text);">
               </div>
             </div>
             <div style="display: flex; gap: 8px;">
@@ -297,6 +383,7 @@
   <script>
     let currentOwner = null;
     let currentSalon = null;
+    let currentOrg = null;
     let salonStylists = [];
     let staffUsers = [];
 
@@ -315,14 +402,14 @@
 
     async function handleOwnerLogin(e) {
       e.preventDefault();
-      const username = document.getElementById('ownerUsernameInput').value.trim();
+      const identifier = document.getElementById('ownerUsernameInput').value.trim();
       const password = document.getElementById('ownerPasswordInput').value;
 
       try {
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ identifier, password }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -345,6 +432,7 @@
     function applyOwnerSession(data) {
       currentOwner = data.user;
       currentSalon = data.salon;
+      currentOrg = data.organization;
 
       document.getElementById('ownerLoginView').style.display = 'none';
       document.getElementById('ownerApp').style.display = 'block';
@@ -364,7 +452,55 @@
       }
 
       loadSalonData();
+      loadOrgData();
       loadMetrics();
+    }
+
+    async function loadOrgData() {
+      const orgId = currentSalon?.organizationId || currentOwner?.organizationId;
+      if (!orgId) return;
+
+      try {
+        const res = await fetch(`/api/salons/organizations/${orgId}`);
+        const data = await res.json();
+        if (data.organization) {
+          currentOrg = data.organization;
+          document.getElementById('tierBadge').innerText = currentOrg.tier;
+          document.getElementById('orgNameBadge').innerText = currentOrg.name;
+          document.getElementById('tierQuotaText').innerText = 
+            `Branches: ${data.usage.currentBranches} / ${data.usage.maxBranches} • Max Stylists/Branch: ${currentOrg.maxStylistsPerBranch}`;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function promptUpgradePlan() {
+      const orgId = currentSalon?.organizationId || currentOwner?.organizationId;
+      if (!orgId) return;
+
+      const currentTier = currentOrg?.tier || 'PRO';
+      const targetTier = currentTier === 'SOLO' ? 'PRO' : currentTier === 'PRO' ? 'ENTERPRISE' : 'SOLO';
+
+      if (!confirm(`Upgrade organization tier from ${currentTier} to ${targetTier}?`)) return;
+
+      try {
+        const res = await fetch(`/api/salons/organizations/${orgId}/tier`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tier: targetTier }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`Organization successfully upgraded to ${targetTier}!`);
+          loadOrgData();
+          loadSalonData();
+        } else {
+          alert(data.message || 'Upgrade failed');
+        }
+      } catch (e) {
+        alert('Error upgrading tier: ' + e.message);
+      }
     }
 
     function handleOwnerLogout() {
@@ -419,19 +555,26 @@
           return `
             <div class="staff-row">
               <div>
-                <div style="font-weight: 700; font-size: 0.95rem;">${st.name}</div>
-                <div style="font-size: 0.8rem; color: var(--text-muted);">
-                  Phone: ${st.phone} • Avg Pace: ${st.customAvgDurationMinutes || st.historicalAvgDurationMinutes || 25}m
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-weight: 700; font-size: 0.95rem;">${st.name}</span>
+                  ${user?.pinHash ? `<span class="salon-badge" style="background:rgba(56,189,248,0.2); color:#38bdf8; font-size:0.75rem;">●●●● PIN Active</span>` : `<span class="salon-badge" style="background:rgba(239,68,68,0.15); color:#f87171; font-size:0.75rem;">No PIN</span>`}
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 3px;">
+                  Phone: ${st.phone || 'N/A'} • Pace: ${st.customAvgDurationMinutes || st.historicalAvgDurationMinutes || 25}m
+                  ${user ? ` • Login: <b>${user.username}</b> (${user.status})` : ''}
                 </div>
               </div>
-              <div style="text-align: right;">
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
                 ${user ? `
-                  <span class="salon-badge" style="background: rgba(34, 197, 94, 0.15); color: #4ade80;">
-                    🔑 Username: <b>${user.username}</b>
-                  </span>
+                  <button class="btn" style="width:auto; padding:6px 12px; font-size:0.8rem; background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8;" onclick="promptSetPin('${user.id}', '${st.name}')">
+                    🔑 Set PIN
+                  </button>
+                  <button class="btn btn-danger" style="width:auto; padding:6px 12px; font-size:0.8rem;" onclick="promptRevokeSessions('${user.id}', '${st.name}')">
+                    🚨 Kill Switch
+                  </button>
                 ` : `
-                  <button class="btn btn-primary" style="width:auto; padding:6px 12px; font-size:0.8rem;" onclick="promptCreateUserFor('${st.id}', '${st.name}')">
-                    + Set Credentials
+                  <button class="btn btn-primary" style="width:auto; padding:6px 14px; font-size:0.8rem;" onclick="promptCreateUserFor('${st.id}', '${st.name}')">
+                    + Create Login
                   </button>
                 `}
               </div>
@@ -440,6 +583,52 @@
         }).join('');
       } catch (e) {
         console.error(e);
+      }
+    }
+
+    async function promptSetPin(userId, staffName) {
+      const pin = prompt(`Enter new 4-digit mirror quick PIN for ${staffName} (numbers only):`);
+      if (!pin) return;
+      if (!/^\d{4}$/.test(pin.trim())) {
+        alert('PIN must be exactly 4 digits (e.g. 1234)');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/auth/set-pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, pin: pin.trim() }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`4-digit PIN set for ${staffName}!`);
+          loadStaffLogins();
+        } else {
+          alert(data.message || 'Failed to set PIN');
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    async function promptRevokeSessions(userId, staffName) {
+      if (!confirm(`🚨 EMERGENCY KILL SWITCH:\n\nRevoke ALL active login sessions for ${staffName} immediately across all mirror tablets and phones?`)) return;
+
+      try {
+        const res = await fetch('/api/auth/staff/revoke-all', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`All active sessions for ${staffName} revoked instantly!`);
+        } else {
+          alert('Failed to revoke sessions');
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
       }
     }
 
@@ -478,6 +667,39 @@
       } catch (e) {}
     }
 
+    function toggleAddStylistModal() {
+      const m = document.getElementById('addStylistModal');
+      m.style.display = m.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function handleCreateStylist(e) {
+      e.preventDefault();
+      const name = document.getElementById('newStylistName').value.trim();
+      const phone = document.getElementById('newStylistPhone').value.trim();
+      const avgDurationMinutes = parseInt(document.getElementById('newStylistPace').value) || 25;
+
+      try {
+        const res = await fetch(`/api/salons/${currentSalon.id}/stylists`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, phone, avgDurationMinutes }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`Stylist '${name}' added!`);
+          document.getElementById('addStylistModal').style.display = 'none';
+          document.getElementById('newStylistName').value = '';
+          document.getElementById('newStylistPhone').value = '';
+          loadSalonData();
+          loadOrgData();
+        } else {
+          alert(data.message || 'Failed to add stylist');
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
     function toggleAddStaffModal() {
       const m = document.getElementById('addStaffModal');
       m.style.display = m.style.display === 'none' ? 'block' : 'none';
@@ -495,6 +717,8 @@
       const staffId = document.getElementById('staffStylistSelect').value;
       const username = document.getElementById('newStaffUsername').value.trim();
       const password = document.getElementById('newStaffPassword').value;
+      const phone = document.getElementById('newStaffPhone').value.trim() || undefined;
+      const pin = document.getElementById('newStaffPin').value.trim() || undefined;
 
       try {
         const res = await fetch('/api/auth/staff/create', {
@@ -505,6 +729,8 @@
             staffId,
             username,
             password,
+            phone,
+            pin,
           }),
         });
         const data = await res.json();

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Staff Portal - Engine Que</title>
+  <title>Staff Station - Engine Que</title>
   <link rel="stylesheet" href="/app.css">
   <style>
     .tab-nav {
@@ -68,6 +68,84 @@
       color: #38bdf8;
       text-align: right;
     }
+
+    /* 4-Digit Quick PIN Keypad Styles */
+    .pin-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      max-width: 290px;
+      margin: 14px auto;
+    }
+    .pin-key {
+      background: var(--surface-light);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 1.4rem;
+      font-weight: 700;
+      padding: 14px 0;
+      border-radius: 12px;
+      cursor: pointer;
+      user-select: none;
+      touch-action: manipulation;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pin-key:active {
+      background: var(--primary);
+      color: #fff;
+      transform: scale(0.94);
+    }
+    .pin-display {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      margin: 12px 0;
+    }
+    .pin-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid var(--primary);
+      background: transparent;
+      transition: all 0.2s;
+    }
+    .pin-dot.filled {
+      background: var(--primary);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+    }
+    .stylist-pick-chip {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface-light);
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .stylist-pick-chip.selected {
+      border-color: var(--primary);
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 16px;
+    }
   </style>
 </head>
 <body>
@@ -78,34 +156,91 @@
         <h1 style="font-size: 1.3rem; font-weight: 800;" id="pageTitle">💈 Staff Station</h1>
         <p style="font-size: 0.85rem; color: var(--text-muted);" id="pageSubtitle">Engine Que System</p>
       </div>
-      <div id="authStatusPill">
-        <span class="salon-badge" id="staffRoleBadge">🔒 Not Logged In</span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button id="quickSwitchBtn" style="display:none; background:rgba(56,189,248,0.15); border:1px solid var(--primary); color:#38bdf8; padding:6px 12px; border-radius:8px; font-weight:700; font-size:0.8rem; cursor:pointer;" onclick="openPinModal()">
+          🔄 Switch (PIN)
+        </button>
+        <div id="authStatusPill">
+          <span class="salon-badge" id="staffRoleBadge">🔒 Not Logged In</span>
+        </div>
       </div>
     </div>
 
-    <!-- 1. LOGIN VIEW -->
+    <!-- 1. LOGIN VIEW WITH PIN & PASSWORD MODES -->
     <div id="loginView" class="card">
-      <h2 style="font-size: 1.2rem; margin-bottom: 12px;">Staff Sign In</h2>
-      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
-        Enter your alphanumeric Username and Password provided by your Salon Owner.
-      </p>
+      <div class="tab-nav" style="margin-bottom: 16px;">
+        <button class="tab-btn active" id="authModePinBtn" onclick="switchAuthMode('pin')">⚡ Quick PIN (Shared Mirror)</button>
+        <button class="tab-btn" id="authModePwdBtn" onclick="switchAuthMode('password')">🔑 Password / Phone</button>
+      </div>
 
-      <form id="loginForm" onsubmit="handleLogin(event)">
-        <div style="margin-bottom: 12px;">
-          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Username</label>
-          <input type="text" id="usernameInput" required placeholder="e.g. ramesh or leo" style="width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text); font-size:1rem;">
-        </div>
-        <div style="margin-bottom: 16px;">
-          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Password</label>
-          <input type="password" id="passwordInput" required placeholder="••••••••" style="width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text); font-size:1rem;">
-        </div>
-        <button type="submit" class="btn btn-primary" id="loginBtn">Sign In to Station</button>
-      </form>
+      <!-- A. PIN QUICK UNLOCK SECTION -->
+      <div id="authModePin">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; text-align: center;">
+          Select your chair & tap your 4-digit PIN for 1-second mirror tablet access.
+        </p>
 
-      <div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 14px;">
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">Quick Demo Logins:</p>
-        <button class="quick-chip" onclick="fillDemo('ramesh', 'Ramesh@123')">✂️ Ramesh (Solo Barber)</button>
-        <button class="quick-chip" onclick="fillDemo('leo', 'Leo@123')">✨ Leo (Master Stylist - Aura)</button>
+        <!-- Stylist Selection Chips -->
+        <div id="stylistChipsContainer" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 16px;">
+          <span style="color: var(--text-muted); font-size: 0.85rem;">Loading stylists...</span>
+        </div>
+
+        <!-- 4-Digit Display -->
+        <div class="pin-display">
+          <div class="pin-dot" id="dot0"></div>
+          <div class="pin-dot" id="dot1"></div>
+          <div class="pin-dot" id="dot2"></div>
+          <div class="pin-dot" id="dot3"></div>
+        </div>
+
+        <div id="pinStatusText" style="text-align: center; font-size: 0.85rem; min-height: 20px; color: var(--text-muted);">
+          Select stylist above
+        </div>
+
+        <!-- Numpad -->
+        <div class="pin-grid">
+          <button class="pin-key" onclick="pressPinKey('1')">1</button>
+          <button class="pin-key" onclick="pressPinKey('2')">2</button>
+          <button class="pin-key" onclick="pressPinKey('3')">3</button>
+          <button class="pin-key" onclick="pressPinKey('4')">4</button>
+          <button class="pin-key" onclick="pressPinKey('5')">5</button>
+          <button class="pin-key" onclick="pressPinKey('6')">6</button>
+          <button class="pin-key" onclick="pressPinKey('7')">7</button>
+          <button class="pin-key" onclick="pressPinKey('8')">8</button>
+          <button class="pin-key" onclick="pressPinKey('9')">9</button>
+          <button class="pin-key" style="font-size: 1rem; color: var(--danger);" onclick="clearPin()">Clear</button>
+          <button class="pin-key" onclick="pressPinKey('0')">0</button>
+          <button class="pin-key" style="font-size: 1.1rem;" onclick="backspacePin()">⌫</button>
+        </div>
+
+        <div style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; text-align: center;">
+          <p style="font-size: 0.78rem; color: var(--text-muted);">Demo PINs: Ramesh (<code>1234</code>) • Leo (<code>4321</code>)</p>
+        </div>
+      </div>
+
+      <!-- B. PASSWORD / MULTI-IDENTIFIER SECTION -->
+      <div id="authModePassword" style="display: none;">
+        <h2 style="font-size: 1.1rem; margin-bottom: 8px;">Multi-Identifier Login</h2>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+          Log in with your Username, Phone Number (e.g. 9876543210), or Email.
+        </p>
+
+        <form id="loginForm" onsubmit="handleLogin(event)">
+          <div style="margin-bottom: 12px;">
+            <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Username / Phone / Email</label>
+            <input type="text" id="usernameInput" required placeholder="e.g. ramesh or 9876543210" style="width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text); font-size:1rem;">
+          </div>
+          <div style="margin-bottom: 16px;">
+            <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Password</label>
+            <input type="password" id="passwordInput" required placeholder="••••••••" style="width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--dark); color:var(--text); font-size:1rem;">
+          </div>
+          <button type="submit" class="btn btn-primary" id="loginBtn">Sign In to Station</button>
+        </form>
+
+        <div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 14px;">
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">Quick Demo Logins:</p>
+          <button class="quick-chip" onclick="fillDemo('ramesh', 'Ramesh@123')">✂️ Ramesh (Solo Barber)</button>
+          <button class="quick-chip" onclick="fillDemo('leo', 'Leo@123')">✨ Leo (Master Stylist - Aura)</button>
+        </div>
       </div>
     </div>
 
@@ -232,6 +367,47 @@
         </div>
       </div>
     </div>
+
+    <!-- 3. QUICK PIN SWITCH MODAL (OVERLAY) -->
+    <div id="pinSwitchModal" class="modal-overlay" style="display: none;">
+      <div class="card" style="width: 100%; max-width: 360px; margin: 0; background: var(--surface); border: 2px solid var(--primary);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3 style="font-size: 1.1rem; font-weight: 700;">🔄 Rapid Chair Switch</h3>
+          <button onclick="closePinModal()" style="background: none; border: none; color: var(--text-muted); font-size: 1.3rem; cursor: pointer;">✕</button>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; text-align: center;">
+          Switch to another stylist on this mirror tablet in 1 second.
+        </p>
+
+        <div id="modalStylistChips" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 14px;"></div>
+
+        <div class="pin-display">
+          <div class="pin-dot" id="mDot0"></div>
+          <div class="pin-dot" id="mDot1"></div>
+          <div class="pin-dot" id="mDot2"></div>
+          <div class="pin-dot" id="mDot3"></div>
+        </div>
+
+        <div id="mPinStatus" style="text-align: center; font-size: 0.85rem; min-height: 20px; color: var(--text-muted);">
+          Tap your 4-digit PIN
+        </div>
+
+        <div class="pin-grid">
+          <button class="pin-key" onclick="pressModalPinKey('1')">1</button>
+          <button class="pin-key" onclick="pressModalPinKey('2')">2</button>
+          <button class="pin-key" onclick="pressModalPinKey('3')">3</button>
+          <button class="pin-key" onclick="pressModalPinKey('4')">4</button>
+          <button class="pin-key" onclick="pressModalPinKey('5')">5</button>
+          <button class="pin-key" onclick="pressModalPinKey('6')">6</button>
+          <button class="pin-key" onclick="pressModalPinKey('7')">7</button>
+          <button class="pin-key" onclick="pressModalPinKey('8')">8</button>
+          <button class="pin-key" onclick="pressModalPinKey('9')">9</button>
+          <button class="pin-key" style="font-size: 1rem; color: var(--danger);" onclick="clearModalPin()">Clear</button>
+          <button class="pin-key" onclick="pressModalPinKey('0')">0</button>
+          <button class="pin-key" style="font-size: 1.1rem;" onclick="backspaceModalPin()">⌫</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -241,10 +417,20 @@
     let inChairTicket = null;
     let summonedTicket = null;
     let socket = null;
+    let salonStylists = [];
+
+    // PIN state
+    let selectedStylistId = null;
+    let enteredPin = '';
+    let modalStylistId = null;
+    let modalPin = '';
 
     // Check query param for salon
     const params = new URLSearchParams(window.location.search);
     const salonSlug = params.get('salon') || 'ramesh-barber';
+
+    // Load salon details for PIN buttons
+    loadSalonForPin();
 
     // Auto-restore session from sessionStorage
     const stored = sessionStorage.getItem('staff_session');
@@ -255,6 +441,205 @@
       } catch (e) {}
     }
 
+    async function loadSalonForPin() {
+      try {
+        const res = await fetch(`/api/salons/${salonSlug}`);
+        const data = await res.json();
+        if (data.salon) {
+          salonStylists = data.salon.stylists || [];
+          renderStylistChips(salonStylists);
+        }
+      } catch (e) {
+        console.error('Failed to load salon for PIN', e);
+      }
+    }
+
+    function renderStylistChips(stylists) {
+      const c = document.getElementById('stylistChipsContainer');
+      const mc = document.getElementById('modalStylistChips');
+      if (!stylists || stylists.length === 0) {
+        c.innerHTML = '<span style="color:var(--text-muted); font-size:0.85rem;">No stylists found.</span>';
+        return;
+      }
+
+      // Default pick first stylist
+      if (!selectedStylistId && stylists.length > 0) {
+        selectedStylistId = stylists[0].id;
+      }
+
+      const html = stylists.map(s => `
+        <button class="stylist-pick-chip ${s.id === selectedStylistId ? 'selected' : ''}" onclick="pickStylist('${s.id}')">
+          ✂️ ${s.name}
+        </button>
+      `).join('');
+
+      c.innerHTML = html;
+      updatePinStatusText();
+
+      if (mc) {
+        mc.innerHTML = stylists.map(s => `
+          <button class="stylist-pick-chip ${s.id === modalStylistId ? 'selected' : ''}" onclick="pickModalStylist('${s.id}')">
+            ✂️ ${s.name}
+          </button>
+        `).join('');
+      }
+    }
+
+    function pickStylist(id) {
+      selectedStylistId = id;
+      clearPin();
+      renderStylistChips(salonStylists);
+    }
+
+    function pickModalStylist(id) {
+      modalStylistId = id;
+      clearModalPin();
+      renderStylistChips(salonStylists);
+    }
+
+    function updatePinStatusText() {
+      const st = salonStylists.find(s => s.id === selectedStylistId);
+      const textDiv = document.getElementById('pinStatusText');
+      if (st) {
+        textDiv.innerText = `Enter 4-digit PIN for ${st.name}`;
+      } else {
+        textDiv.innerText = 'Select your name above';
+      }
+    }
+
+    function pressPinKey(digit) {
+      if (!selectedStylistId) {
+        alert('Please select your stylist chair first.');
+        return;
+      }
+      if (enteredPin.length < 4) {
+        enteredPin += digit;
+        updateDots();
+        if (enteredPin.length === 4) {
+          submitPinAuth(salonSlug, selectedStylistId, enteredPin);
+        }
+      }
+    }
+
+    function clearPin() {
+      enteredPin = '';
+      updateDots();
+    }
+
+    function backspacePin() {
+      if (enteredPin.length > 0) {
+        enteredPin = enteredPin.slice(0, -1);
+        updateDots();
+      }
+    }
+
+    function updateDots() {
+      for (let i = 0; i < 4; i++) {
+        const dot = document.getElementById('dot' + i);
+        if (dot) dot.className = i < enteredPin.length ? 'pin-dot filled' : 'pin-dot';
+      }
+    }
+
+    async function submitPinAuth(salonIdOrSlug, staffId, pin) {
+      const textDiv = document.getElementById('pinStatusText');
+      textDiv.innerText = '⚡ Unlocking station...';
+      try {
+        const res = await fetch('/api/auth/pin-switch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ salonId: salonIdOrSlug, staffId, pin }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          textDiv.innerText = '❌ ' + (data.message || 'Invalid PIN');
+          clearPin();
+          return;
+        }
+
+        sessionStorage.setItem('staff_session', JSON.stringify(data));
+        applySession(data);
+      } catch (err) {
+        textDiv.innerText = '❌ Error: ' + err.message;
+        clearPin();
+      }
+    }
+
+    // Modal PIN Switcher Functions
+    function openPinModal() {
+      modalStylistId = currentStaff?.id || (salonStylists.length > 0 ? salonStylists[0].id : null);
+      clearModalPin();
+      renderStylistChips(salonStylists);
+      document.getElementById('pinSwitchModal').style.display = 'flex';
+    }
+
+    function closePinModal() {
+      document.getElementById('pinSwitchModal').style.display = 'none';
+      clearModalPin();
+    }
+
+    function pressModalPinKey(digit) {
+      if (!modalStylistId) return;
+      if (modalPin.length < 4) {
+        modalPin += digit;
+        updateModalDots();
+        if (modalPin.length === 4) {
+          submitModalPinAuth(salonSlug, modalStylistId, modalPin);
+        }
+      }
+    }
+
+    function clearModalPin() {
+      modalPin = '';
+      updateModalDots();
+    }
+
+    function backspaceModalPin() {
+      if (modalPin.length > 0) {
+        modalPin = modalPin.slice(0, -1);
+        updateModalDots();
+      }
+    }
+
+    function updateModalDots() {
+      for (let i = 0; i < 4; i++) {
+        const dot = document.getElementById('mDot' + i);
+        if (dot) dot.className = i < modalPin.length ? 'pin-dot filled' : 'pin-dot';
+      }
+    }
+
+    async function submitModalPinAuth(salonIdOrSlug, staffId, pin) {
+      const statusDiv = document.getElementById('mPinStatus');
+      statusDiv.innerText = '⚡ Switching chair...';
+      try {
+        const res = await fetch('/api/auth/pin-switch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ salonId: salonIdOrSlug, staffId, pin }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          statusDiv.innerText = '❌ ' + (data.message || 'Invalid PIN');
+          clearModalPin();
+          return;
+        }
+
+        closePinModal();
+        sessionStorage.setItem('staff_session', JSON.stringify(data));
+        applySession(data);
+      } catch (err) {
+        statusDiv.innerText = '❌ ' + err.message;
+        clearModalPin();
+      }
+    }
+
+    function switchAuthMode(mode) {
+      const isPin = mode === 'pin';
+      document.getElementById('authModePin').style.display = isPin ? 'block' : 'none';
+      document.getElementById('authModePassword').style.display = isPin ? 'none' : 'block';
+      document.getElementById('authModePinBtn').className = isPin ? 'tab-btn active' : 'tab-btn';
+      document.getElementById('authModePwdBtn').className = isPin ? 'tab-btn' : 'tab-btn active';
+    }
+
     function fillDemo(u, p) {
       document.getElementById('usernameInput').value = u;
       document.getElementById('passwordInput').value = p;
@@ -262,14 +647,14 @@
 
     async function handleLogin(e) {
       e.preventDefault();
-      const username = document.getElementById('usernameInput').value.trim();
+      const identifier = document.getElementById('usernameInput').value.trim();
       const password = document.getElementById('passwordInput').value;
 
       try {
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ identifier, password }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -291,6 +676,7 @@
 
       document.getElementById('loginView').style.display = 'none';
       document.getElementById('staffApp').style.display = 'block';
+      document.getElementById('quickSwitchBtn').style.display = 'inline-block';
 
       document.getElementById('pageTitle').innerText = (currentStaff?.name || currentUser.username);
       document.getElementById('pageSubtitle').innerText = currentSalon ? currentSalon.name : 'Engine Que System';

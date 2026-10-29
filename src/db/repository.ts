@@ -1,5 +1,5 @@
 import { isMySqlConnected, getDb } from './mysql';
-import type { Salon, Stylist, ServiceDefinition, QueueTicket, TicketStatus, Organization } from '../engine/types';
+import type { Salon, Stylist, ServiceDefinition, QueueTicket, TicketStatus, Organization, SubscriptionTier } from '../engine/types';
 
 // In-Memory fallback store
 const memoryStore = {
@@ -241,6 +241,63 @@ export const repository = {
     return all.filter((s) => s.organizationId === orgId);
   },
 
+  async updateOrganizationTier(orgId: string, tier: SubscriptionTier): Promise<Organization | null> {
+    const limits = {
+      SOLO: { maxBranches: 1, maxStylistsPerBranch: 1 },
+      PRO: { maxBranches: 3, maxStylistsPerBranch: 10 },
+      ENTERPRISE: { maxBranches: 999, maxStylistsPerBranch: 999 },
+    }[tier];
+
+    const org = await this.getOrganizationById(orgId);
+    if (!org) return null;
+
+    org.tier = tier;
+    org.maxBranches = limits.maxBranches;
+    org.maxStylistsPerBranch = limits.maxStylistsPerBranch;
+
+    memoryStore.organizations.set(org.id, org);
+    memoryStore.organizations.set(org.slug, org);
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query(
+        'UPDATE organizations SET tier = ?, max_branches = ?, max_stylists_per_branch = ? WHERE id = ?',
+        [tier, limits.maxBranches, limits.maxStylistsPerBranch, orgId]
+      );
+    }
+    return org;
+  },
+
+  async checkOrganizationBranchQuota(orgId: string): Promise<{ allowed: boolean; current: number; max: number; tier: SubscriptionTier }> {
+    const org = await this.getOrganizationById(orgId);
+    if (!org) return { allowed: true, current: 0, max: 999, tier: 'ENTERPRISE' };
+    const branches = await this.getSalonsByOrganizationId(orgId);
+    return {
+      allowed: branches.length < org.maxBranches,
+      current: branches.length,
+      max: org.maxBranches,
+      tier: org.tier,
+    };
+  },
+
+  async checkSalonStylistQuota(salonId: string): Promise<{ allowed: boolean; current: number; max: number; tier: SubscriptionTier }> {
+    const all = await this.getAllSalons();
+    const salon = all.find((s) => s.id === salonId);
+    if (!salon || !salon.organizationId) {
+      return { allowed: true, current: salon ? salon.stylists.length : 0, max: 999, tier: 'ENTERPRISE' };
+    }
+    const org = await this.getOrganizationById(salon.organizationId);
+    if (!org) {
+      return { allowed: true, current: salon.stylists.length, max: 999, tier: 'ENTERPRISE' };
+    }
+    return {
+      allowed: salon.stylists.length < org.maxStylistsPerBranch,
+      current: salon.stylists.length,
+      max: org.maxStylistsPerBranch,
+      tier: org.tier,
+    };
+  },
+
   // Salons
   async getSalonBySlug(slug: string): Promise<Salon | null> {
     if (isMySqlConnected) {
@@ -306,6 +363,7 @@ export const repository = {
   async createSalon(params: {
     name: string;
     slug?: string;
+    organizationId?: string;
     phone: string;
     operatingMode: 'RURAL_SOLO' | 'MODERN_MULTI';
     currency?: string;
@@ -315,6 +373,13 @@ export const repository = {
     stylists?: { name: string; phone?: string; avgDurationMinutes?: number }[];
     services?: { name: string; basePrice: number; estimatedDurationMinutes: number; isAddOn?: boolean; icon?: string }[];
   }): Promise<Salon> {
+    if (params.organizationId) {
+      const quota = await this.checkOrganizationBranchQuota(params.organizationId);
+      if (!quota.allowed) {
+        throw new Error(`Branch quota limit (${quota.max}) reached for tier ${quota.tier}. Please upgrade your organization tier.`);
+      }
+    }
+
     const rawSlug = (params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')) || 'salon';
     let slug = rawSlug;
     let counter = 1;
@@ -327,6 +392,7 @@ export const repository = {
     const salonId = 'salon-' + Math.random().toString(36).substring(2, 9);
     const newSalon: Salon = {
       id: salonId,
+      organizationId: params.organizationId || null,
       name: params.name,
       slug,
       phone: params.phone,
@@ -344,6 +410,13 @@ export const repository = {
     const stylistInputs = params.stylists && params.stylists.length > 0
       ? params.stylists
       : [{ name: params.operatingMode === 'RURAL_SOLO' ? `${params.name} Owner` : 'Master Stylist' }];
+
+    if (params.organizationId) {
+      const org = await this.getOrganizationById(params.organizationId);
+      if (org && stylistInputs.length > org.maxStylistsPerBranch) {
+        throw new Error(`Stylist count (${stylistInputs.length}) exceeds branch limit (${org.maxStylistsPerBranch}) for tier ${org.tier}. Please upgrade.`);
+      }
+    }
 
     newSalon.stylists = stylistInputs.map((st, idx) => ({
       id: `stylist-${salonId}-${idx + 1}`,
@@ -384,9 +457,9 @@ export const repository = {
     if (isMySqlConnected) {
       const db = getDb();
       await db.query(
-        `INSERT INTO salons (id, name, slug, phone, operating_mode, country_code, currency, address, upi_payment_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newSalon.id, newSalon.name, newSalon.slug, newSalon.phone, newSalon.operatingMode, newSalon.countryCode, newSalon.currency, newSalon.address || null, newSalon.upiPaymentId || null]
+        `INSERT INTO salons (id, organization_id, name, slug, phone, operating_mode, country_code, currency, address, upi_payment_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newSalon.id, newSalon.organizationId || null, newSalon.name, newSalon.slug, newSalon.phone, newSalon.operatingMode, newSalon.countryCode, newSalon.currency, newSalon.address || null, newSalon.upiPaymentId || null]
       );
 
       for (const st of newSalon.stylists) {
@@ -407,6 +480,41 @@ export const repository = {
     }
 
     return newSalon;
+  },
+
+  async addStylist(salonId: string, params: { name: string; phone?: string; avgDurationMinutes?: number }): Promise<Stylist> {
+    const quota = await this.checkSalonStylistQuota(salonId);
+    if (!quota.allowed) {
+      throw new Error(`Stylist quota limit (${quota.max}) reached for tier ${quota.tier}. Please upgrade your organization tier.`);
+    }
+
+    const stylistId = 'stylist-' + Math.random().toString(36).substring(2, 9);
+    const stylist: Stylist = {
+      id: stylistId,
+      salonId,
+      name: params.name.trim(),
+      phone: params.phone || '',
+      isActive: true,
+      historicalAvgDurationMinutes: params.avgDurationMinutes || 25,
+    };
+
+    memoryStore.stylists.set(stylistId, stylist);
+    for (const s of memoryStore.salons.values()) {
+      if (s.id === salonId) {
+        s.stylists.push(stylist);
+        break;
+      }
+    }
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query(
+        `INSERT INTO stylists (id, salon_id, name, phone, is_active, historical_avg_duration_minutes)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [stylist.id, stylist.salonId, stylist.name, stylist.phone, stylist.isActive, stylist.historicalAvgDurationMinutes]
+      );
+    }
+    return stylist;
   },
 
   async updateSalonOperatingMode(salonId: string, mode: 'RURAL_SOLO' | 'MODERN_MULTI') {
@@ -706,6 +814,8 @@ export const repository = {
 
   async getPlatformMetrics() {
     const salons = await repository.getAllSalons();
+    const orgs = await repository.getAllOrganizations();
+    const orgMap = new Map(orgs.map((o) => [o.id, o]));
     let totalActiveTickets = 0;
     let totalServedAllTime = 0;
     let totalRevenueAllTime = 0;
@@ -732,15 +842,20 @@ export const repository = {
       totalActiveTickets,
       totalServedAllTime,
       totalRevenueAllTime,
-      salons: salons.map((s) => ({
-        id: s.id,
-        name: s.name,
-        slug: s.slug,
-        operatingMode: s.operatingMode,
-        phone: s.phone,
-        stylistCount: s.stylists.length,
-        serviceCount: s.services.length,
-      })),
+      salons: salons.map((s) => {
+        const org = s.organizationId ? orgMap.get(s.organizationId) : null;
+        return {
+          id: s.id,
+          name: s.name,
+          slug: s.slug,
+          organizationId: s.organizationId,
+          tier: org?.tier || 'SOLO',
+          operatingMode: s.operatingMode,
+          phone: s.phone,
+          stylistCount: s.stylists.length,
+          serviceCount: s.services.length,
+        };
+      }),
     };
   },
 };

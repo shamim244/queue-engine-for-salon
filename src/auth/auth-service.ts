@@ -400,7 +400,8 @@ export const authService = {
   // 9. Seed Default System Organizations & Users
   async seedDefaultUsers() {
     // 1. Super Admin
-    if (!(await this.getUserByUsername('admin'))) {
+    const adminUser = await this.getUserByUsername('admin');
+    if (!adminUser) {
       await this.createUser({
         username: 'admin',
         password: 'Admin@123',
@@ -411,7 +412,8 @@ export const authService = {
     }
 
     // 2. Ramesh Barber (Solo Barber & Owner with 4-Digit PIN 1234)
-    if (!(await this.getUserByUsername('ramesh'))) {
+    const rameshUser = await this.getUserByUsername('ramesh');
+    if (!rameshUser) {
       await this.createUser({
         username: 'ramesh',
         password: 'Ramesh@123',
@@ -423,10 +425,23 @@ export const authService = {
         staffId: 'stylist-ramesh-01',
       });
       console.log('[Auth] Seeded Staff: ramesh / Ramesh@123 (PIN: 1234)');
+    } else if (!rameshUser.pinHash || !rameshUser.organizationId) {
+      rameshUser.organizationId = 'org-ramesh';
+      rameshUser.phone = '9876543210';
+      rameshUser.pinHash = await this.hashPin('1234');
+      memoryUsers.set(rameshUser.username, rameshUser);
+      memoryUsers.set(rameshUser.id, rameshUser);
+      if (isMySqlConnected) {
+        await getDb().query(
+          'UPDATE users SET organization_id = ?, phone = ?, pin_hash = ? WHERE id = ?',
+          ['org-ramesh', '9876543210', rameshUser.pinHash, rameshUser.id]
+        );
+      }
     }
 
     // 3. Aura Modern Salon Owner
-    if (!(await this.getUserByUsername('aura_owner'))) {
+    const auraUser = await this.getUserByUsername('aura_owner');
+    if (!auraUser) {
       await this.createUser({
         username: 'aura_owner',
         password: 'Aura@123',
@@ -437,10 +452,23 @@ export const authService = {
         salonId: 'salon-modern-01',
       });
       console.log('[Auth] Seeded Salon Owner: aura_owner / Aura@123');
+    } else if (!auraUser.organizationId) {
+      auraUser.organizationId = 'org-aura';
+      auraUser.email = 'owner@aurasalon.com';
+      auraUser.phone = '9988776655';
+      memoryUsers.set(auraUser.username, auraUser);
+      memoryUsers.set(auraUser.id, auraUser);
+      if (isMySqlConnected) {
+        await getDb().query(
+          'UPDATE users SET organization_id = ?, email = ?, phone = ? WHERE id = ?',
+          ['org-aura', 'owner@aurasalon.com', '9988776655', auraUser.id]
+        );
+      }
     }
 
     // 4. Aura Modern Staff: Leo (Master Stylist with PIN 4321)
-    if (!(await this.getUserByUsername('leo'))) {
+    const leoUser = await this.getUserByUsername('leo');
+    if (!leoUser) {
       await this.createUser({
         username: 'leo',
         password: 'Leo@123',
@@ -452,6 +480,18 @@ export const authService = {
         staffId: 'stylist-m-1',
       });
       console.log('[Auth] Seeded Staff: leo / Leo@123 (PIN: 4321)');
+    } else if (!leoUser.pinHash || !leoUser.organizationId) {
+      leoUser.organizationId = 'org-aura';
+      leoUser.phone = '9988776651';
+      leoUser.pinHash = await this.hashPin('4321');
+      memoryUsers.set(leoUser.username, leoUser);
+      memoryUsers.set(leoUser.id, leoUser);
+      if (isMySqlConnected) {
+        await getDb().query(
+          'UPDATE users SET organization_id = ?, phone = ?, pin_hash = ? WHERE id = ?',
+          ['org-aura', '9988776651', leoUser.pinHash, leoUser.id]
+        );
+      }
     }
   },
 };
