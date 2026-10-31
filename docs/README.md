@@ -14,6 +14,7 @@ This directory contains the complete product, architectural, operational, and ro
 | [**02_SYSTEM_ARCHITECTURE_AND_TECH_SPEC.md**](./02_SYSTEM_ARCHITECTURE_AND_TECH_SPEC.md) | **Technical Architecture & Engineering Spec** | Decoupled Hybrid Architecture (Bun + Elysia backend + Next.js 15 frontend), MySQL schema & ERD, WebSocket protocol, Auth & Session Matrix, 4-Digit Quick PIN Keypad, and the Walk-in + Appointment Interleaving Algorithm. |
 | [**03_MOBILE_AND_CROSS_PLATFORM_STRATEGY.md**](./03_MOBILE_AND_CROSS_PLATFORM_STRATEGY.md) | **Mobile & Hardware Integration Blueprint** | PWA vs Flutter vs React Native decision matrix, Shared Mirror Tablet UX, Lobby TV constraints, Bluetooth thermal printer POS support, and offline resilience. |
 | [**04_EXECUTION_ROADMAP_AND_MILESTONES.md**](./04_EXECUTION_ROADMAP_AND_MILESTONES.md) | **Project Roadmap & Implementation Phases** | Current status (Phase 1 & 1.5 Complete), Phase 2 Next.js Web Portals, Phase 3 Appointment Booking Engine, Phase 4 Native Mobile App, and Phase 5 Vertical Expansion (Clinics, Restaurants). |
+| [**05_FRONTEND_UI_PANELS_SPECIFICATION.md**](./05_FRONTEND_UI_PANELS_SPECIFICATION.md) | **Frontend UI Panels & Component Specification** | Comprehensive breakdown of the 6 core panels: Super Admin, Salon Owner Hub, Staff Preferences, Staff Chair Working Station (with 4-digit PIN), Customer Live Queue / TV, and Customer Profile & History Portal. |
 
 ---
 
