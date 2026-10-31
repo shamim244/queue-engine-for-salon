@@ -69,11 +69,13 @@ In the future, the exact same underlying queue engine will expand into **clinics
 
 ## 4. Functional Specifications & Modules
 
-### Module 1: Frictionless Customer Door QR Check-in (`/s/:slug`)
+### Module 1: Frictionless Customer Door QR Check-in & Pocket Queue Board (`/s/:slug`)
 * **Zero-Download Web Experience:** Customer scans QR code printed on the door or mirror. Instant load time ($<25\text{KB}$, zero hydration lag on 2G/3G).
 * **Frictionless Entry:** Client enters Name and optional Mobile Phone number, selects a primary service (e.g. Haircut), selects optional add-ons (e.g. Beard trim, Hair spa), and optionally picks a preferred stylist or "Fastest Available".
 * **Instant Ticket Generation:** Client receives an atomic, sequentially incremented ticket number (e.g. `#101`) with real-time calculated wait time and queue position.
-* **Live Animated Progress Tracker:** Real-time web page with animated queue bar, dynamic minute countdown, and browser audio chime when chair is ready.
+* **Dual-View Customer Screen (Personal Ticket + Pocket TV Queue Board):**
+  1. **Top Section (Personal Live Ticket):** Animated queue progress bar, real-time minute countdown, and browser audio chime when chair is ready.
+  2. **Bottom Section (Full Salon Queue Board / Pocket TV):** Displays who is currently in Chair 1, Chair 2, and the full waiting list sequence (#101, #102, #103...). Allows clients to leave the salon lounge, relax at a nearby tea stall or cafe, and watch their ticket move up the queue in real-time.
 * **Automated WhatsApp Dispatches:**
   * *On Check-in:* Confirmation message with Ticket # and estimated wait.
   * *On Summon:* *"CHAIR READY: Please step inside within 3 minutes!"*
@@ -85,7 +87,8 @@ In the future, the exact same underlying queue engine will expand into **clinics
 * **Zero Distraction:** Large scannable QR code centered, salon name, clean instructions ("Scan QR to hold your spot. Relax nearby, we alert your phone").
 * **Print-Ready CSS:** Automatic browser print stylesheets (`@media print`) that hide page margins and headers for instant A4 printing.
 
-### Module 3: Modern High-Contrast Lobby TV Departure Board (`/s/:slug/tv`)
+### Module 3: Salon Lobby TV Departure Board (`/s/:slug/tv`) - FOR ENTIRE SALON
+* **Public Big-Screen Display:** Mounted on a 32" to 55" Smart TV in the waiting lounge for **ALL customers and visitors** in the salon to view simultaneously.
 * **Airport Departure Board Paradigm:** Displays "NOW SERVING" (Chairs with Stylist Name, Ticket Number, and Client Name) and "NEXT IN LINE" (Tickets in waiting sequence with countdown).
 * **Privacy Phone Masking:** Customer phone numbers are automatically masked (`+91 98765 ***10`) to protect customer privacy on public screens.
 * **Low-Memory Smart TV Optimization:** Continuous zero-memory-leak WebSocket listener; renders flawlessly on budget Android TVs and older WebKit browsers.
@@ -139,9 +142,38 @@ In the future, the exact same underlying queue engine will expand into **clinics
   * Lower-third ticker on the Lobby TV Departure Board.
 * **Targeting:** Localized grooming brand promotions (e.g. beard grooming kits, hair care products) or salon cross-promotions.
 
+### Module 11: Registered Customer Account & History Portal (`/me` or `/customer`)
+* **Dedicated Member Portal:** Secure profile access for returning registered clients (authenticated via mobile phone/OTP/password).
+* **Comprehensive Customer Hub Features:**
+  * **My Grooming Profile & Haircut Specs:** Preferred stylist, saved haircut notes (e.g. "Zero fade on sides, scissor cut top, beard trim with #2 guard"), and haircut reference photos.
+  * **Complete Visit History & Digital Receipts:** Full log of past visits with dates, salon branch, services received, barber name, and amount paid. Downloadable digital invoices.
+  * **Loyalty Rewards & Stamp Cards:** Automated stamp tracker (e.g. "Visit 4 of 6: 2 more cuts for a free beard trim!").
+  * **Upcoming Bookings & Appointments:** View, reschedule, or cancel future pre-booked appointment slots.
+
 ---
 
-## 5. Business Model & Subscription Tiers
+## 5. Architectural & Deployment Paradigm
+
+```
+queue-engine-for-salon/
+├── apps/
+│   ├── api/             # Bun v1.4.3 + ElysiaJS + MySQL (Core Headless Real-time Engine)
+│   └── web/             # Next.js 15 + Tailwind CSS + shadcn/ui (6 Frontend Panels)
+└── docs/                # Single Source of Truth Specifications
+```
+
+### Flexible Deployment Options
+1. **Single-Server Deployment (MVP / Budget VPS: $5–$10/mo):**
+   * Both `apps/api` (port 3001) and `apps/web` (port 3000) run on the same VPS behind an NGINX reverse proxy (`/api` & `/ws` to 3001, `/*` to 3000).
+2. **Multi-Server Distributed Deployment (Enterprise Scale):**
+   * `apps/web` deployed on Edge CDN / Vercel (`dashboard.engineque.com`).
+   * `apps/api` scaled horizontally across multiple ports/servers (`api.engineque.com`) behind a load balancer.
+   * Seamless connection via `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WS_URL`.
+   * Future Flutter Android mobile app communicates with the exact same headless backend.
+
+---
+
+## 6. Business Model & Subscription Tiers
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐

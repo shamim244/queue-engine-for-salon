@@ -145,39 +145,59 @@ apps/web/
 
 ---
 
-### Panel 5A: Customer Live Queue & Door Check-In (`/s/:slug`)
+### Panel 5A-1: Customer Door QR Scan & Live "Pocket TV" Queue Screen (`/s/:slug`)
 * **Role Gate:** Public / Guest (Zero friction, no login required)
 * **Footprint:** Ultra-lightweight ($<25\text{KB}$ initial bundle, zero hydration lag on 2G/3G).
-* **Core Features:**
-  1. **Self-Service Check-In Form:**
+* **Dual-View Screen Architecture:**
+  1. **Self-Service Check-In Form (Before Joining):**
      * Inputs: Name and optional mobile phone number.
      * Service selection chips with price and duration indicators.
      * Optional stylist selection ("Fastest Available" or specific stylist).
      * Instant ticket issuance upon submission.
-  2. **Live Animated Progress Tracker:**
-     * Visual animated progress bar showing relative position in queue.
-     * Real-time countdown timer ("Estimated wait: ~18 mins").
-     * Current ticket being served at the chairs.
-     * Web Audio chime triggers when ticket is summoned.
-  3. **Lobby TV Departure Board (`/s/:slug/tv`):**
-     * Airport departure board layout ("NOW SERVING" vs "WAITING").
-     * Phone numbers masked for privacy (`+91 98765 ***10`).
-     * Continuous self-healing WebSocket connection.
+  2. **Top Card: Personal Live Ticket Tracker (After Joining):**
+     * Big ticket number badge (e.g. `🎟️ Your Ticket: #104 (Amit Sharma)`).
+     * People ahead counter (`👥 2 clients ahead of you`).
+     * Real-time countdown timer (`⏳ Estimated Wait: ~20 mins`).
+     * Animated visual progress bar.
+     * Chime alert sound when summoned + WhatsApp arrival notification.
+     * Reassuring prompt: *"Feel free to grab tea or relax nearby! We will alert you on WhatsApp and chime when you're next."*
+  3. **Bottom Card: Live Salon Queue Board (Pocket TV View):**
+     * Shows the live status of the whole salon right in their pocket:
+       * **💺 Currently in Chair:** Chair 1 (Ramesh serving #101), Chair 2 (Leo serving #102).
+       * **⏳ Next in Line:** Full waiting sequence (#103, #104 [YOU 👈], #105...).
+     * Enables clients to leave the cramped waiting lounge and monitor their queue position advancing while sipping tea across the street.
+  4. **Save Profile Shortcut:**
+     * 1-tap non-blocking prompt at the bottom: *"Save this haircut to my profile for 1-tap future check-ins"*.
 
 ---
 
-### Panel 5B: Customer Account & Profile Portal (`/me` or `/customer`)
-* **Role Gate:** `CUSTOMER` (Authenticated via Phone / OTP / Password)
-* **Core Features:**
-  1. **Grooming Profile & Preferences:**
-     * Preferred stylist.
-     * Saved haircut notes (e.g. "Fade #2 on sides, scissor trim on top").
-     * Past haircut reference photos.
-  2. **Visit History & Receipts:**
-     * Chronological list of salon visits.
-     * Services performed, barber name, and amount paid.
-     * Downloadable digital tax invoice / receipt.
-  3. **Loyalty Rewards & Coupons:**
+### Panel 5A-2: Public Salon Lobby TV Departure Board (`/s/:slug/tv`)
+* **Audience:** The **ENTIRE SALON LOUNGE** (All waiting clients and visitors).
+* **Hardware Surface:** 32" to 55" Smart TV mounted high on the lounge wall.
+* **Core Display Paradigm:**
+  * Airport departure board layout:
+    * Left Column: **NOW SERVING** (All active chairs with Stylist name, Ticket number, and Client name).
+    * Right Column: **NEXT IN LINE** (Ordered waiting tickets with dynamic wait times).
+  * **Privacy Phone Masking:** Client phone numbers masked automatically (`+91 98765 ***10`).
+  * Continuous low-memory self-healing WebSocket connection (<15MB RAM footprint on Android TV).
+
+---
+
+### Panel 5B: Registered Customer Account & History Portal (`/me` or `/customer`)
+* **Role Gate:** `CUSTOMER` (Authenticated via Mobile Phone / OTP / Password)
+* **Core Comprehensive Features:**
+  1. **My Grooming Profile & Haircut Specs:**
+     * Preferred stylist (e.g. Ramesh).
+     * Detailed haircut & beard specs (e.g. "Zero fade on sides, scissor cut on top, beard trim with #2 guard").
+     * Haircut reference photos and barber notes.
+  2. **Complete Visit History & Digital Receipts:**
+     * Chronological log of all salon visits.
+     * Dates, salon branch visited, services performed, barber name, and amount paid.
+     * 1-click download of digital tax receipt / bill.
+  3. **Loyalty Rewards & Stamp Cards:**
+     * Digital stamp card tracker (e.g. "Visit 4 of 6: 2 more cuts for a free beard trim!").
+  4. **Upcoming Appointments & Bookings (Phase 3 Integration):**
+     * View, reschedule, or cancel future pre-booked appointment slots.
      * Stamp card tracker (e.g. "Visit 4 of 6 to earn a free beard trim").
   4. **Upcoming Appointments (Phase 3 Integration):**
      * View, reschedule, or cancel future pre-booked appointments.
