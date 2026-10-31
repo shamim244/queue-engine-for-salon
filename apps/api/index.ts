@@ -2,6 +2,7 @@ import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 import { staticPlugin } from '@elysiajs/static';
+import path from 'path';
 import { config } from './src/config';
 import { initDatabase } from './src/db/mysql';
 import { seedDemoData } from './src/db/repository';
@@ -20,6 +21,8 @@ await initDatabase();
 seedDemoData();
 await authService.seedDefaultUsers();
 
+const publicDir = path.resolve(import.meta.dir, 'src/public');
+
 const app = new Elysia()
   .use(cors())
   .use(swagger({
@@ -33,7 +36,7 @@ const app = new Elysia()
     },
   }))
   .use(staticPlugin({
-    assets: 'src/public',
+    assets: publicDir,
     prefix: '',
   }))
   .use(salonRoutes)
