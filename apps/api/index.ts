@@ -59,11 +59,21 @@ const app = new Elysia()
       websocketHub.addClient(ws.id, salonId, (data) => ws.send(data));
     },
     message(ws, message) {
-      // Handle optional ping/subscribe
-      if (typeof message === 'object' && message !== null && (message as any).action === 'subscribe') {
-        const salonId = (message as any).salonId;
-        if (salonId) {
-          websocketHub.addClient(ws.id, salonId, (data) => ws.send(data));
+      let parsed: any = message;
+      if (typeof message === 'string') {
+        try {
+          parsed = JSON.parse(message);
+        } catch {}
+      }
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.action === 'subscribe' || parsed.type === 'JOIN_SALON') {
+          const salonId = parsed.salonId;
+          if (salonId) {
+            websocketHub.addClient(ws.id, salonId, (data) => ws.send(data));
+          }
+        }
+        if (parsed.type === 'PING' || parsed.action === 'ping') {
+          ws.send(JSON.stringify({ type: 'PONG', timestamp: Date.now() }));
         }
       }
     },

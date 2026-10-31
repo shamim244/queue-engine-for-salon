@@ -9,6 +9,7 @@ import {
   Organization,
   AuthSessionResponse,
   setAuthToken,
+  getAuthToken,
 } from "./api";
 
 interface AuthContextType {
@@ -62,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const storedToken = localStorage.getItem("engine_token");
+      const storedToken = getAuthToken();
       if (storedToken) {
         setTokenState(storedToken);
         refreshUser();
@@ -126,11 +127,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const demoLogin = async (role: "SUPER_ADMIN" | "SALON_OWNER" | "STAFF" | "CUSTOMER") => {
     if (role === "SUPER_ADMIN") {
-      await login("admin", "admin123");
+      await login("admin", "Admin@123");
     } else if (role === "SALON_OWNER") {
-      await login("ramesh", "salon123");
+      await login("aura_owner", "Aura@123");
     } else if (role === "STAFF") {
-      await login("vijay", "barber123");
+      await login("ramesh", "Ramesh@123");
     } else if (role === "CUSTOMER") {
       // Setup demo customer session
       const demoCust: AuthUser = {

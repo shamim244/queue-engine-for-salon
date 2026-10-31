@@ -99,31 +99,44 @@ export interface AuthSessionResponse {
   branches?: Salon[];
 }
 
-function getAuthToken(): string | null {
+export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("engine_token");
+  const local = localStorage.getItem("engine_token") || localStorage.getItem("engine_session");
+  if (local) return local;
+  const match = document.cookie.match(/(?:^|;\s*)(?:engine_session|engine_token|auth_token)=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 export function setAuthToken(token: string | null) {
   if (typeof window === "undefined") return;
   if (token) {
     localStorage.setItem("engine_token", token);
+    document.cookie = `engine_token=${encodeURIComponent(token)}; path=/; max-age=2592000; SameSite=Lax`;
   } else {
     localStorage.removeItem("engine_token");
+    localStorage.removeItem("engine_session");
+    document.cookie = "engine_token=; path=/; max-age=0; SameSite=Lax";
+    document.cookie = "engine_session=; path=/; max-age=0; SameSite=Lax";
+    document.cookie = "auth_token=; path=/; max-age=0; SameSite=Lax";
   }
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+export async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const url =
+    endpoint.startsWith("http://") || endpoint.startsWith("https://")
+      ? endpoint
+      : `${API_BASE_URL}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+
   const token = getAuthToken();
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     Accept: "application/json",
     ...(options.headers as Record<string, string>),
   };
 
-  if (token) {
+  if (token && !headers["Authorization"]) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
@@ -138,12 +151,59 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     try {
       const errJson = await response.json();
       if (errJson.message) errorMsg = errJson.message;
+      else if (errJson.error) errorMsg = errJson.error;
     } catch {}
     throw new Error(errorMsg);
   }
 
-  return response.json();
+  if (response.status === 204) {
+    return {} as T;
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return {} as T;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return text as unknown as T;
+  }
 }
+
+function serializeBody(body: any): BodyInit | undefined {
+  if (body === undefined) return undefined;
+  if (typeof body === "string") return body;
+  if (typeof FormData !== "undefined" && body instanceof FormData) return body;
+  return JSON.stringify(body);
+}
+
+export const apiClient = {
+  get: <T>(endpoint: string, options?: RequestInit) =>
+    request<T>(endpoint, { ...options, method: "GET" }),
+  post: <T>(endpoint: string, body?: any, options?: RequestInit) =>
+    request<T>(endpoint, {
+      ...options,
+      method: "POST",
+      body: serializeBody(body),
+    }),
+  put: <T>(endpoint: string, body?: any, options?: RequestInit) =>
+    request<T>(endpoint, {
+      ...options,
+      method: "PUT",
+      body: serializeBody(body),
+    }),
+  patch: <T>(endpoint: string, body?: any, options?: RequestInit) =>
+    request<T>(endpoint, {
+      ...options,
+      method: "PATCH",
+      body: serializeBody(body),
+    }),
+  delete: <T>(endpoint: string, options?: RequestInit) =>
+    request<T>(endpoint, { ...options, method: "DELETE" }),
+  request,
+};
 
 export const api = {
   auth: {

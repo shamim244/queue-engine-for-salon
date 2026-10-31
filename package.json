@@ -9,7 +9,7 @@
     "dev": "bun --filter \"*\" dev",
     "dev:api": "cd apps/api && bun index.ts",
     "dev:web": "cd apps/web && bun run dev",
-    "test": "cd apps/api && bun test",
+    "test": "bun test",
     "build:web": "cd apps/web && bun run build",
     "build": "bun run build:web"
   }

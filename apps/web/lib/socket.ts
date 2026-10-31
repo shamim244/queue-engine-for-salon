@@ -11,7 +11,9 @@ export interface QueueSocketEvent {
     | "TICKET_COMPLETED"
     | "TICKET_BUMPED"
     | "QUEUE_UPDATED"
-    | "EMERGENCY_HALT";
+    | "EMERGENCY_HALT"
+    | "PONG"
+    | "HEARTBEAT_ACK";
   ticket?: Ticket;
   timestamp?: number;
   message?: string;
@@ -23,77 +25,204 @@ export function useSalonSocket(
   onEvent?: (event: QueueSocketEvent) => void
 ) {
   const [isConnected, setIsConnected] = useState(false);
+  const [lastPing, setLastPing] = useState<number | null>(null);
+
   const socketRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<any>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const watchdogIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const lastSeenRef = useRef<number>(Date.now());
+  const connectingStartedAtRef = useRef<number | null>(null);
+  const isUnmountedRef = useRef(false);
   const callbackRef = useRef(onEvent);
 
   useEffect(() => {
     callbackRef.current = onEvent;
   }, [onEvent]);
 
-  const connect = useCallback(() => {
-    if (!salonId || typeof window === "undefined") return;
+  const cleanupTimers = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+    if (watchdogIntervalRef.current) {
+      clearInterval(watchdogIntervalRef.current);
+      watchdogIntervalRef.current = null;
+    }
+  }, []);
 
+  const send = useCallback((data: any) => {
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      try {
+        const payload = typeof data === "string" ? data : JSON.stringify(data);
+        socketRef.current.send(payload);
+        lastSeenRef.current = Date.now();
+        return true;
+      } catch (err) {
+        console.warn("[WebSocket] Send failed:", err);
+        return false;
+      }
+    }
+    return false;
+  }, []);
+
+  const connect = useCallback(() => {
+    if (!salonId || typeof window === "undefined" || isUnmountedRef.current) return;
+
+    // Clear any pending reconnect
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    // Close existing socket if still active
     if (socketRef.current) {
       try {
+        socketRef.current.onclose = null;
+        socketRef.current.onerror = null;
+        socketRef.current.onmessage = null;
+        socketRef.current.onopen = null;
         socketRef.current.close();
       } catch {}
+      socketRef.current = null;
     }
 
     const wsUrl = `${WS_BASE_URL}?salonId=${encodeURIComponent(salonId)}`;
+    connectingStartedAtRef.current = Date.now();
+
     try {
       const ws = new WebSocket(wsUrl);
       socketRef.current = ws;
 
       ws.onopen = () => {
+        if (isUnmountedRef.current) {
+          ws.close();
+          return;
+        }
         setIsConnected(true);
-        // Send join payload as well to ensure room assignment
-        ws.send(JSON.stringify({ type: "JOIN_SALON", salonId }));
+        connectingStartedAtRef.current = null;
+        lastSeenRef.current = Date.now();
+
+        // Send subscribe and join room payload
+        send({ type: "JOIN_SALON", salonId, action: "subscribe" });
       };
 
       ws.onmessage = (event) => {
+        lastSeenRef.current = Date.now();
         try {
-          const data: QueueSocketEvent = JSON.parse(event.data);
-          if (callbackRef.current) {
+          const raw = event.data;
+          const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+          if (data && (data.type === "PONG" || data.type === "HEARTBEAT_ACK")) {
+            setLastPing(Date.now());
+            return;
+          }
+          if (callbackRef.current && data) {
             callbackRef.current(data);
           }
-        } catch (err) {
-          console.error("[WebSocket] Parse error:", err);
+        } catch {
+          // Non-JSON message or raw ping/pong response
+          setLastPing(Date.now());
         }
       };
 
       ws.onerror = (err) => {
-        console.warn("[WebSocket] Error:", err);
+        console.warn("[WebSocket] Error occurred:", err);
       };
 
       ws.onclose = () => {
         setIsConnected(false);
-        // Reconnect after 3 seconds
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, 3000);
+        connectingStartedAtRef.current = null;
+
+        // Auto-recover within <3 seconds (1.5s delay)
+        if (!isUnmountedRef.current && salonId && !reconnectTimeoutRef.current) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            connect();
+          }, 1500);
+        }
       };
     } catch (e) {
-      console.error("[WebSocket] Connection attempt failed:", e);
-      reconnectTimeoutRef.current = setTimeout(() => {
-        connect();
-      }, 5000);
+      console.error("[WebSocket] Connection initialization failed:", e);
+      setIsConnected(false);
+      connectingStartedAtRef.current = null;
+
+      if (!isUnmountedRef.current && salonId && !reconnectTimeoutRef.current) {
+        reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectTimeoutRef.current = null;
+          connect();
+        }, 1500);
+      }
     }
-  }, [salonId]);
+  }, [salonId, send]);
 
   useEffect(() => {
+    isUnmountedRef.current = false;
     connect();
 
-    return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
+    // 1. Automatic Heartbeat (Every 10 seconds, send ping)
+    heartbeatIntervalRef.current = setInterval(() => {
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        try {
+          socketRef.current.send(JSON.stringify({ type: "PING", timestamp: Date.now() }));
+        } catch {}
       }
+    }, 10000);
+
+    // 2. Reconnect Watchdog (<3s auto-recovery check every 1.5 seconds)
+    watchdogIntervalRef.current = setInterval(() => {
+      if (isUnmountedRef.current || !salonId) return;
+
+      const ws = socketRef.current;
+      const now = Date.now();
+
+      // Case A: Socket is dead or closed, but no reconnect is scheduled -> trigger immediately
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        if (!reconnectTimeoutRef.current) {
+          connect();
+        }
+        return;
+      }
+
+      // Case B: Stuck in CONNECTING state for > 2.5s -> terminate and retry
+      if (ws.readyState === WebSocket.CONNECTING) {
+        if (connectingStartedAtRef.current && now - connectingStartedAtRef.current > 2500) {
+          console.warn("[WebSocket Watchdog] Connection attempt stalled, forcing reconnect...");
+          connect();
+        }
+        return;
+      }
+
+      // Case C: Socket is OPEN but has been completely silent with no traffic for > 30 seconds
+      if (ws.readyState === WebSocket.OPEN && now - lastSeenRef.current > 30000) {
+        console.warn("[WebSocket Watchdog] Stale silent connection detected (>30s), auto-recovering...");
+        try {
+          ws.close();
+        } catch {}
+        connect();
+      }
+    }, 1500);
+
+    return () => {
+      isUnmountedRef.current = true;
+      cleanupTimers();
+
       if (socketRef.current) {
-        socketRef.current.close();
+        try {
+          socketRef.current.onclose = null;
+          socketRef.current.onerror = null;
+          socketRef.current.onmessage = null;
+          socketRef.current.onopen = null;
+          socketRef.current.close();
+        } catch {}
         socketRef.current = null;
       }
     };
-  }, [connect]);
+  }, [salonId, connect, cleanupTimers]);
 
-  return { isConnected, reconnect: connect };
+  return { isConnected, reconnect: connect, send, lastPing };
 }
