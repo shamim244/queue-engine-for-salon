@@ -1,0 +1,348 @@
+import { describe, it, expect, beforeEach, mock } from "bun:test";
+import React from "react";
+import { renderToString } from "react-dom/server";
+
+// Mock next/navigation
+const mockPush = mock((_url: string) => {});
+let currentPathname = "/admin/tenants";
+
+mock.module("next/navigation", () => ({
+  useRouter: () => ({
+    push: mockPush,
+    replace: mock((_url: string) => {}),
+    prefetch: mock(() => {}),
+    back: mock(() => {}),
+  }),
+  usePathname: () => currentPathname,
+  useSearchParams: () => new URLSearchParams("redirect=/admin/tenants"),
+}));
+
+import {
+  AuthGuard,
+  getRoleDestination,
+  resolveAuthRedirect,
+} from "../components/auth-guard";
+import LoginPage from "../app/login/page";
+import AdminLayout from "../app/admin/layout";
+import { AuthContext, AuthContextType } from "../lib/auth-context";
+import { getAuthToken, setAuthToken } from "../lib/api";
+
+function createMockAuthContext(overrides: Partial<AuthContextType> = {}): AuthContextType {
+  return {
+    user: null,
+    salon: null,
+    staff: null,
+    organization: null,
+    branches: [],
+    token: null,
+    isLoading: false,
+    login: mock(async () => ({} as any)),
+    pinLogin: mock(async () => ({} as any)),
+    logout: mock(async () => {}),
+    refreshUser: mock(async () => {}),
+    setSelectedSalon: mock(() => {}),
+    demoLogin: mock(async () => {}),
+    ...overrides,
+  };
+}
+
+describe("Enterprise Unified Authentication & Protected Route Guard System", () => {
+  beforeEach(() => {
+    mockPush.mockClear();
+    currentPathname = "/admin/tenants";
+
+    // Setup global simulated storage & cookies
+    (globalThis as any).window = globalThis;
+    let store: Record<string, string> = {};
+    (globalThis as any).localStorage = {
+      getItem: (k: string) => store[k] || null,
+      setItem: (k: string, v: string) => {
+        store[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete store[k];
+      },
+      clear: () => {
+        store = {};
+      },
+    };
+
+    let cookieJar: Record<string, string> = {};
+    (globalThis as any).document = {
+      get cookie() {
+        return Object.entries(cookieJar)
+          .map(([k, v]) => `${k}=${v}`)
+          .join("; ");
+      },
+      set cookie(str: string) {
+        if (!str) {
+          cookieJar = {};
+          return;
+        }
+        const parts = str.split(";");
+        const [rawKey, rawVal] = parts[0].split("=");
+        if (!rawKey) return;
+        const key = rawKey.trim();
+        const val = rawVal ? rawVal.trim() : "";
+        if (str.includes("max-age=0")) {
+          delete cookieJar[key];
+        } else {
+          cookieJar[key] = val;
+        }
+      },
+    };
+  });
+
+  describe("Login Routing & Redirect Resolver", () => {
+    it("should map user roles to their respective enterprise destinations", () => {
+      expect(getRoleDestination("SUPER_ADMIN")).toBe("/admin");
+      expect(getRoleDestination("SALON_OWNER")).toBe("/owner");
+      expect(getRoleDestination("STAFF")).toBe("/s/ramesh-barber/station");
+      expect(getRoleDestination("CUSTOMER")).toBe("/me");
+      expect(getRoleDestination(undefined)).toBe("/login");
+    });
+
+    it("should allow custom salon slug for staff destination when provided", () => {
+      expect(getRoleDestination("STAFF", "aura-unisex")).toBe("/s/aura-unisex/station");
+    });
+
+    it("should preserve custom redirect query if valid relative route", () => {
+      expect(resolveAuthRedirect("/admin/tenants", "SUPER_ADMIN")).toBe("/admin/tenants");
+      expect(resolveAuthRedirect("/owner/billing", "SALON_OWNER")).toBe("/owner/billing");
+      expect(resolveAuthRedirect("/me?tab=history", "CUSTOMER")).toBe("/me?tab=history");
+    });
+
+    it("should fall back to role destination if redirect param is empty or malicious open redirect", () => {
+      expect(resolveAuthRedirect(null, "SUPER_ADMIN")).toBe("/admin");
+      expect(resolveAuthRedirect("", "SALON_OWNER")).toBe("/owner");
+      // Block open redirect attempts starting with '//' or external scheme
+      expect(resolveAuthRedirect("//evil.com", "SUPER_ADMIN")).toBe("/admin");
+      expect(resolveAuthRedirect("https://attacker.com", "STAFF")).toBe("/s/ramesh-barber/station");
+    });
+  });
+
+  describe("AuthGuard Component", () => {
+    it("should display a clean loading skeleton when authentication state is resolving", () => {
+      const mockAuth = createMockAuthContext({
+        isLoading: true,
+        user: null,
+      });
+
+      const tree = React.createElement(
+        AuthContext.Provider,
+        { value: mockAuth },
+        React.createElement(
+          AuthGuard,
+          { requiredRole: "SUPER_ADMIN" },
+          React.createElement("div", { id: "protected-content" }, "Admin Secret Area")
+        )
+      );
+
+      const html = renderToString(tree);
+      expect(html).toContain("Verifying");
+      expect(html).not.toContain("Admin Secret Area");
+    });
+
+    it("should render access denied card with direct login button when unauthenticated", () => {
+      currentPathname = "/admin/tenants";
+      const mockAuth = createMockAuthContext({
+        isLoading: false,
+        user: null,
+      });
+
+      const tree = React.createElement(
+        AuthContext.Provider,
+        { value: mockAuth },
+        React.createElement(
+          AuthGuard,
+          { requiredRole: "SUPER_ADMIN" },
+          React.createElement("div", { id: "protected-content" }, "Admin Secret Area")
+        )
+      );
+
+      const html = renderToString(tree);
+      expect(html).toContain("Access Denied");
+      expect(html).toContain("Sign In to Access");
+      expect(html).toContain(encodeURIComponent("/admin/tenants"));
+      expect(html).not.toContain("Admin Secret Area");
+    });
+
+    it("should display authorization required banner with role mismatch info and switch account action", () => {
+      currentPathname = "/admin/billing";
+      const mockAuth = createMockAuthContext({
+        isLoading: false,
+        user: {
+          id: "u-staff-01",
+          username: "ramesh",
+          role: "STAFF",
+          status: "ACTIVE",
+        },
+      });
+
+      const tree = React.createElement(
+        AuthContext.Provider,
+        { value: mockAuth },
+        React.createElement(
+          AuthGuard,
+          { requiredRole: "SUPER_ADMIN" },
+          React.createElement("div", { id: "protected-content" }, "Admin Billing Records")
+        )
+      );
+
+      const html = renderToString(tree);
+      expect(html).toContain("Access Restricted");
+      expect(html).toContain("STAFF");
+      expect(html).toContain("SUPER_ADMIN");
+      expect(html).toContain("Switch Account");
+      expect(html).not.toContain("Admin Billing Records");
+    });
+
+    it("should render children directly when user is authenticated with matching role", () => {
+      const mockAuth = createMockAuthContext({
+        isLoading: false,
+        user: {
+          id: "u-admin-01",
+          username: "admin",
+          role: "SUPER_ADMIN",
+          status: "ACTIVE",
+        },
+      });
+
+      const tree = React.createElement(
+        AuthContext.Provider,
+        { value: mockAuth },
+        React.createElement(
+          AuthGuard,
+          { requiredRole: "SUPER_ADMIN" },
+          React.createElement("div", { id: "protected-content" }, "Admin Protected Data")
+        )
+      );
+
+      const html = renderToString(tree);
+      expect(html).toContain("Admin Protected Data");
+      expect(html).not.toContain("Access Denied");
+      expect(html).not.toContain("Access Restricted");
+    });
+
+    it("should render children when authenticated and no requiredRole is specified", () => {
+      const mockAuth = createMockAuthContext({
+        isLoading: false,
+        user: {
+          id: "u-cust-01",
+          username: "customer_jane",
+          role: "CUSTOMER",
+          status: "ACTIVE",
+        },
+      });
+
+      const tree = React.createElement(
+        AuthContext.Provider,
+        { value: mockAuth },
+        React.createElement(
+          AuthGuard,
+          {},
+          React.createElement("div", { id: "open-protected" }, "Any Authenticated User")
+        )
+      );
+
+      const html = renderToString(tree);
+      expect(html).toContain("Any Authenticated User");
+    });
+  });
+
+  describe("Unified Login View (LoginPage)", () => {
+    it("should render enterprise login page with branding and 1-click demo presets", () => {
+      const mockAuth = createMockAuthContext({
+        isLoading: false,
+        user: null,
+      });
+
+      const tree = React.createElement(
+        AuthContext.Provider,
+        { value: mockAuth },
+        React.createElement(LoginPage)
+      );
+
+      const html = renderToString(tree);
+      expect(html).toContain("Engine Que");
+      expect(html).toContain("Unified Platform Authentication");
+      expect(html).toContain("Super Admin");
+      expect(html).toContain("Salon Owner");
+      expect(html).toContain("Stylist / Barber");
+      expect(html).toContain("Customer Demo");
+      expect(html).toContain("Standard Credentials Login");
+      expect(html).toContain("Remember this mirror tablet");
+      expect(html).toContain("Sign In to Platform");
+    });
+  });
+
+  describe("Admin Layout & Protected Route Integration", () => {
+    it("should display authenticated SUPER_ADMIN profile with role badge in sidebar", () => {
+      const mockAuth = createMockAuthContext({
+        isLoading: false,
+        user: {
+          id: "u-admin-01",
+          username: "admin_master",
+          role: "SUPER_ADMIN",
+          status: "ACTIVE",
+        },
+      });
+
+      const tree = React.createElement(
+        AuthContext.Provider,
+        { value: mockAuth },
+        React.createElement(
+          AdminLayout,
+          {},
+          React.createElement("div", { id: "admin-view" }, "Admin Dashboard View")
+        )
+      );
+
+      const html = renderToString(tree);
+      expect(html).toContain("admin_master");
+      expect(html).toContain("SUPER_ADMIN");
+      expect(html).toContain("Admin Dashboard View");
+    });
+
+    it("should protect admin layout when an unauthorized role enters", () => {
+      const mockAuth = createMockAuthContext({
+        isLoading: false,
+        user: {
+          id: "u-staff-01",
+          username: "ramesh",
+          role: "STAFF",
+          status: "ACTIVE",
+        },
+      });
+
+      const tree = React.createElement(
+        AuthContext.Provider,
+        { value: mockAuth },
+        React.createElement(
+          AdminLayout,
+          {},
+          React.createElement("div", { id: "admin-view" }, "Admin Dashboard View")
+        )
+      );
+
+      const html = renderToString(tree);
+      expect(html).toContain("Access Restricted");
+      expect(html).not.toContain("Admin Dashboard View");
+    });
+  });
+
+  describe("Logout and Token Cleanup Protocol", () => {
+    it("should clear localStorage and cookies when session ends", () => {
+      setAuthToken("sample_jwt_999");
+      expect(getAuthToken()).toBe("sample_jwt_999");
+      expect(localStorage.getItem("engine_token")).toBe("sample_jwt_999");
+
+      // Clear tokens
+      setAuthToken(null);
+
+      expect(getAuthToken()).toBeNull();
+      expect(localStorage.getItem("engine_token")).toBeNull();
+      expect(document.cookie).not.toContain("engine_token=sample_jwt_999");
+    });
+  });
+});

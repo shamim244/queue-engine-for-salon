@@ -2,13 +2,13 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { AuthGuard } from "@/components/auth-guard";
 import {
   LayoutDashboard,
   Building2,
   CreditCard,
-  ShieldCheck,
   Radio,
   LogOut,
   Sparkles,
@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout, demoLogin } = useAuth();
 
   const navItems = [
@@ -26,6 +27,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: "Tenant Directory", href: "/admin/tenants", icon: Building2 },
     { label: "Subscription Tiers", href: "/admin/billing", icon: CreditCard },
   ];
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {}
+    router.push("/login");
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col md:flex-row text-slate-100">
@@ -82,13 +90,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="pt-6 border-t border-slate-800/80 space-y-3">
           {user ? (
             <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/40 flex items-center justify-between">
-              <div className="truncate">
+              <div className="truncate mr-2">
                 <p className="text-xs font-semibold text-white truncate">
                   {user.username || "Super Administrator"}
                 </p>
-                <p className="text-[11px] text-slate-400 uppercase tracking-wider">{user.role}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Badge variant="purple" className="text-[10px] px-1.5 py-0 font-mono tracking-wider">
+                    {user.role}
+                  </Badge>
+                </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => logout()} title="Logout">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleLogout}
+                title="Logout"
+                className="shrink-0 hover:bg-rose-500/10"
+              >
                 <LogOut className="h-4 w-4 text-slate-400 hover:text-rose-400" />
               </Button>
             </div>
@@ -105,16 +123,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           <div className="flex justify-between items-center text-[11px] text-slate-500 px-1">
             <Link href="/" className="hover:text-blue-400 transition-colors">
-              ← Main Launcher
+              &larr; Main Launcher
             </Link>
             <span>v1.4.3 decoupled</span>
           </div>
         </div>
       </aside>
 
-      {/* Main Content Area */}
+      {/* Main Content Area Protected by AuthGuard */}
       <main className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-7xl">
-        {children}
+        <AuthGuard requiredRole="SUPER_ADMIN">
+          {children}
+        </AuthGuard>
       </main>
     </div>
   );

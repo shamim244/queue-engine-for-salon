@@ -12,7 +12,7 @@ import {
   getAuthToken,
 } from "./api";
 
-interface AuthContextType {
+export interface AuthContextType {
   user: AuthUser | null;
   salon: Salon | null;
   staff: Stylist | null;
@@ -28,7 +28,7 @@ interface AuthContextType {
   demoLogin: (role: "SUPER_ADMIN" | "SALON_OWNER" | "STAFF" | "CUSTOMER") => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
