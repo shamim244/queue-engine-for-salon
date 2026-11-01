@@ -1,5 +1,81 @@
 import { isMySqlConnected, getDb } from './mysql';
-import type { Salon, Stylist, ServiceDefinition, QueueTicket, TicketStatus, Organization, SubscriptionTier } from '../engine/types';
+import type {
+  Salon,
+  Stylist,
+  ServiceDefinition,
+  QueueTicket,
+  TicketStatus,
+  Organization,
+  SubscriptionTier,
+  PlatformSettings,
+  AuditLog,
+  MaintenanceMode,
+  OnboardSalonPayload,
+} from '../engine/types';
+import { websocketHub } from '../websocket/hub';
+
+export const defaultPlatformSettings: PlatformSettings = {
+  general: {
+    platformName: 'Engine Que Enterprise',
+    supportEmail: 'support@engineque.com',
+    supportPhone: '+91 99999 88888',
+    defaultCurrency: 'INR',
+    defaultTimezone: 'Asia/Kolkata',
+    defaultGracePeriodMinutes: 3,
+    defaultBufferMinutes: 5,
+  },
+  appearance: {
+    themeAccent: 'blue',
+    whiteLabelEnabled: false,
+    customCssEnabled: false,
+    tvDisplayMode: 'AIRPORT_DEPARTURE',
+  },
+  engine: {
+    heartbeatIntervalSeconds: 10,
+    watchdogTimeoutSeconds: 3,
+    autoSummonThresholdSeconds: 180,
+    ticketRetentionHours: 24,
+  },
+  gateway: {
+    provider: 'SIMULATOR',
+    senderPhone: '+91 98765 00000',
+  },
+};
+
+export const defaultAuditLogs: AuditLog[] = [
+  {
+    id: 'audit-001',
+    timestamp: new Date(Date.now() - 3600000 * 24).toISOString(),
+    action: 'SYSTEM_BOOTSTRAP',
+    actor: 'SYSTEM',
+    details: 'Engine Que enterprise core initialized with multi-tenant schema.',
+    category: 'SYSTEM',
+  },
+  {
+    id: 'audit-002',
+    timestamp: new Date(Date.now() - 3600000 * 12).toISOString(),
+    action: 'TENANT_SEEDED',
+    actor: 'SYSTEM',
+    details: 'Seeded default tenants: Ramesh Traditional Barber (RURAL_SOLO) and Aura Luxury Wellness (MODERN_MULTI).',
+    category: 'ONBOARDING',
+  },
+  {
+    id: 'audit-003',
+    timestamp: new Date(Date.now() - 3600000 * 4).toISOString(),
+    action: 'SECURITY_AUDIT',
+    actor: 'superadmin',
+    details: 'SuperAdmin credentials verified and session tokens encrypted.',
+    category: 'SECURITY',
+  },
+  {
+    id: 'audit-004',
+    timestamp: new Date(Date.now() - 3600000).toISOString(),
+    action: 'GATEWAY_HEALTH_CHECK',
+    actor: 'SYSTEM',
+    details: 'WhatsApp Simulator notification pipeline marked healthy.',
+    category: 'CONFIG',
+  },
+];
 
 // In-Memory fallback store
 const memoryStore = {
@@ -9,10 +85,24 @@ const memoryStore = {
   services: new Map<string, ServiceDefinition>(),
   tickets: new Map<string, QueueTicket>(),
   ticketSequence: new Map<string, number>(),
+  settings: JSON.parse(JSON.stringify(defaultPlatformSettings)) as PlatformSettings,
+  auditLogs: [...defaultAuditLogs] as AuditLog[],
+  maintenanceMode: {
+    active: false,
+    message: 'System operational.',
+    activatedAt: null as string | null,
+  } as MaintenanceMode,
 };
 
 // Seed initial demo data
 export function seedDemoData() {
+  memoryStore.settings = JSON.parse(JSON.stringify(defaultPlatformSettings));
+  memoryStore.auditLogs = [...defaultAuditLogs];
+  memoryStore.maintenanceMode = {
+    active: false,
+    message: 'System operational.',
+    activatedAt: null,
+  };
   // 0. Seed Organizations
   const rameshOrg: Organization = {
     id: 'org-ramesh',
@@ -234,6 +324,54 @@ export const repository = {
     }
     const unique = new Set(memoryStore.organizations.values());
     return Array.from(unique);
+  },
+
+  async createOrganization(params: {
+    name: string;
+    slug?: string;
+    tier?: SubscriptionTier;
+    ownerId?: string | null;
+    maxBranches?: number;
+    maxStylistsPerBranch?: number;
+  }): Promise<Organization> {
+    const rawSlug = (params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')) || 'org';
+    let slug = rawSlug;
+    let counter = 1;
+    while (await this.getOrganizationBySlug(slug)) {
+      slug = `${rawSlug}-${counter++}`;
+    }
+
+    const tier = params.tier || 'SOLO';
+    const limits = {
+      SOLO: { maxBranches: 1, maxStylistsPerBranch: 1 },
+      PRO: { maxBranches: 5, maxStylistsPerBranch: 8 },
+      ENTERPRISE: { maxBranches: 50, maxStylistsPerBranch: 25 },
+    }[tier];
+
+    const org: Organization = {
+      id: 'org-' + Math.random().toString(36).substring(2, 9),
+      name: params.name,
+      slug,
+      tier,
+      ownerId: params.ownerId || null,
+      maxBranches: params.maxBranches ?? limits.maxBranches,
+      maxStylistsPerBranch: params.maxStylistsPerBranch ?? limits.maxStylistsPerBranch,
+      createdAt: new Date(),
+    };
+
+    memoryStore.organizations.set(org.id, org);
+    memoryStore.organizations.set(org.slug, org);
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query(
+        `INSERT INTO organizations (id, name, slug, tier, owner_id, max_branches, max_stylists_per_branch)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [org.id, org.name, org.slug, org.tier, org.ownerId, org.maxBranches, org.maxStylistsPerBranch]
+      );
+    }
+
+    return org;
   },
 
   async getSalonsByOrganizationId(orgId: string): Promise<Salon[]> {
@@ -856,6 +994,201 @@ export const repository = {
           serviceCount: s.services.length,
         };
       }),
+    };
+  },
+
+  async getTotalTicketsToday(): Promise<number> {
+    if (isMySqlConnected) {
+      const db = getDb();
+      const [rows]: any = await db.query(
+        `SELECT COUNT(*) as count FROM queue_tickets WHERE DATE(check_in_time) = CURRENT_DATE()`
+      );
+      return Number(rows[0]?.count || 0);
+    }
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const tickets = Array.from(memoryStore.tickets.values());
+    const count = tickets.filter((t) => t.checkInTime && t.checkInTime.slice(0, 10) === todayStr).length;
+    return count;
+  },
+
+  async getAdminStats() {
+    const salons = await this.getAllSalons();
+    const totalSalons = salons.length;
+    let totalStylists = 0;
+    for (const s of salons) {
+      totalStylists += (s.stylists ? s.stylists.length : 0);
+    }
+    const totalTicketsToday = await this.getTotalTicketsToday();
+    const socketClientsCount = websocketHub.getClientCount();
+    const uptimeSeconds = Math.floor(process.uptime());
+    const systemHealth = memoryStore.maintenanceMode.active ? 'MAINTENANCE' : 'HEALTHY';
+
+    return {
+      totalSalons,
+      totalStylists,
+      totalTicketsToday,
+      socketClientsCount,
+      uptimeSeconds,
+      systemHealth,
+    };
+  },
+
+  getPlatformSettings(): PlatformSettings {
+    return JSON.parse(JSON.stringify(memoryStore.settings));
+  },
+
+  updatePlatformSettings(updates: Partial<PlatformSettings>, actor: string = 'superadmin'): PlatformSettings {
+    if (updates.general) {
+      memoryStore.settings.general = { ...memoryStore.settings.general, ...updates.general };
+    }
+    if (updates.appearance) {
+      memoryStore.settings.appearance = { ...memoryStore.settings.appearance, ...updates.appearance };
+    }
+    if (updates.engine) {
+      memoryStore.settings.engine = { ...memoryStore.settings.engine, ...updates.engine };
+    }
+    if (updates.gateway) {
+      memoryStore.settings.gateway = { ...memoryStore.settings.gateway, ...updates.gateway };
+    }
+    this.addAuditLog(
+      'SETTINGS_UPDATED',
+      actor,
+      `Platform settings updated: ${Object.keys(updates).join(', ')}`,
+      'CONFIG'
+    );
+    return JSON.parse(JSON.stringify(memoryStore.settings));
+  },
+
+  getAuditLogs(): AuditLog[] {
+    return [...memoryStore.auditLogs];
+  },
+
+  addAuditLog(action: string, actor: string, details: string, category: string = 'SYSTEM'): AuditLog {
+    const entry: AuditLog = {
+      id: 'audit-' + Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toISOString(),
+      action,
+      actor,
+      details,
+      category,
+    };
+    memoryStore.auditLogs.unshift(entry);
+    if (memoryStore.auditLogs.length > 200) {
+      memoryStore.auditLogs.pop();
+    }
+    return entry;
+  },
+
+  getMaintenanceMode(): MaintenanceMode {
+    return { ...memoryStore.maintenanceMode };
+  },
+
+  toggleMaintenanceMode(active: boolean, message?: string, actor: string = 'superadmin'): MaintenanceMode {
+    memoryStore.maintenanceMode = {
+      active,
+      message: message || (active ? 'Emergency maintenance lockdown' : 'All systems normal'),
+      activatedAt: active ? new Date().toISOString() : null,
+    };
+    this.addAuditLog(
+      active ? 'KILL_SWITCH_ENGAGED' : 'KILL_SWITCH_DISENGAGED',
+      actor,
+      `Maintenance mode set to ${active ? 'ACTIVE' : 'INACTIVE'}. Notice: "${memoryStore.maintenanceMode.message}"`,
+      'SECURITY'
+    );
+    return { ...memoryStore.maintenanceMode };
+  },
+
+  async onboardSalon(payload: OnboardSalonPayload): Promise<{
+    success: boolean;
+    salon: Salon;
+    organization?: Organization | null;
+    ownerUser?: any;
+  }> {
+    const salonName = payload.salonName || payload.name;
+    if (!salonName) {
+      throw new Error('Salon name is required for onboarding.');
+    }
+
+    // 1. Organization creation if specified
+    let org: Organization | null = null;
+    if (payload.organizationName) {
+      const orgSlug = payload.organizationSlug || payload.organizationName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      org = await this.getOrganizationBySlug(orgSlug);
+      if (!org) {
+        org = await this.createOrganization({
+          name: payload.organizationName,
+          slug: orgSlug,
+          tier: payload.tier || 'SOLO',
+        });
+      }
+    }
+
+    // 2. Slug check & auto-generation
+    let finalSlug = payload.slug;
+    if (finalSlug) {
+      const existing = await this.getSalonBySlug(finalSlug);
+      if (existing) {
+        finalSlug = `${finalSlug}-${Math.random().toString(36).substring(2, 6)}`;
+      }
+    }
+
+    // 3. Salon Creation
+    const salon = await this.createSalon({
+      name: salonName,
+      slug: finalSlug,
+      organizationId: org ? org.id : undefined,
+      phone: payload.phone,
+      operatingMode: payload.operatingMode || 'RURAL_SOLO',
+      currency: payload.currency || 'INR',
+      countryCode: payload.countryCode || '+91',
+      address: payload.address,
+      upiPaymentId: payload.upiPaymentId,
+      stylists: payload.stylists,
+      services: payload.services,
+    });
+
+    // 4. Create Owner User if credentials provided
+    let ownerUser: any = null;
+    if (payload.ownerUser && payload.ownerUser.username && payload.ownerUser.password) {
+      const { authService } = await import('../auth/auth-service');
+      const cleanUsername = payload.ownerUser.username.trim().toLowerCase();
+      const existingUser = await authService.getUserByUsername(cleanUsername);
+      if (!existingUser) {
+        ownerUser = await authService.createUser({
+          username: cleanUsername,
+          password: payload.ownerUser.password,
+          role: 'SALON_OWNER',
+          salonId: salon.id,
+          organizationId: salon.organizationId,
+          phone: payload.ownerUser.phone || salon.phone,
+          email: payload.ownerUser.email,
+        });
+      } else {
+        ownerUser = existingUser;
+      }
+    }
+
+    // 5. Log audit event
+    this.addAuditLog(
+      'TENANT_ONBOARDED',
+      payload.ownerUser?.username || 'superadmin',
+      `Onboarded salon '${salon.name}' (${salon.slug}) with ${salon.stylists.length} stylists and ${salon.services.length} services`,
+      'ONBOARDING'
+    );
+
+    return {
+      success: true,
+      salon,
+      organization: org,
+      ownerUser: ownerUser ? {
+        id: ownerUser.id,
+        username: ownerUser.username,
+        role: ownerUser.role,
+        salonId: ownerUser.salonId,
+        organizationId: ownerUser.organizationId,
+        phone: ownerUser.phone,
+        email: ownerUser.email,
+      } : null,
     };
   },
 };

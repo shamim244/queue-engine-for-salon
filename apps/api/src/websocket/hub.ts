@@ -19,6 +19,10 @@ export const websocketHub = {
     console.log(`[WebSocket] Client disconnected: ${id} (Remaining: ${subscribers.size})`);
   },
 
+  getClientCount(): number {
+    return subscribers.size;
+  },
+
   broadcastToSalon(salonId: string, event: QueueEventPayload) {
     const payloadString = JSON.stringify(event);
     let count = 0;

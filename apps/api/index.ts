@@ -11,6 +11,7 @@ import { websocketHub } from './src/websocket/hub';
 import { salonRoutes } from './src/routes/salon.routes';
 import { queueRoutes } from './src/routes/queue.routes';
 import { authRoutes } from './src/routes/auth.routes';
+import { adminRoutes } from './src/routes/admin.routes';
 
 console.log(`\n======================================================`);
 console.log(`🚀 ENGINE QUE SYSTEM FOR SALONS (BUN RUNTIME)`);
@@ -42,6 +43,7 @@ const app = new Elysia()
   .use(salonRoutes)
   .use(queueRoutes)
   .use(authRoutes)
+  .use(adminRoutes)
 
   // Subdirectory Shortcuts (/s/:slug)
   .get('/s/:slug', ({ params, redirect }) => redirect(`/customer.html?salon=${params.slug}`))
@@ -93,3 +95,4 @@ const app = new Elysia()
   });
 
 export type App = typeof app;
+export { app };

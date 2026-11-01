@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import React from "react";
 import { renderToString } from "react-dom/server";
-import { getAuthToken, setAuthToken, API_BASE_URL, WS_BASE_URL, apiClient, request } from "../lib/api";
+import { getAuthToken, setAuthToken, API_BASE_URL, WS_BASE_URL, apiClient, api, request } from "../lib/api";
 import { cn, formatCurrency, maskPhone } from "../lib/utils";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../components/ui/select";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "../components/ui/dropdown-menu";
@@ -90,6 +90,16 @@ describe("Frontend Web Library & Primitives", () => {
       expect(typeof apiClient.patch).toBe("function");
       expect(typeof apiClient.delete).toBe("function");
       expect(typeof apiClient.request).toBe("function");
+    });
+
+    it("should export typed api.admin methods", () => {
+      expect(typeof api.admin.getStats).toBe("function");
+      expect(typeof api.admin.getSettings).toBe("function");
+      expect(typeof api.admin.updateSettings).toBe("function");
+      expect(typeof api.admin.getAuditLogs).toBe("function");
+      expect(typeof api.admin.toggleKillSwitch).toBe("function");
+      expect(typeof api.admin.onboard).toBe("function");
+      expect(typeof api.admin.testNotification).toBe("function");
     });
 
     it("should handle 204 No Content and empty responses cleanly without JSON parsing errors", async () => {

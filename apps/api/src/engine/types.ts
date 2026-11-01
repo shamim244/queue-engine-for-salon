@@ -154,3 +154,79 @@ export interface QueueEventPayload {
   activeQueueCount: number;
   timestamp: string;
 }
+
+export interface PlatformSettings {
+  general: {
+    platformName: string;
+    supportEmail: string;
+    supportPhone: string;
+    defaultCurrency: string;
+    defaultTimezone: string;
+    defaultGracePeriodMinutes: number;
+    defaultBufferMinutes: number;
+  };
+  appearance: {
+    themeAccent: string;
+    whiteLabelEnabled: boolean;
+    customCssEnabled: boolean;
+    tvDisplayMode: string;
+  };
+  engine: {
+    heartbeatIntervalSeconds: number;
+    watchdogTimeoutSeconds: number;
+    autoSummonThresholdSeconds: number;
+    ticketRetentionHours: number;
+  };
+  gateway: {
+    provider: string;
+    senderPhone: string;
+  };
+}
+
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  action: string;
+  actor: string;
+  details: string;
+  category: string;
+}
+
+export interface MaintenanceMode {
+  active: boolean;
+  message: string;
+  activatedAt: string | null;
+}
+
+export interface OnboardSalonPayload {
+  salonName?: string;
+  name?: string;
+  slug?: string;
+  operatingMode?: SalonOperatingMode;
+  phone: string;
+  address?: string;
+  currency?: string;
+  countryCode?: string;
+  upiPaymentId?: string;
+  organizationName?: string;
+  organizationSlug?: string;
+  tier?: SubscriptionTier;
+  ownerUser?: {
+    username: string;
+    password: string;
+    phone?: string;
+    email?: string;
+  };
+  stylists?: Array<{
+    name: string;
+    phone?: string;
+    avgDurationMinutes?: number;
+  }>;
+  services?: Array<{
+    name: string;
+    basePrice: number;
+    estimatedDurationMinutes: number;
+    isAddOn?: boolean;
+    icon?: string;
+  }>;
+}

@@ -99,6 +99,91 @@ export interface AuthSessionResponse {
   branches?: Salon[];
 }
 
+export interface PlatformSettings {
+  general: {
+    platformName: string;
+    supportEmail: string;
+    supportPhone: string;
+    defaultCurrency: string;
+    defaultTimezone: string;
+    defaultGracePeriodMinutes: number;
+    defaultBufferMinutes: number;
+  };
+  appearance: {
+    themeAccent: string;
+    whiteLabelEnabled: boolean;
+    customCssEnabled: boolean;
+    tvDisplayMode: string;
+  };
+  engine: {
+    heartbeatIntervalSeconds: number;
+    watchdogTimeoutSeconds: number;
+    autoSummonThresholdSeconds: number;
+    ticketRetentionHours: number;
+  };
+  gateway: {
+    provider: string;
+    senderPhone: string;
+  };
+}
+
+export interface AdminStats {
+  totalSalons: number;
+  totalStylists: number;
+  totalTicketsToday: number;
+  socketClientsCount: number;
+  uptimeSeconds: number;
+  systemHealth: string;
+}
+
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  action: string;
+  actor: string;
+  details: string;
+  category: string;
+}
+
+export interface MaintenanceMode {
+  active: boolean;
+  message: string;
+  activatedAt?: string | null;
+}
+
+export interface OnboardSalonPayload {
+  salonName?: string;
+  name?: string;
+  slug?: string;
+  operatingMode?: "RURAL_SOLO" | "MODERN_MULTI";
+  phone: string;
+  address?: string;
+  currency?: string;
+  countryCode?: string;
+  upiPaymentId?: string;
+  organizationName?: string;
+  organizationSlug?: string;
+  tier?: "SOLO" | "PRO" | "ENTERPRISE";
+  ownerUser?: {
+    username: string;
+    password: string;
+    phone?: string;
+    email?: string;
+  };
+  stylists?: Array<{
+    name: string;
+    phone?: string;
+    avgDurationMinutes?: number;
+  }>;
+  services?: Array<{
+    name: string;
+    basePrice: number;
+    estimatedDurationMinutes: number;
+    isAddOn?: boolean;
+    icon?: string;
+  }>;
+}
+
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
   const local = localStorage.getItem("engine_token") || localStorage.getItem("engine_session");
@@ -417,6 +502,43 @@ export const api = {
     getNotifications: (salonId?: string) =>
       request<any[]>(
         `/api/queue/notifications${salonId ? `?salonId=${salonId}` : ""}`
+      ),
+  },
+
+  admin: {
+    getStats: () => request<AdminStats>("/api/admin/stats"),
+    getSettings: () => request<PlatformSettings>("/api/admin/settings"),
+    updateSettings: (data: Partial<PlatformSettings>) =>
+      request<{ success: boolean; settings: PlatformSettings }>("/api/admin/settings", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    getAuditLogs: () => request<AuditLog[]>("/api/admin/audit-logs"),
+    toggleKillSwitch: (active: boolean, message?: string) =>
+      request<{ success: boolean; active: boolean; message: string; activatedAt?: string | null }>(
+        "/api/admin/kill-switch",
+        {
+          method: "POST",
+          body: JSON.stringify({ active, message }),
+        }
+      ),
+    onboard: (payload: OnboardSalonPayload) =>
+      request<{
+        success: boolean;
+        salon: Salon;
+        organization?: Organization | null;
+        ownerUser?: any;
+      }>("/api/admin/onboard", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    testNotification: (phone?: string, message?: string) =>
+      request<{ success: boolean; provider: string; notificationId?: string; timestamp?: string }>(
+        "/api/admin/test-notification",
+        {
+          method: "POST",
+          body: JSON.stringify({ phone, message }),
+        }
       ),
   },
 };
