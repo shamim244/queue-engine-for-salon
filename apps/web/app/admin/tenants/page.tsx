@@ -267,9 +267,15 @@ export default function AdminTenantsPage() {
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button size="sm" onClick={() => setIsCreateModalOpen(true)} className="gap-2">
+          <Link href="/admin/onboarding">
+            <Button size="sm" className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold">
+              <Sparkles className="h-4 w-4" />
+              Onboard Salon Wizard
+            </Button>
+          </Link>
+          <Button size="sm" variant="outline" onClick={() => setIsCreateModalOpen(true)} className="gap-2 border-slate-700">
             <Plus className="h-4 w-4" />
-            Add New Salon
+            Quick Add
           </Button>
         </div>
       </div>

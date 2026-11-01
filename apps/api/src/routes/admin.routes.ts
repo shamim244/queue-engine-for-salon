@@ -150,6 +150,7 @@ export const adminRoutes = new Elysia({ prefix: '/api/admin' })
               name: t.String(),
               phone: t.Optional(t.String()),
               avgDurationMinutes: t.Optional(t.Number()),
+              pin: t.Optional(t.String()),
             })
           )
         ),

@@ -221,6 +221,7 @@ export interface OnboardSalonPayload {
     name: string;
     phone?: string;
     avgDurationMinutes?: number;
+    pin?: string;
   }>;
   services?: Array<{
     name: string;
