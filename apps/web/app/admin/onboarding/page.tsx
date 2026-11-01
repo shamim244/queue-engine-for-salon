@@ -631,7 +631,7 @@ function OnboardingWizardContent() {
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <Badge variant="blue" className="text-xs px-2 py-0.5">
+                    <Badge variant="default" className="text-xs px-2 py-0.5">
                       Solo Barber Model
                     </Badge>
                     {formData.operatingMode === "RURAL_SOLO" && (
@@ -1332,7 +1332,7 @@ function OnboardingWizardContent() {
               <Card className="bg-slate-900/80 border-slate-800 flex flex-col justify-between hover:border-blue-500/50 transition-all">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <Badge variant="blue" className="text-[10px] px-2 py-0">Door Entrance</Badge>
+                    <Badge variant="default" className="text-[10px] px-2 py-0">Door Entrance</Badge>
                     <QrCode className="h-4 w-4 text-blue-400" />
                   </div>
                   <CardTitle className="text-base text-white mt-2">Customer Check-in</CardTitle>
@@ -1424,7 +1424,7 @@ function OnboardingWizardContent() {
               <Card className="bg-slate-900/80 border-slate-800 flex flex-col justify-between hover:border-indigo-500/50 transition-all">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <Badge variant="blue" className="text-[10px] px-2 py-0">Cutting Station</Badge>
+                    <Badge variant="default" className="text-[10px] px-2 py-0">Cutting Station</Badge>
                     <Armchair className="h-4 w-4 text-indigo-400" />
                   </div>
                   <CardTitle className="text-base text-white mt-2">Chair / Station UI</CardTitle>
@@ -1470,7 +1470,7 @@ function OnboardingWizardContent() {
               <Card className="bg-slate-900/80 border-slate-800 flex flex-col justify-between hover:border-emerald-500/50 transition-all">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <Badge variant="emerald" className="text-[10px] px-2 py-0">Management</Badge>
+                    <Badge variant="success" className="text-[10px] px-2 py-0">Management</Badge>
                     <ShieldCheck className="h-4 w-4 text-emerald-400" />
                   </div>
                   <CardTitle className="text-base text-white mt-2">Owner Command Hub</CardTitle>

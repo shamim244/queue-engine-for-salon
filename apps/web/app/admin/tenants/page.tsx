@@ -29,6 +29,7 @@ import {
   QrCode,
   Armchair,
   Check,
+  Sparkles,
 } from "lucide-react";
 
 export default function AdminTenantsPage() {

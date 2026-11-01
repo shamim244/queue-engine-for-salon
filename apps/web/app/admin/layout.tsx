@@ -13,6 +13,10 @@ import {
   LogOut,
   Sparkles,
   ChevronRight,
+  Settings,
+  Palette,
+  Cpu,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,11 +26,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const { user, logout, demoLogin } = useAuth();
 
-  const navItems = [
-    { label: "Overview", href: "/admin", icon: LayoutDashboard },
-    { label: "Tenant Directory", href: "/admin/tenants", icon: Building2 },
-    { label: "Onboard Salon", href: "/admin/onboarding", icon: Sparkles },
-    { label: "Subscription Tiers", href: "/admin/billing", icon: CreditCard },
+  const navSections = [
+    {
+      title: "OPERATIONS",
+      items: [
+        { label: "Overview", href: "/admin", icon: LayoutDashboard },
+        { label: "Tenant Directory", href: "/admin/tenants", icon: Building2 },
+        { label: "Onboard Salon", href: "/admin/onboarding", icon: Sparkles },
+        { label: "Subscription Tiers", href: "/admin/billing", icon: CreditCard },
+      ],
+    },
+    {
+      title: "PLATFORM CONFIGURATION",
+      items: [
+        { label: "General Settings", href: "/admin/settings", icon: Settings },
+        { label: "Appearance & Themes", href: "/admin/settings/appearance", icon: Palette },
+        { label: "Engine & Gateways", href: "/admin/settings/system", icon: Cpu },
+        { label: "Security & Audit", href: "/admin/security", icon: ShieldCheck },
+      ],
+    },
   ];
 
   const handleLogout = async () => {
@@ -62,28 +80,35 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span className="h-2 w-2 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
           </div>
 
-          <nav className="space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    isActive
-                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                      : "text-slate-400 hover:text-white hover:bg-slate-800/60"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="h-4 w-4" />
-                    <span>{item.label}</span>
-                  </div>
-                  {isActive && <ChevronRight className="h-4 w-4 opacity-75" />}
-                </Link>
-              );
-            })}
+          <nav className="space-y-5">
+            {navSections.map((section) => (
+              <div key={section.title} className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mb-1">
+                  {section.title}
+                </p>
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all ${
+                        isActive
+                          ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 font-semibold"
+                          : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span>{item.label}</span>
+                      </div>
+                      {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-75 shrink-0" />}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
         </div>
 
@@ -131,7 +156,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      {/* Main Content Area Protected by AuthGuard */}
+      {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-7xl">
         <AuthGuard requiredRole="SUPER_ADMIN">
           {children}
