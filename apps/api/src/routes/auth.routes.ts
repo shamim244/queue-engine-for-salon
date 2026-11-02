@@ -2,6 +2,8 @@ import { Elysia, t } from 'elysia';
 import { authService } from '../auth/auth-service';
 import { repository } from '../db/repository';
 import { isMySqlConnected, getDb } from '../db/mysql';
+import { queueEngine } from '../engine/queue-engine';
+import { websocketHub } from '../websocket/hub';
 
 export const authRoutes = new Elysia({ prefix: '/api/auth' })
   // 1. User Login (Super Admin, Owner, Staff via Username, Phone, or Email)
@@ -143,14 +145,34 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
   })
 
   // 5. Set or Update 4-Digit Quick PIN
-  .post('/set-pin', async ({ body, set }) => {
+  .post('/set-pin', async ({ body, headers, cookie: { engine_session }, set }) => {
     const { userId, pin } = body as { userId: string; pin: string };
+    if (!/^\d{4}$/.test(pin)) {
+      set.status = 400;
+      return { success: false, message: 'PIN must be exactly 4 numeric digits' };
+    }
+
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+    if (token) {
+      const auth = await authService.validateSession(token);
+      if (auth) {
+        if (auth.role === 'CUSTOMER') {
+          set.status = 403;
+          return { success: false, message: 'Forbidden: Customers cannot configure mirror PINs' };
+        }
+        if (auth.role === 'STAFF' && auth.id !== userId) {
+          set.status = 403;
+          return { success: false, message: 'Forbidden: Stylists can only modify their own mirror PIN' };
+        }
+      }
+    }
+
     try {
       await authService.setStaffPin(userId, pin);
       return { success: true, message: 'PIN updated successfully' };
     } catch (err: any) {
       set.status = 400;
-      return { message: err.message };
+      return { success: false, message: err.message };
     }
   }, {
     body: t.Object({
@@ -160,7 +182,15 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
   })
 
   // 6. Owner Kill Switch: Revoke all sessions for a staff member
-  .post('/staff/revoke-all', async ({ body }) => {
+  .post('/staff/revoke-all', async ({ body, headers, cookie: { engine_session }, set }) => {
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+    if (token) {
+      const auth = await authService.validateSession(token);
+      if (auth && (auth.role === 'CUSTOMER' || auth.role === 'STAFF')) {
+        set.status = 403;
+        return { success: false, message: 'Forbidden: Only owners and admins can revoke staff sessions' };
+      }
+    }
     const { userId } = body as { userId: string };
     await authService.revokeAllUserSessions(userId);
     return { success: true, message: 'All active sessions for user revoked' };
@@ -171,12 +201,24 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
   })
 
   // 7. Change Password (Staff preference panel)
-  .post('/change-password', async ({ body, set }) => {
+  .post('/change-password', async ({ body, headers, cookie: { engine_session }, set }) => {
     const { userId, newPassword } = body as { userId: string; newPassword: string };
     if (!newPassword || newPassword.length < 6) {
       set.status = 400;
-      return { message: 'Password must be at least 6 characters long' };
+      return { success: false, message: 'Password must be at least 6 characters long' };
     }
+
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+    if (token) {
+      const auth = await authService.validateSession(token);
+      if (auth) {
+        if (auth.id !== userId && auth.role !== 'SUPER_ADMIN') {
+          set.status = 403;
+          return { success: false, message: 'Forbidden: You cannot modify credentials for another user' };
+        }
+      }
+    }
+
     const updated = await authService.updatePassword(userId, newPassword);
     return { success: updated };
   }, {
@@ -358,13 +400,45 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
   })
 
   // 10. Staff Preference Update (Calibrate personal speed or status)
-  .post('/staff/preference', async ({ body }) => {
+  .post('/staff/preference', async ({ body, headers, cookie: { engine_session }, set }) => {
     const { staffId, customAvgDurationMinutes, isActive } = body as {
       staffId: string;
       customAvgDurationMinutes?: number;
       isActive?: boolean;
     };
+
+    if (customAvgDurationMinutes !== undefined) {
+      if (typeof customAvgDurationMinutes !== 'number' || customAvgDurationMinutes < 5 || customAvgDurationMinutes > 120) {
+        set.status = 400;
+        return { success: false, message: 'Speed calibration pace must be between 5 and 120 minutes' };
+      }
+    }
+
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+    if (token) {
+      const auth = await authService.validateSession(token);
+      if (auth && auth.role === 'CUSTOMER') {
+        set.status = 403;
+        return { success: false, message: 'Forbidden: Customers cannot calibrate staff speed pace or shifts' };
+      }
+    }
+
     await repository.updateStylistPreference(staffId, { customAvgDurationMinutes, isActive });
+
+    // Recalculate queue and broadcast to all connected surfaces
+    const allSalons = await repository.getAllSalons();
+    const salon = allSalons.find((s) => s.stylists.some((st) => st.id === staffId));
+    if (salon) {
+      await queueEngine.recalculateQueue(salon.id);
+      const activeTickets = await repository.getActiveTickets(salon.id);
+      websocketHub.broadcastToSalon(salon.id, {
+        type: 'QUEUE_UPDATED',
+        salonId: salon.id,
+        activeQueueCount: activeTickets.length,
+        timestamp: new Date().toISOString(),
+      }, salon.slug);
+    }
+
     return { success: true };
   }, {
     body: t.Object({
@@ -374,34 +448,94 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
     }),
   })
 
-  // 11. Optional Customer Account Registration from Live Ticket Screen
-  .post('/customer/register', async ({ body, set }) => {
-    const { name, phone, password } = body as { name: string; phone: string; password?: string };
-    const id = 'cust-' + Math.random().toString(36).substring(2, 9);
-    let passwordHash: string | null = null;
-    if (password) {
-      passwordHash = await authService.hashPassword(password);
+  // 11. Customer Account Registration & Session Issuance (From Door QR, Live Ticket, or Register Page)
+  .post('/customer/register', async ({ body, set, cookie: { engine_session } }) => {
+    const { name, phone, username, email, password } = body as {
+      name: string;
+      phone: string;
+      username?: string;
+      email?: string;
+      password?: string;
+    };
+
+    if (!name?.trim() || name.trim().length < 2) {
+      set.status = 400;
+      return { success: false, message: 'Valid name is required (minimum 2 characters)' };
+    }
+    if (!phone?.trim()) {
+      set.status = 400;
+      return { success: false, message: 'Valid phone number is required' };
     }
 
+    const cleanPhone = phone.trim().replace(/[^0-9+]/g, '');
+    const cleanName = name.trim();
+    const rawDigits = cleanPhone.replace(/[^0-9]/g, '');
+    if (!rawDigits || rawDigits.length < 7 || rawDigits.length > 15) {
+      set.status = 400;
+      return { success: false, message: 'Valid phone number with 7-15 digits is required' };
+    }
+
+    const cleanUsername = (username?.trim() || `cust_${rawDigits.slice(-6)}` || `user_${Math.random().toString(36).substring(2, 7)}`).toLowerCase();
+    const finalPassword = password && password.length >= 6 ? password : 'Customer@123';
+
     try {
+      // 1. Create User account with role 'CUSTOMER' (or retrieve if already exists)
+      let user = await authService.getUserByIdentifier(cleanPhone) || await authService.getUserByUsername(cleanUsername);
+      if (!user) {
+        user = await authService.createUser({
+          username: cleanUsername,
+          password: finalPassword,
+          fullName: cleanName,
+          phone: cleanPhone,
+          email: email?.trim().toLowerCase() || null,
+          role: 'CUSTOMER',
+        });
+      }
+
+      // 2. Insert or update customers table
+      const custId = 'cust-' + Math.random().toString(36).substring(2, 9);
       if (isMySqlConnected) {
         const db = getDb();
         await db.query(
           `INSERT INTO customers (id, name, phone, password_hash)
            VALUES (?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE name = VALUES(name), password_hash = COALESCE(VALUES(password_hash), password_hash)`,
-          [id, name.trim(), phone.trim(), passwordHash]
+          [custId, cleanName, cleanPhone, user.passwordHash]
         );
       }
-      return { success: true, customer: { id, name, phone } };
+
+      // 3. Issue zero-trust 30-day session token
+      const session = await authService.createSession(user.id);
+      engine_session.value = session.token;
+      engine_session.httpOnly = true;
+      engine_session.sameSite = 'lax';
+      engine_session.path = '/';
+      engine_session.maxAge = 30 * 24 * 60 * 60;
+
+      return {
+        success: true,
+        token: session.token,
+        customer: { id: custId, name: cleanName, phone: cleanPhone },
+        user: {
+          id: user.id,
+          username: user.username,
+          fullName: user.fullName,
+          phone: user.phone,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+        },
+      };
     } catch (err: any) {
       set.status = 400;
-      return { message: err.message };
+      return { success: false, message: err.message };
     }
   }, {
     body: t.Object({
       name: t.String(),
       phone: t.String(),
+      username: t.Optional(t.String()),
+      email: t.Optional(t.String()),
       password: t.Optional(t.String()),
     }),
   })
@@ -410,3 +544,4 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
   .get('/platform/metrics', async () => {
     return await repository.getPlatformMetrics();
   });
+

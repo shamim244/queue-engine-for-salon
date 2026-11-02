@@ -1,14 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
+import { api, Ticket } from "@/lib/api";
+import { useSalonSocket } from "@/lib/socket";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
+import { AuthGuard } from "@/components/auth-guard";
 import {
   User,
   Scissors,
@@ -32,6 +35,9 @@ import {
   LayoutDashboard,
   Menu,
   X,
+  ExternalLink,
+  Volume2,
+  Trash2,
 } from "lucide-react";
 
 interface VisitHistoryItem {
@@ -47,11 +53,25 @@ interface VisitHistoryItem {
 }
 
 export default function CustomerAccountPage() {
+  return (
+    <AuthGuard requiredRole={["CUSTOMER", "SUPER_ADMIN", "SALON_OWNER", "STAFF"]}>
+      <CustomerAccountContent />
+    </AuthGuard>
+  );
+}
+
+function CustomerAccountContent() {
   const { user, logout, demoLogin } = useAuth();
 
   // Active Sidebar Navigation Tab
   const [activeTab, setActiveTab] = useState<"overview" | "specs" | "loyalty" | "history" | "referrals">("overview");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Live Active Queue Ticket for this Customer
+  const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
+  const [realVisits, setRealVisits] = useState<VisitHistoryItem[]>([]);
+  const [stampsCount, setStampsCount] = useState<number>(4);
+  const [loadingTickets, setLoadingTickets] = useState(false);
 
   // Grooming Profile State
   const [preferredStylist, setPreferredStylist] = useState("Ramesh Master Barber");
@@ -67,8 +87,8 @@ export default function CustomerAccountPage() {
   // Referral Copy State
   const [copiedReferral, setCopiedReferral] = useState(false);
 
-  // Simulated Visit History
-  const [visits] = useState<VisitHistoryItem[]>([
+  // Simulated Seed Visits Fallback
+  const [fallbackVisits] = useState<VisitHistoryItem[]>([
     {
       id: "inv-2026-001",
       salonName: "Ramesh Traditional Barber",
@@ -104,9 +124,90 @@ export default function CustomerAccountPage() {
     },
   ]);
 
-  // Loyalty Stamp Card
-  const currentStamps = 4;
+  const userPhone = user?.phone || "";
+
+  const fetchCustomerData = useCallback(async () => {
+    if (!userPhone) return;
+    setLoadingTickets(true);
+    try {
+      const resp = await api.queue.getCustomerTickets(userPhone);
+      if (resp.success) {
+        if (resp.activeTicket) {
+          setActiveTicket(resp.activeTicket);
+        } else {
+          setActiveTicket(null);
+        }
+        if (resp.history && resp.history.length > 0) {
+          const mapped: VisitHistoryItem[] = resp.history.map((t: any, idx: number) => ({
+            id: t.id,
+            salonName: t.salonName || "Ramesh Traditional Barber",
+            salonSlug: t.salonSlug || "ramesh-barber",
+            date: t.completedTime
+              ? new Date(t.completedTime).toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })
+              : "Today",
+            service: t.serviceName || "Haircut & Grooming",
+            stylistName: t.stylistName || "Master Stylist",
+            amount: t.paymentAmount || t.totalPrice || 120,
+            paymentMethod: t.paymentStatus === "ONLINE_PAID" ? "UPI" : "CASH",
+            invoiceNumber: `EQ-IN-${t.ticketNumber || 8400 + idx}`,
+          }));
+          setRealVisits(mapped);
+        }
+        if (resp.stampsCount !== undefined) {
+          setStampsCount(resp.stampsCount);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to fetch customer tickets:", err);
+    } finally {
+      setLoadingTickets(false);
+    }
+  }, [userPhone]);
+
+  useEffect(() => {
+    fetchCustomerData();
+  }, [fetchCustomerData]);
+
+  // Real-time WebSocket hook: Subscribe to GLOBAL so updates from any salon are caught
+  useSalonSocket("GLOBAL", (event) => {
+    console.log("[Customer Portal /me] Socket event:", event.type);
+    fetchCustomerData();
+  });
+
+  // In-App Toast State
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  const handleConfirmCancelTicket = async () => {
+    if (!activeTicket) return;
+    setCancelling(true);
+    try {
+      await api.queue.cancel(activeTicket.id, "Customer left via portal");
+      setActiveTicket(null);
+      setIsCancelConfirmOpen(false);
+      showToast("Your queue spot has been cancelled.", "info");
+      fetchCustomerData();
+    } catch (err: any) {
+      showToast("Failed to cancel ticket: " + (err.message || "Unknown error"), "error");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const displayVisits = realVisits.length > 0 ? realVisits : fallbackVisits;
+  const currentStamps = stampsCount > 0 ? stampsCount : 4;
   const totalStampsNeeded = 6;
+
 
   const handleSaveSpecs = (e: React.FormEvent) => {
     e.preventDefault();
@@ -253,6 +354,31 @@ export default function CustomerAccountPage() {
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-5xl space-y-8">
+        {/* Toast Alert Banner */}
+        {toast && (
+          <div
+            className={`p-3.5 rounded-xl border flex items-center justify-between shadow-lg transition-all animate-in slide-in-from-top-2 ${
+              toast.type === "success"
+                ? "bg-emerald-950/90 border-emerald-600/50 text-emerald-200"
+                : toast.type === "error"
+                ? "bg-rose-950/90 border-rose-600/50 text-rose-200"
+                : "bg-blue-950/90 border-blue-600/50 text-blue-200"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {toast.type === "success" && <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />}
+              {toast.type === "error" && <Trash2 className="h-5 w-5 text-rose-400 shrink-0" />}
+              {toast.type === "info" && <Sparkles className="h-5 w-5 text-blue-400 shrink-0" />}
+              <span className="text-sm font-semibold">{toast.message}</span>
+            </div>
+            <button
+              onClick={() => setToast(null)}
+              className="text-xs opacity-70 hover:opacity-100 p-1 rounded transition-opacity"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         {/* TAB 1: OVERVIEW */}
         {(activeTab === "overview" || activeTab === "specs") && (
           <div className="space-y-6 animate-in fade-in duration-200">
@@ -278,10 +404,81 @@ export default function CustomerAccountPage() {
               </Link>
             </div>
 
+            {/* LIVE ACTIVE QUEUE TICKET TRACKER */}
+            {activeTicket && (
+              <Card className="border-2 border-amber-500 bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/40 p-6 space-y-4 shadow-2xl animate-in zoom-in-95">
+                <div className="flex items-center justify-between pb-3 border-b border-amber-500/30">
+                  <Badge
+                    variant={
+                      activeTicket.status === "CALLED" || activeTicket.status === "SUMMONED"
+                        ? "warning"
+                        : activeTicket.status === "IN_SERVICE" || activeTicket.status === "IN_CHAIR"
+                        ? "success"
+                        : "default"
+                    }
+                    className="px-3 py-1 text-xs font-bold"
+                  >
+                    {activeTicket.status === "CALLED" || activeTicket.status === "SUMMONED"
+                      ? "📢 STEP TO CHAIR NOW!"
+                      : activeTicket.status === "IN_SERVICE" || activeTicket.status === "IN_CHAIR"
+                      ? "💺 CURRENTLY IN CHAIR"
+                      : activeTicket.status === "SOFT_BUMPED"
+                      ? "⏳ 3-MIN HOLD"
+                      : "🎟️ ACTIVE IN QUEUE"}
+                  </Badge>
+
+                  <span className="text-xs text-amber-400 font-semibold">
+                    {activeTicket.salonName || "Salon Queue"}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="h-16 w-16 rounded-2xl bg-amber-500 text-slate-950 font-black text-3xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+                      #{activeTicket.ticketNumber}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-white">{activeTicket.serviceName || "Haircut Service"}</h3>
+                      <p className="text-xs text-slate-400">
+                        {activeTicket.salonName} · {activeTicket.stylistName ? `Barber: ${activeTicket.stylistName}` : "Fastest Available Barber"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-xs text-slate-400 block">Est. Wait</span>
+                    <span className="text-2xl font-black text-blue-400">
+                      ~{activeTicket.estimatedWaitMinutes || 0}m
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <Link href={`/s/${activeTicket.salonSlug || "ramesh-barber"}`} className="flex-1">
+                    <Button size="sm" className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs gap-1.5">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      <span>Open Live Pocket Board</span>
+                    </Button>
+                  </Link>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsCancelConfirmOpen(true)}
+                    className="border-rose-500/40 text-rose-400 hover:bg-rose-500/10 text-xs font-semibold gap-1"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Leave Queue</span>
+                  </Button>
+                </div>
+              </Card>
+            )}
+
             {/* Grooming Specifications Card */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-3">
                 <div>
+
                   <CardTitle className="text-base flex items-center gap-2">
                     <Scissors className="h-4 w-4 text-amber-400" />
                     <span>My Grooming Specs & Barber Notes</span>
@@ -424,12 +621,12 @@ export default function CustomerAccountPage() {
                   Review previous appointments, barbers, and download verified digital receipts.
                 </CardDescription>
               </div>
-              <Badge variant="default">{visits.length} Completed</Badge>
+              <Badge variant="default">{displayVisits.length} Completed</Badge>
             </CardHeader>
 
             <CardContent>
               <div className="divide-y divide-slate-800">
-                {visits.map((item) => (
+                {displayVisits.map((item) => (
                   <div
                     key={item.id}
                     className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-slate-800/30 px-3 rounded-2xl transition-colors"
@@ -606,6 +803,42 @@ export default function CustomerAccountPage() {
             </DialogFooter>
           </div>
         )}
+      </Dialog>
+
+      {/* Modal: Confirm Cancel Queue Spot */}
+      <Dialog open={isCancelConfirmOpen} onOpenChange={setIsCancelConfirmOpen}>
+        <DialogClose onClose={() => setIsCancelConfirmOpen(false)} />
+        <div>
+          <DialogHeader>
+            <DialogTitle className="text-rose-400 flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-rose-500" />
+              Cancel Queue Spot?
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel your queue ticket{" "}
+              <strong className="text-white">#{activeTicket?.ticketNumber}</strong>? Your position will be released to other waiting clients.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="mt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCancelConfirmOpen(false)}
+              disabled={cancelling}
+            >
+              Keep My Spot
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmCancelTicket}
+              disabled={cancelling}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+            >
+              {cancelling ? "Cancelling..." : "Yes, Cancel My Spot"}
+            </Button>
+          </DialogFooter>
+        </div>
       </Dialog>
     </div>
   );

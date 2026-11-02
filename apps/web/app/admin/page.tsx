@@ -3,7 +3,9 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, Salon, Organization, AdminStats, AuditLog } from "@/lib/api";
+import { useSalonSocket } from "@/lib/socket";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -55,6 +57,13 @@ export default function AdminOverviewPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Real-time synchronization for platform telemetry
+  useSalonSocket("ADMIN", (event) => {
+    console.log("[Admin Command Center] Received live event:", event.type);
+    fetchData();
+  });
+
 
   const totalStylists = salons.reduce((acc, s) => acc + (s.stylists?.length || 0), 0);
   const ruralCount = salons.filter((s) => s.operatingMode === "RURAL_SOLO").length;

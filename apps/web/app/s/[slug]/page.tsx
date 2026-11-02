@@ -4,10 +4,12 @@ import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { api, Salon, Ticket, Service, Stylist } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
+import { useAuth } from "@/lib/auth-context";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { formatCurrency, maskPhone } from "@/lib/utils";
 import {
   Scissors,
@@ -18,15 +20,18 @@ import {
   Coffee,
   Sparkles,
   ChevronRight,
-  User,
+  User as UserIcon,
   Phone,
   Bookmark,
   BellRing,
   ExternalLink,
+  Trash2,
+  Volume2,
 } from "lucide-react";
 
 export default function CustomerDoorPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
+  const { user } = useAuth();
 
   const [salon, setSalon] = useState<Salon | null>(null);
   const [activeTickets, setActiveTickets] = useState<Ticket[]>([]);
@@ -41,6 +46,18 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [selectedStylistId, setSelectedStylistId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Pre-fill user profile if logged in
+  useEffect(() => {
+    if (user) {
+      if (!customerName && (user.fullName || user.username)) {
+        setCustomerName(user.fullName || user.username);
+      }
+      if (!customerPhone && user.phone) {
+        setCustomerPhone(user.phone);
+      }
+    }
+  }, [user]);
 
   // Audio Chime notification
   const playChime = () => {
@@ -82,7 +99,9 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
         if (storedTicketId) {
           const matching = tickets.find((t) => t.id === storedTicketId);
           if (matching) {
-            if (myTicket && myTicket.status !== "CALLED" && matching.status === "CALLED") {
+            const wasSummoned = matching.status === "CALLED" || matching.status === "SUMMONED";
+            const prevSummoned = myTicket?.status === "CALLED" || myTicket?.status === "SUMMONED";
+            if (wasSummoned && !prevSummoned) {
               playChime();
             }
             setMyTicket(matching);
@@ -110,10 +129,19 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
     fetchSalonAndQueue();
   });
 
+  // In-App Toast & Confirmation State
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
   const handleJoinQueue = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName.trim() || !selectedServiceId) {
-      alert("Please enter your name and choose a service");
+      showToast("Please enter your name and choose a service", "error");
       return;
     }
 
@@ -132,18 +160,41 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
         if (typeof window !== "undefined") {
           localStorage.setItem(`ticket_${slug}`, resp.ticket.id);
         }
+        showToast(`Joined queue! You are Ticket #${resp.ticket.ticketNumber}`, "success");
         fetchSalonAndQueue();
       }
     } catch (err) {
-      alert("Failed to join queue: " + (err as Error).message);
+      showToast("Failed to join queue: " + (err as Error).message, "error");
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleConfirmCancelMyTicket = async () => {
+    if (!myTicket) return;
+    setCancelling(true);
+    try {
+      await api.queue.cancel(myTicket.id, "Customer left");
+      setMyTicket(null);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(`ticket_${slug}`);
+      }
+      setIsCancelConfirmOpen(false);
+      showToast("Your queue spot has been cancelled.", "info");
+      fetchSalonAndQueue();
+    } catch (err) {
+      showToast("Failed to cancel ticket: " + (err as Error).message, "error");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+
   const selectedService = salon?.services?.find((s) => s.id === selectedServiceId);
-  const chairsServing = activeTickets.filter((t) => t.status === "IN_SERVICE");
-  const waitingSequence = activeTickets.filter((t) => t.status === "WAITING" || t.status === "CALLED");
+  const chairsServing = activeTickets.filter((t) => t.status === "IN_SERVICE" || t.status === "IN_CHAIR");
+  const waitingSequence = activeTickets.filter(
+    (t) => t.status === "WAITING" || t.status === "CALLED" || t.status === "SUMMONED" || t.status === "SOFT_BUMPED"
+  );
 
   // Calculate my position and people ahead
   const myIndex = myTicket
@@ -181,6 +232,31 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
 
       {/* Main Body */}
       <main className="flex-1 max-w-md w-full mx-auto p-4 space-y-6">
+        {/* Toast Alert Banner */}
+        {toast && (
+          <div
+            className={`p-3.5 rounded-xl border flex items-center justify-between shadow-lg transition-all animate-in slide-in-from-top-2 ${
+              toast.type === "success"
+                ? "bg-emerald-950/90 border-emerald-600/50 text-emerald-200"
+                : toast.type === "error"
+                ? "bg-rose-950/90 border-rose-600/50 text-rose-200"
+                : "bg-blue-950/90 border-blue-600/50 text-blue-200"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {toast.type === "success" && <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />}
+              {toast.type === "error" && <Trash2 className="h-5 w-5 text-rose-400 shrink-0" />}
+              {toast.type === "info" && <Sparkles className="h-5 w-5 text-blue-400 shrink-0" />}
+              <span className="text-sm font-semibold">{toast.message}</span>
+            </div>
+            <button
+              onClick={() => setToast(null)}
+              className="text-xs opacity-70 hover:opacity-100 p-1 rounded transition-opacity"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         {/* VIEW 1: NOT CHECKED IN YET -> LIGHTWEIGHT SELF CHECK-IN FORM */}
         {!myTicket ? (
           <div className="space-y-6 animate-in fade-in duration-300">
@@ -195,6 +271,28 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
               </p>
             </div>
 
+            {/* Signed-in / Quick Login Prompt */}
+            {user ? (
+              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-between text-xs text-blue-200">
+                <span className="flex items-center gap-1.5 truncate">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <span className="truncate">
+                    Signed in as <strong>{user.fullName || user.username}</strong>
+                  </span>
+                </span>
+                <Link href="/me" className="text-amber-400 hover:underline font-semibold shrink-0 ml-2">
+                  View Portal &rarr;
+                </Link>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                <span>Save your haircut specs & earn loyalty rewards</span>
+                <Link href="/login" className="text-amber-400 hover:underline font-bold shrink-0 ml-2">
+                  Sign In
+                </Link>
+              </div>
+            )}
+
             <Card className="border-slate-800 shadow-2xl">
               <CardContent className="p-5 space-y-5">
                 <form onSubmit={handleJoinQueue} className="space-y-5">
@@ -204,7 +302,7 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
                       Your Full Name *
                     </label>
                     <div className="relative">
-                      <User className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-500" />
+                      <UserIcon className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-500" />
                       <Input
                         placeholder="e.g. Rahul Sharma"
                         value={customerName}
@@ -215,6 +313,7 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
                       />
                     </div>
                   </div>
+
 
                   {/* Phone Input */}
                   <div>
@@ -309,18 +408,22 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
               <div className="flex items-center justify-between">
                 <Badge
                   variant={
-                    myTicket.status === "CALLED"
+                    myTicket.status === "CALLED" || myTicket.status === "SUMMONED"
                       ? "warning"
-                      : myTicket.status === "IN_SERVICE"
+                      : myTicket.status === "IN_SERVICE" || myTicket.status === "IN_CHAIR"
                       ? "success"
+                      : myTicket.status === "SOFT_BUMPED"
+                      ? "outline"
                       : "default"
                   }
                   className="px-3 py-1 font-bold text-xs"
                 >
-                  {myTicket.status === "CALLED"
+                  {myTicket.status === "CALLED" || myTicket.status === "SUMMONED"
                     ? "📢 STEP TO CHAIR NOW!"
-                    : myTicket.status === "IN_SERVICE"
+                    : myTicket.status === "IN_SERVICE" || myTicket.status === "IN_CHAIR"
                     ? "💺 CURRENTLY IN CHAIR"
+                    : myTicket.status === "SOFT_BUMPED"
+                    ? "⏳ 3-MIN HOLD"
                     : "🎟️ IN QUEUE"}
                 </Badge>
 
@@ -339,6 +442,28 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
                 </div>
                 <h3 className="text-lg font-bold text-white mt-1">{myTicket.customerName}</h3>
               </div>
+
+              {/* CHAIR READY PULSATING ALERT BANNER */}
+              {(myTicket.status === "CALLED" || myTicket.status === "SUMMONED") && (
+                <div className="p-4 rounded-2xl bg-amber-500/20 border-2 border-amber-400 text-amber-200 text-sm font-bold text-center space-y-2 animate-pulse">
+                  <div className="flex items-center justify-center gap-2 text-lg text-amber-300">
+                    <Volume2 className="h-6 w-6" />
+                    <span>YOUR CHAIR IS READY!</span>
+                  </div>
+                  <p className="text-xs text-amber-100 font-normal">
+                    Please step up to the mirror chair. Your barber is ready to begin your cut!
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={playChime}
+                    className="text-xs border-amber-400 text-amber-300 gap-1.5"
+                  >
+                    <BellRing className="h-3.5 w-3.5" />
+                    <span>Replay Audio Alert</span>
+                  </Button>
+                </div>
+              )}
 
               {/* People Ahead & Wait Time Countdown */}
               <div className="grid grid-cols-2 gap-3 py-2 border-y border-slate-800">
@@ -363,18 +488,31 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
                 </p>
               </div>
 
-              {/* Shortcut: Save to Profile */}
-              <Link href="/me" className="block">
+              {/* Shortcut: Save to Profile / View Portal & Leave Queue */}
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <Link href="/me" className="flex-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs border-dashed border-slate-700 hover:border-amber-400/60 text-slate-300 gap-1.5"
+                  >
+                    <Bookmark className="h-3.5 w-3.5 text-amber-400" />
+                    <span>My Customer Portal</span>
+                  </Button>
+                </Link>
+
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  className="w-full text-xs border-dashed border-slate-700 hover:border-amber-400/60 text-slate-300 gap-1.5"
+                  onClick={() => setIsCancelConfirmOpen(true)}
+                  className="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/20 gap-1"
                 >
-                  <Bookmark className="h-3.5 w-3.5 text-amber-400" />
-                  <span>Save this haircut to my profile for 1-tap next time</span>
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Leave Queue</span>
                 </Button>
-              </Link>
+              </div>
             </Card>
+
 
             {/* BOTTOM CARD: LIVE SALON QUEUE BOARD (POCKET TV VIEW) */}
             <Card className="border-slate-800 shadow-xl">
@@ -470,6 +608,41 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
             </Card>
           </div>
         )}
+        {/* Modal: Confirm Cancel Queue Spot */}
+        <Dialog open={isCancelConfirmOpen} onOpenChange={setIsCancelConfirmOpen}>
+          <DialogClose onClose={() => setIsCancelConfirmOpen(false)} />
+          <div>
+            <DialogHeader>
+              <DialogTitle className="text-rose-400 flex items-center gap-2">
+                <Trash2 className="h-5 w-5 text-rose-500" />
+                Cancel Queue Spot?
+              </DialogTitle>
+              <DialogDescription>
+                Are you sure you want to cancel your queue ticket{" "}
+                <strong className="text-white">#{myTicket?.ticketNumber}</strong>? Your position will be released to other waiting clients.
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogFooter className="mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCancelConfirmOpen(false)}
+                disabled={cancelling}
+              >
+                Keep My Spot
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirmCancelMyTicket}
+                disabled={cancelling}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+              >
+                {cancelling ? "Cancelling..." : "Yes, Cancel My Spot"}
+              </Button>
+            </DialogFooter>
+          </div>
+        </Dialog>
       </main>
 
       {/* Footer Branding */}

@@ -152,12 +152,15 @@ export interface QueueEventPayload {
     | 'TICKET_COMPLETED' 
     | 'TICKET_CANCELLED' 
     | 'TICKET_SOFT_BUMPED' 
-    | 'QUEUE_RECALCULATED';
+    | 'QUEUE_RECALCULATED'
+    | 'QUEUE_UPDATED'
+    | 'EMERGENCY_HALT';
   salonId: string;
-  ticket: QueueTicket;
-  activeQueueCount: number;
+  ticket?: QueueTicket;
+  activeQueueCount?: number;
   timestamp: string;
 }
+
 
 export interface PlatformSettings {
   general: {

@@ -51,7 +51,7 @@ export default function SalonLobbyTvPage({ params }: { params: Promise<{ slug: s
       const tickets = queueRes.tickets || [];
       setActiveTickets(tickets);
 
-      const called = tickets.find((t) => t.status === "CALLED");
+      const called = tickets.find((t) => t.status === "CALLED" || t.status === "SUMMONED");
       if (called) setLastSummoned(called);
     } catch (err) {
       console.error("TV queue fetch error:", err);
@@ -68,8 +68,15 @@ export default function SalonLobbyTvPage({ params }: { params: Promise<{ slug: s
     fetchQueueData();
   });
 
-  const currentlyServing = activeTickets.filter((t) => t.status === "IN_SERVICE" || t.status === "CALLED");
-  const nextInLine = activeTickets.filter((t) => t.status === "WAITING");
+  const currentlyServing = activeTickets.filter(
+    (t) =>
+      t.status === "IN_SERVICE" ||
+      t.status === "IN_CHAIR" ||
+      t.status === "CALLED" ||
+      t.status === "SUMMONED"
+  );
+  const nextInLine = activeTickets.filter((t) => t.status === "WAITING" || t.status === "SOFT_BUMPED");
+
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between overflow-hidden p-6 sm:p-10 select-none">
@@ -143,19 +150,28 @@ export default function SalonLobbyTvPage({ params }: { params: Promise<{ slug: s
                 <div
                   key={t.id}
                   className={`p-6 rounded-2xl border-2 transition-all shadow-xl ${
-                    t.status === "CALLED"
+                    t.status === "CALLED" || t.status === "SUMMONED"
                       ? "bg-amber-500/10 border-amber-400 animate-pulse"
                       : "bg-slate-900/90 border-emerald-500/40"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs uppercase tracking-widest font-black text-slate-400">
-                      {t.status === "CALLED" ? "📢 SUMMONED TO CHAIR" : "💺 IN SERVICE"}
+                      {t.status === "CALLED" || t.status === "SUMMONED"
+                        ? "📢 SUMMONED TO CHAIR"
+                        : "💺 IN SERVICE"}
                     </span>
-                    <Badge variant={t.status === "CALLED" ? "warning" : "success"}>
-                      {t.status === "CALLED" ? "STEP TO CHAIR" : "IN PROGRESS"}
+                    <Badge
+                      variant={
+                        t.status === "CALLED" || t.status === "SUMMONED" ? "warning" : "success"
+                      }
+                    >
+                      {t.status === "CALLED" || t.status === "SUMMONED"
+                        ? "STEP TO CHAIR"
+                        : "IN PROGRESS"}
                     </Badge>
                   </div>
+
 
                   <div className="flex items-center justify-between mt-3">
                     <div className="flex items-center gap-4">

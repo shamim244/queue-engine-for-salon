@@ -133,19 +133,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else if (role === "STAFF") {
       await login("ramesh", "Ramesh@123");
     } else if (role === "CUSTOMER") {
-      // Setup demo customer session
-      const demoCust: AuthUser = {
-        id: "cust-demo-01",
-        username: "vikram_sharma",
-        role: "CUSTOMER",
-        phone: "+91 98765 43210",
-        email: "vikram@example.com",
-        status: "ACTIVE",
-      };
-      setUser(demoCust);
-      localStorage.setItem("engine_demo_customer", JSON.stringify(demoCust));
+      try {
+        await login("vikram_sharma", "Customer@123");
+      } catch {
+        // Setup demo customer session fallback
+        const demoCust: AuthUser = {
+          id: "cust-demo-01",
+          username: "vikram_sharma",
+          fullName: "Vikram Sharma",
+          role: "CUSTOMER",
+          phone: "9876500001",
+          email: "vikram@example.com",
+          status: "ACTIVE",
+        };
+        setUser(demoCust);
+        localStorage.setItem("engine_demo_customer", JSON.stringify(demoCust));
+      }
     }
   };
+
 
   return (
     <AuthContext.Provider

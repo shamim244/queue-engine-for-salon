@@ -29,6 +29,23 @@ function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Mode: "customer" vs "owner"
+  const [accountType, setAccountType] = useState<"customer" | "owner">(
+    searchParams.get("role") === "customer" || searchParams.get("type") === "customer"
+      ? "customer"
+      : "owner"
+  );
+
+  // Customer registration state
+  const [custFullName, setCustFullName] = useState("");
+  const [custPhone, setCustPhone] = useState("+91 ");
+  const [custUsername, setCustUsername] = useState("");
+  const [custEmail, setCustEmail] = useState("");
+  const [custPassword, setCustPassword] = useState("");
+  const [custLoading, setCustLoading] = useState(false);
+  const [custError, setCustError] = useState<string | null>(null);
+
+  // Salon Owner registration state
   const [salonName, setSalonName] = useState("");
   const [salonSlug, setSalonSlug] = useState("");
   const [phone, setPhone] = useState("+91 ");
@@ -45,6 +62,47 @@ function RegisterContent() {
     salonName: string;
     token?: string;
   } | null>(null);
+
+  const handleCustomerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCustError(null);
+    if (!custFullName.trim()) {
+      setCustError("Full name is required");
+      return;
+    }
+    if (!custPhone.trim() || custPhone.trim() === "+91") {
+      setCustError("Valid phone number is required");
+      return;
+    }
+    if (!custPassword || custPassword.length < 6) {
+      setCustError("Password must be at least 6 characters long");
+      return;
+    }
+
+    setCustLoading(true);
+    try {
+      const resp = await api.auth.registerCustomer({
+        name: custFullName.trim(),
+        phone: custPhone.trim(),
+        username: custUsername.trim() || undefined,
+        email: custEmail.trim() || undefined,
+        password: custPassword,
+      });
+
+      if (resp.success && resp.token) {
+        setAuthToken(resp.token);
+        const redirectParam = searchParams.get("redirect");
+        router.push(redirectParam || "/me");
+      } else {
+        setCustError(resp.message || "Failed to create account. Please try again.");
+      }
+    } catch (err: any) {
+      setCustError(err.message || "Failed to create customer account");
+    } finally {
+      setCustLoading(false);
+    }
+  };
+
 
   const handleNameChange = (val: string) => {
     setSalonName(val);
@@ -175,7 +233,140 @@ function RegisterContent() {
 
       {/* Main Container */}
       <main className="max-w-3xl mx-auto w-full py-8 sm:py-12 flex-1">
-        {successData ? (
+        {/* Account Mode Switcher */}
+        {!successData && (
+          <div className="flex justify-center mb-8">
+            <div className="p-1 rounded-2xl bg-slate-900 border border-slate-800 flex gap-1 shadow-xl">
+              <button
+                type="button"
+                onClick={() => setAccountType("customer")}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  accountType === "customer"
+                    ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                👤 Customer Account
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccountType("owner")}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  accountType === "owner"
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                💈 Salon Owner / Barber
+              </button>
+            </div>
+          </div>
+        )}
+
+        {accountType === "customer" && !successData ? (
+          /* Customer Registration Form */
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 sm:p-10 shadow-2xl space-y-6">
+            <div className="text-center max-w-md mx-auto space-y-2 pb-4 border-b border-slate-800">
+              <Badge variant="warning" className="text-xs">
+                FREQUENT GROOMER PROFILE
+              </Badge>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                Create Customer Account
+              </h2>
+              <p className="text-xs text-slate-400">
+                Save your favorite haircut specs, get real-time WhatsApp ticket alerts, and earn loyalty stamps for free cuts!
+              </p>
+            </div>
+
+            {custError && (
+              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
+                {custError}
+              </div>
+            )}
+
+            <form onSubmit={handleCustomerSubmit} className="space-y-4 max-w-md mx-auto">
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Full Name *
+                </label>
+                <Input
+                  placeholder="e.g. Vikram Sharma"
+                  value={custFullName}
+                  onChange={(e) => setCustFullName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Mobile Number (For Ticket Chimes & SMS) *
+                </label>
+                <Input
+                  placeholder="+91 98765 43210"
+                  value={custPhone}
+                  onChange={(e) => setCustPhone(e.target.value)}
+                  required
+                />
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  You can use this phone number to sign in anytime without needing a username.
+                </span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Username (Optional)
+                </label>
+                <Input
+                  placeholder="e.g. vikram_sharma"
+                  value={custUsername}
+                  onChange={(e) => setCustUsername(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Email Address (Optional)
+                </label>
+                <Input
+                  type="email"
+                  placeholder="vikram@example.com"
+                  value={custEmail}
+                  onChange={(e) => setCustEmail(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Account Password *
+                </label>
+                <Input
+                  type="password"
+                  placeholder="Minimum 6 characters"
+                  value={custPassword}
+                  onChange={(e) => setCustPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              <Button
+                type="submit"
+                size="lg"
+                disabled={custLoading}
+                className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm h-12 rounded-xl shadow-lg shadow-amber-500/20 mt-2"
+              >
+                {custLoading ? "Creating Profile..." : "🎟️ Create Account & Open My Portal"}
+              </Button>
+
+              <div className="text-center pt-2 text-xs text-slate-400">
+                Already have an account?{" "}
+                <Link href="/login" className="text-amber-400 hover:underline font-bold">
+                  Sign In
+                </Link>
+              </div>
+            </form>
+          </div>
+        ) : successData ? (
           /* Success Screen */
           <div className="rounded-3xl border border-emerald-500/40 bg-gradient-to-b from-emerald-950/20 to-slate-900/80 p-6 sm:p-10 shadow-2xl animate-in fade-in duration-300">
             <div className="text-center max-w-lg mx-auto mb-8">
@@ -186,6 +377,7 @@ function RegisterContent() {
               <h2 className="text-2xl sm:text-3xl font-black text-white">
                 {successData.salonName} is Live!
               </h2>
+
               <p className="text-xs sm:text-sm text-slate-300 mt-2">
                 Your queue engine is operational. Your printable door QR and mirror station are active.
               </p>

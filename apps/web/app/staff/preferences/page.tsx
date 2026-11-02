@@ -20,10 +20,20 @@ import {
   ArrowLeft,
   RefreshCw,
   LogOut,
+  AlertCircle,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { AuthGuard } from "@/components/auth-guard";
 
 export default function StaffPreferencesPage() {
+  return (
+    <AuthGuard requiredRole={["STAFF", "SALON_OWNER", "SUPER_ADMIN"]}>
+      <StaffPreferencesContent />
+    </AuthGuard>
+  );
+}
+
+function StaffPreferencesContent() {
   const { user, staff, salon, logout, demoLogin } = useAuth();
 
   // Speed Calibration State (15m to 60m)
@@ -45,6 +55,13 @@ export default function StaffPreferencesPage() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [pwdSuccessMsg, setPwdSuccessMsg] = useState(false);
 
+  // In-App Toast
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
   const staffId = staff?.id || user?.staffId || "stylist-01";
   const userId = user?.id || "user-staff-01";
 
@@ -59,9 +76,10 @@ export default function StaffPreferencesPage() {
         isActive: shiftStatus === "ACTIVE",
       });
       setPaceSuccessMsg(true);
+      showToast(`Speed pace updated to ${newVal} minutes`, "success");
       setTimeout(() => setPaceSuccessMsg(false), 3000);
     } catch (err) {
-      alert("Failed to update speed pace: " + (err as Error).message);
+      showToast("Failed to update speed pace: " + (err as Error).message, "error");
     } finally {
       setSavingPace(false);
     }
@@ -75,15 +93,16 @@ export default function StaffPreferencesPage() {
         customAvgDurationMinutes: paceMinutes,
         isActive: status === "ACTIVE",
       });
+      showToast(`Shift status changed to ${status === "ACTIVE" ? "Active" : status === "BREAK" ? "On Break" : "Off Duty"}`, "info");
     } catch (err) {
-      console.error("Failed to update shift status:", err);
+      showToast("Failed to update shift status: " + (err as Error).message, "error");
     }
   };
 
   const handleSavePin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^\d{4}$/.test(newPin)) {
-      alert("PIN must be exactly 4 numeric digits (e.g. 1234)");
+      showToast("PIN must be exactly 4 numeric digits (e.g. 1234)", "error");
       return;
     }
     setSavingPin(true);
@@ -92,9 +111,10 @@ export default function StaffPreferencesPage() {
       await api.auth.setPin(userId, newPin);
       setPinSuccessMsg(true);
       setNewPin("");
+      showToast("Mirror touch PIN saved successfully!", "success");
       setTimeout(() => setPinSuccessMsg(false), 3000);
     } catch (err) {
-      alert("Failed to update PIN: " + (err as Error).message);
+      showToast("Failed to update PIN: " + (err as Error).message, "error");
     } finally {
       setSavingPin(false);
     }
@@ -103,11 +123,11 @@ export default function StaffPreferencesPage() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < 6) {
-      alert("Password must be at least 6 characters");
+      showToast("Password must be at least 6 characters", "error");
       return;
     }
     if (newPassword !== confirmPassword) {
-      alert("Passwords do not match");
+      showToast("Passwords do not match", "error");
       return;
     }
     setSavingPassword(true);
@@ -117,9 +137,10 @@ export default function StaffPreferencesPage() {
       setPwdSuccessMsg(true);
       setNewPassword("");
       setConfirmPassword("");
+      showToast("Password changed successfully!", "success");
       setTimeout(() => setPwdSuccessMsg(false), 3000);
     } catch (err) {
-      alert("Failed to change password: " + (err as Error).message);
+      showToast("Failed to change password: " + (err as Error).message, "error");
     } finally {
       setSavingPassword(false);
     }
@@ -128,6 +149,31 @@ export default function StaffPreferencesPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8 flex justify-center">
       <div className="w-full max-w-2xl space-y-6">
+        {/* Toast Alert Banner */}
+        {toast && (
+          <div
+            className={`p-3.5 rounded-xl border flex items-center justify-between shadow-lg transition-all animate-in slide-in-from-top-2 ${
+              toast.type === "success"
+                ? "bg-emerald-950/90 border-emerald-600/50 text-emerald-200"
+                : toast.type === "error"
+                ? "bg-rose-950/90 border-rose-600/50 text-rose-200"
+                : "bg-blue-950/90 border-blue-600/50 text-blue-200"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {toast.type === "success" && <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />}
+              {toast.type === "error" && <AlertCircle className="h-5 w-5 text-rose-400 shrink-0" />}
+              {toast.type === "info" && <Sparkles className="h-5 w-5 text-blue-400 shrink-0" />}
+              <span className="text-sm font-semibold">{toast.message}</span>
+            </div>
+            <button
+              onClick={() => setToast(null)}
+              className="text-xs opacity-70 hover:opacity-100 p-1 rounded transition-opacity"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         {/* Navigation & Header */}
         <div className="flex items-center justify-between pb-2 border-b border-slate-800">
           <Link

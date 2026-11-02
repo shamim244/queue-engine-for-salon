@@ -6,19 +6,25 @@ import { WS_BASE_URL, Ticket } from "./api";
 export interface QueueSocketEvent {
   type:
     | "TICKET_CREATED"
+    | "TICKET_SUMMONED"
     | "TICKET_CALLED"
+    | "TICKET_SEATED"
     | "CUSTOMER_SEATED"
     | "TICKET_COMPLETED"
+    | "TICKET_SOFT_BUMPED"
     | "TICKET_BUMPED"
+    | "TICKET_CANCELLED"
     | "QUEUE_UPDATED"
+    | "QUEUE_RECALCULATED"
     | "EMERGENCY_HALT"
     | "PONG"
     | "HEARTBEAT_ACK";
   ticket?: Ticket;
-  timestamp?: number;
+  timestamp?: number | string;
   message?: string;
   salonId?: string;
 }
+
 
 export function useSalonSocket(
   salonId: string | null | undefined,

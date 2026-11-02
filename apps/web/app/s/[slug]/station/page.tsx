@@ -29,6 +29,7 @@ import {
   Delete,
   X,
   UserCheck,
+  AlertCircle,
 } from "lucide-react";
 
 export default function StaffStationPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -53,6 +54,20 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const [editableBill, setEditableBill] = useState<number>(150);
   const [processingAction, setProcessingAction] = useState(false);
 
+  // In-App Toast Alert State
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  // Quick Add Walk-in Modal
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [quickAddName, setQuickAddName] = useState("");
+  const [quickAddPhone, setQuickAddPhone] = useState("");
+  const [quickAddServiceId, setQuickAddServiceId] = useState("");
+  const [addingWalkin, setAddingWalkin] = useState(false);
+
   // Voice Callout synthesis
   const speakAnnouncement = (text: string) => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
@@ -73,6 +88,9 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         if (!activeStylist && salonRes.salon.stylists?.length > 0) {
           setActiveStylist(salonRes.salon.stylists[0]);
         }
+        if (!quickAddServiceId && salonRes.salon.services?.length > 0) {
+          setQuickAddServiceId(salonRes.salon.services[0].id);
+        }
       }
 
       const queueRes = await api.queue.getActive(salonRes.salon.id);
@@ -80,8 +98,24 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       setActiveTickets(tickets);
 
       // Detect currently serving or summoned ticket for this stylist/chair
-      const inService = tickets.find((t) => t.status === "IN_SERVICE");
-      const called = tickets.find((t) => t.status === "CALLED");
+      // In solo mode, ticket might not have stylistId assigned yet. In multi-station mode, enforce strict chair isolation.
+      const isSolo = !salonRes.salon?.stylists || salonRes.salon.stylists.length <= 1;
+
+      const inService =
+        tickets.find(
+          (t) =>
+            (t.status === "IN_SERVICE" || t.status === "IN_CHAIR") &&
+            (!activeStylist || !t.stylistId || t.stylistId === activeStylist.id)
+        ) ||
+        (isSolo ? tickets.find((t) => t.status === "IN_SERVICE" || t.status === "IN_CHAIR") : null);
+
+      const called =
+        tickets.find(
+          (t) =>
+            (t.status === "CALLED" || t.status === "SUMMONED") &&
+            (!activeStylist || !t.stylistId || t.stylistId === activeStylist.id)
+        ) ||
+        (isSolo ? tickets.find((t) => t.status === "CALLED" || t.status === "SUMMONED") : null);
 
       setCurrentlyServing(inService || null);
       setSummonedTicket(called || null);
@@ -96,7 +130,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     } finally {
       setLoading(false);
     }
-  }, [slug, activeStylist]);
+  }, [slug, activeStylist, quickAddServiceId]);
 
   useEffect(() => {
     fetchStationData();
@@ -172,12 +206,13 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         // Voice announcement
         const announcement = `Ticket Number ${ticket.ticketNumber}, ${ticket.customerName}, please step to chair!`;
         speakAnnouncement(announcement);
+        showToast(`Summoned Ticket #${ticket.ticketNumber} (${ticket.customerName})`, "success");
         fetchStationData();
       } else {
-        alert(res.message || "No waiting clients in the queue.");
+        showToast(res.message || "No waiting clients in the queue.", "info");
       }
     } catch (err) {
-      alert("Error calling next: " + (err as Error).message);
+      showToast("Error calling next: " + (err as Error).message, "error");
     } finally {
       setProcessingAction(false);
     }
@@ -192,9 +227,10 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       setCurrentlyServing(summonedTicket);
       setSummonedTicket(null);
       setEditableBill(summonedTicket.totalPrice || 150);
+      showToast(`Ticket #${summonedTicket.ticketNumber} seated in chair!`, "success");
       fetchStationData();
     } catch (err) {
-      alert("Error seating client: " + (err as Error).message);
+      showToast("Error seating client: " + (err as Error).message, "error");
     } finally {
       setProcessingAction(false);
     }
@@ -208,9 +244,9 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       await api.queue.softBump(summonedTicket.id);
       setSummonedTicket(null);
       fetchStationData();
-      alert("3-Minute grace hold applied. Ticket moved behind next client.");
+      showToast("3-Minute grace hold applied. Ticket moved behind next client.", "info");
     } catch (err) {
-      alert("Error bumping ticket: " + (err as Error).message);
+      showToast("Error bumping ticket: " + (err as Error).message, "error");
     } finally {
       setProcessingAction(false);
     }
@@ -222,12 +258,39 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     setProcessingAction(true);
     try {
       await api.queue.finish(currentlyServing.id, paymentStatus, editableBill);
+      showToast(`Completed Ticket #${currentlyServing.ticketNumber} (${paymentStatus === "CASH_PAID" ? "Cash" : "UPI"})!`, "success");
       setCurrentlyServing(null);
       fetchStationData();
     } catch (err) {
-      alert("Error checking out: " + (err as Error).message);
+      showToast("Error checking out: " + (err as Error).message, "error");
     } finally {
       setProcessingAction(false);
+    }
+  };
+
+  // 1-Tap Quick Walk-in Add (For elderly, non-tech or rapid chair entries)
+  const handleQuickAddWalkin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!salon) return;
+    setAddingWalkin(true);
+    try {
+      const resp = await api.queue.quickAdd({
+        salonSlug: slug,
+        customerName: quickAddName.trim() || "Walk-in Guest",
+        customerPhone: quickAddPhone.trim() || "0000000000",
+        serviceId: quickAddServiceId || salon.services?.[0]?.id,
+      });
+      if (resp.ticket) {
+        setIsQuickAddOpen(false);
+        setQuickAddName("");
+        setQuickAddPhone("");
+        showToast(`Walk-in added: Ticket #${resp.ticket.ticketNumber}`, "success");
+        fetchStationData();
+      }
+    } catch (err) {
+      showToast("Failed to add walk-in: " + (err as Error).message, "error");
+    } finally {
+      setAddingWalkin(false);
     }
   };
 
@@ -395,6 +458,15 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          <Button
+            size="sm"
+            onClick={() => setIsQuickAddOpen(true)}
+            className="text-xs bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold gap-1.5 shadow-md shadow-amber-500/20"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">+ Walk-in</span>
+          </Button>
+
           {salon?.stylists && salon.stylists.length > 1 && (
             <Button
               variant="outline"
@@ -406,6 +478,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
               <span className="hidden sm:inline">Swap Chair</span>
             </Button>
           )}
+
 
           <Link href="/staff/preferences">
             <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-slate-300">
@@ -428,7 +501,34 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       </header>
 
       {/* Main Station Work Area */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 space-y-6">
+        {/* Toast Alert Banner */}
+        {toast && (
+          <div
+            className={`p-3.5 rounded-xl border flex items-center justify-between shadow-lg transition-all animate-in slide-in-from-top-2 ${
+              toast.type === "success"
+                ? "bg-emerald-950/90 border-emerald-600/50 text-emerald-200"
+                : toast.type === "error"
+                ? "bg-rose-950/90 border-rose-600/50 text-rose-200"
+                : "bg-blue-950/90 border-blue-600/50 text-blue-200"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {toast.type === "success" && <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />}
+              {toast.type === "error" && <AlertCircle className="h-5 w-5 text-rose-400 shrink-0" />}
+              {toast.type === "info" && <Sparkles className="h-5 w-5 text-blue-400 shrink-0" />}
+              <span className="text-sm font-semibold">{toast.message}</span>
+            </div>
+            <button
+              onClick={() => setToast(null)}
+              className="text-xs opacity-70 hover:opacity-100 p-1 rounded transition-opacity"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Hero Work Surfaces (Summoned or Currently Serving) */}
         <div className="lg:col-span-2 space-y-6">
           {/* 1. GIANT [CALL NEXT] TRIGGER (Always visible if no client is in chair) */}
@@ -654,15 +754,23 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                       <div className="text-right">
                         <Badge
                           variant={
-                            t.status === "CALLED"
+                            t.status === "CALLED" || t.status === "SUMMONED"
                               ? "warning"
-                              : t.status === "IN_SERVICE"
+                              : t.status === "IN_SERVICE" || t.status === "IN_CHAIR"
                               ? "success"
+                              : t.status === "SOFT_BUMPED"
+                              ? "outline"
                               : "secondary"
                           }
                           className="text-[10px]"
                         >
-                          {t.status === "WAITING" ? `Pos #${idx + 1}` : t.status}
+                          {t.status === "SUMMONED" || t.status === "CALLED"
+                            ? "SUMMONED"
+                            : t.status === "IN_CHAIR" || t.status === "IN_SERVICE"
+                            ? "IN CHAIR"
+                            : t.status === "SOFT_BUMPED"
+                            ? "3m HOLD"
+                            : `Pos #${idx + 1}`}
                         </Badge>
                       </div>
                     </div>
@@ -673,6 +781,77 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
           </Card>
         </div>
       </div>
+      </div>
+
+      {/* Quick Walk-in Add Modal */}
+      <Dialog open={isQuickAddOpen} onOpenChange={setIsQuickAddOpen}>
+        <DialogClose onClose={() => setIsQuickAddOpen(false)} />
+        <DialogHeader>
+          <DialogTitle>1-Tap Quick Add Walk-in</DialogTitle>
+          <DialogDescription>
+            Add an in-person client directly to the queue without phone QR scan.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleQuickAddWalkin} className="space-y-4 my-4">
+          <div>
+            <label className="text-xs font-bold text-slate-300 block mb-1">
+              Client Name *
+            </label>
+            <Input
+              placeholder="e.g. Walk-in Client or Uncle Ji"
+              value={quickAddName}
+              onChange={(e) => setQuickAddName(e.target.value)}
+              autoFocus
+              required
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-300 block mb-1">
+              Phone Number (Optional)
+            </label>
+            <Input
+              placeholder="e.g. 9876543210 (Leave blank if none)"
+              value={quickAddPhone}
+              onChange={(e) => setQuickAddPhone(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-300 block mb-1">
+              Service
+            </label>
+            <select
+              className="flex h-10 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+              value={quickAddServiceId}
+              onChange={(e) => setQuickAddServiceId(e.target.value)}
+            >
+              {salon?.services?.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({formatCurrency(s.basePrice)})
+                </option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsQuickAddOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={addingWalkin}
+              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
+            >
+              {addingWalkin ? "Adding to Queue..." : "🎟️ Add to Queue"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </Dialog>
     </div>
   );
 }
+

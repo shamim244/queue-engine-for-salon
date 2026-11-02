@@ -69,9 +69,10 @@ const DEMO_PRESETS: DemoPreset[] = [
     icon: <User className="w-4 h-4 text-emerald-400" />,
     badge: "Self Check-in",
     badgeColor: "success",
-    identifier: "Live QR Check-in",
-    desc: "Live queue tickets & WhatsApp notifications",
+    identifier: "vikram_sharma / Customer@123",
+    desc: "Live queue tracker, haircut specs & loyalty stamp cards",
   },
+
 ];
 
 function LoginForm() {

@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 import { queueEngine } from '../engine/queue-engine';
 import { repository } from '../db/repository';
 import { notificationService } from '../notifications/whatsapp';
+import { authService } from '../auth/auth-service';
 
 export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   // 1. Customer Check-in via Door QR
@@ -62,7 +63,15 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   })
 
   // 5. Barber 1-Tap [CALL NEXT]
-  .post('/call-next', async ({ body }) => {
+  .post('/call-next', async ({ body, headers, cookie: { engine_session }, set }) => {
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+    if (token) {
+      const auth = await authService.validateSession(token);
+      if (auth && auth.role === 'CUSTOMER') {
+        set.status = 403;
+        return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+      }
+    }
     const { salonId, stylistId } = body as { salonId: string; stylistId?: string };
     const ticket = await queueEngine.callNext(salonId, stylistId);
     if (!ticket) {
@@ -77,7 +86,15 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   })
 
   // 6. Seat Customer in Chair
-  .post('/seat', async ({ body, set }) => {
+  .post('/seat', async ({ body, headers, cookie: { engine_session }, set }) => {
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+    if (token) {
+      const auth = await authService.validateSession(token);
+      if (auth && auth.role === 'CUSTOMER') {
+        set.status = 403;
+        return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+      }
+    }
     const { ticketId, stylistId } = body as { ticketId: string; stylistId?: string };
     const ticket = await queueEngine.seatCustomer(ticketId, stylistId);
     if (!ticket) {
@@ -93,7 +110,15 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   })
 
   // 7. Finish Service & Log Payment (Cash or Online)
-  .post('/finish', async ({ body, set }) => {
+  .post('/finish', async ({ body, headers, cookie: { engine_session }, set }) => {
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+    if (token) {
+      const auth = await authService.validateSession(token);
+      if (auth && auth.role === 'CUSTOMER') {
+        set.status = 403;
+        return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+      }
+    }
     const { ticketId, paymentStatus, paymentAmount } = body as {
       ticketId: string;
       paymentStatus: 'CASH_PAID' | 'ONLINE_PAID';
@@ -114,7 +139,15 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   })
 
   // 8. 3-Minute Soft Bump (No-show grace hold)
-  .post('/soft-bump', async ({ body, set }) => {
+  .post('/soft-bump', async ({ body, headers, cookie: { engine_session }, set }) => {
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+    if (token) {
+      const auth = await authService.validateSession(token);
+      if (auth && auth.role === 'CUSTOMER') {
+        set.status = 403;
+        return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+      }
+    }
     const { ticketId } = body as { ticketId: string };
     const ticket = await queueEngine.softBump(ticketId);
     if (!ticket) {
@@ -129,7 +162,15 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   })
 
   // 8.1 Summon Specific Ticket (Front Desk 1-Tap)
-  .post('/summon', async ({ body, set }) => {
+  .post('/summon', async ({ body, headers, cookie: { engine_session }, set }) => {
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+    if (token) {
+      const auth = await authService.validateSession(token);
+      if (auth && auth.role === 'CUSTOMER') {
+        set.status = 403;
+        return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+      }
+    }
     const { ticketId, stylistId } = body as { ticketId: string; stylistId?: string };
     const ticket = await queueEngine.summonTicket(ticketId, stylistId);
     if (!ticket) {
@@ -144,14 +185,33 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
     })
   })
 
-  // 8.2 Cancel / Remove Ticket (Front Desk Manual Removal / No-show)
-  .post('/cancel', async ({ body, set }) => {
+  // 8.2 Cancel / Remove Ticket (Front Desk Manual Removal / Customer Cancellation)
+  .post('/cancel', async ({ body, headers, cookie: { engine_session }, set }) => {
     const { ticketId, reason } = body as { ticketId: string; reason?: string };
-    const ticket = await queueEngine.cancelTicket(ticketId, reason);
-    if (!ticket) {
+    const existing = await repository.getTicketById(ticketId);
+    if (!existing) {
       set.status = 404;
       return { message: 'Ticket not found' };
     }
+
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+    if (token) {
+      const auth = await authService.validateSession(token);
+      if (auth && auth.role === 'CUSTOMER') {
+        const userDigits = (auth.phone || '').replace(/[^0-9]/g, '');
+        const ticketDigits = (existing.customerPhone || '').replace(/[^0-9]/g, '');
+        const isOwner =
+          (userDigits && ticketDigits && (userDigits.endsWith(ticketDigits.slice(-10)) || ticketDigits.endsWith(userDigits.slice(-10)))) ||
+          auth.username === existing.customerName ||
+          auth.fullName === existing.customerName;
+        if (!isOwner) {
+          set.status = 403;
+          return { success: false, message: 'Forbidden: Customers can only cancel their own queue ticket' };
+        }
+      }
+    }
+
+    const ticket = await queueEngine.cancelTicket(ticketId, reason);
     return { success: true, ticket };
   }, {
     body: t.Object({
@@ -163,4 +223,76 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   // 9. Inspect WhatsApp Notifications Simulator
   .get('/notifications', ({ query }) => {
     return notificationService.getRecentNotifications(query.salonId as string | undefined);
+  })
+
+  // 10. Get Customer Tickets, Active Waiting Ticket & Visit History (/me portal)
+  .get('/customer/:phone', async ({ params, headers, cookie: { engine_session }, set }) => {
+    const rawPhone = decodeURIComponent(params.phone || '').trim();
+    const cleanDigits = rawPhone.replace(/[^0-9]/g, '');
+
+    if (!cleanDigits || cleanDigits.length < 4) {
+      set.status = 400;
+      return { success: false, message: 'Valid phone number with at least 4 digits required' };
+    }
+
+    // Role verification / Session checking
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+    let isAuthenticatedOwner = false;
+    if (token) {
+      const auth = await authService.validateSession(token);
+      if (auth) {
+        if (auth.role === 'CUSTOMER') {
+          const userDigits = (auth.phone || '').replace(/[^0-9]/g, '');
+          const queryDigits = cleanDigits;
+          const matches =
+            (userDigits && (userDigits.endsWith(queryDigits.slice(-10)) || queryDigits.endsWith(userDigits.slice(-10)))) ||
+            auth.username === rawPhone;
+          if (!matches) {
+            set.status = 403;
+            return { success: false, message: 'Forbidden: Customers cannot access ticket records belonging to other customers' };
+          }
+          isAuthenticatedOwner = true;
+        } else {
+          // Staff, Owner, Admin have access
+          isAuthenticatedOwner = true;
+        }
+      }
+    }
+
+    const tickets = await repository.getTicketsByCustomer(rawPhone);
+    const allSalons = await repository.getAllSalons();
+
+    // Map tickets with salon details and stylist names
+    const enrichedTickets = tickets.map((t) => {
+      const salon = allSalons.find((s) => s.id === t.salonId);
+      const stylist = salon?.stylists.find((st) => st.id === t.stylistId);
+      return {
+        ...t,
+        salonName: salon?.name || 'Engine Que Salon',
+        salonSlug: salon?.slug || 'salon',
+        stylistName: stylist?.name || 'Master Barber',
+      };
+    });
+
+    const active = enrichedTickets.find((t) =>
+      ['WAITING', 'SUMMONED', 'IN_CHAIR', 'SOFT_BUMPED'].includes(t.status)
+    ) || null;
+
+    const history = enrichedTickets.filter((t) =>
+      ['COMPLETED', 'CANCELLED'].includes(t.status)
+    );
+
+    const completed = enrichedTickets.filter((t) => t.status === 'COMPLETED');
+    const totalSpent = completed.reduce((sum, t) => sum + (t.paymentAmount || t.totalPrice || 0), 0);
+
+    return {
+      success: true,
+      phone: rawPhone,
+      activeTicket: active,
+      history,
+      totalVisits: completed.length,
+      stampsCount: completed.length % 6,
+      totalSpent,
+    };
   });
+

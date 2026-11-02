@@ -66,6 +66,9 @@ export interface Ticket {
   customerPhone: string;
   serviceId: string;
   serviceName?: string;
+  salonName?: string;
+  salonSlug?: string;
+  stylistName?: string;
   addOnIds?: string[];
   stylistId?: string | null;
   status:
@@ -410,9 +413,28 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+
+    registerCustomer: (data: {
+      name: string;
+      phone: string;
+      username?: string;
+      email?: string;
+      password?: string;
+    }) =>
+      request<{
+        success: boolean;
+        token?: string;
+        user?: AuthUser;
+        customer?: { id: string; name: string; phone: string };
+        message?: string;
+      }>("/api/auth/customer/register", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
   },
 
   salons: {
+
     getAll: () => request<Salon[]>("/api/salons"),
 
     get: (slugOrId: string) =>
@@ -590,7 +612,19 @@ export const api = {
       request<any[]>(
         `/api/queue/notifications${salonId ? `?salonId=${salonId}` : ""}`
       ),
+
+    getCustomerTickets: (phone: string) =>
+      request<{
+        success: boolean;
+        phone: string;
+        activeTicket: Ticket | null;
+        history: Ticket[];
+        totalVisits: number;
+        stampsCount: number;
+        totalSpent: number;
+      }>(`/api/queue/customer/${encodeURIComponent(phone)}`),
   },
+
 
   admin: {
     getStats: () => request<AdminStats>("/api/admin/stats"),

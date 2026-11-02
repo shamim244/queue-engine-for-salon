@@ -619,5 +619,21 @@ export const authService = {
         );
       }
     }
+
+    // 5. Seeded Customer: Vikram Sharma (Customer Portal & Live Queue)
+    const custUser = await this.getUserByUsername('vikram_sharma');
+    if (!custUser) {
+      await this.createUser({
+        username: 'vikram_sharma',
+        password: 'Customer@123',
+        fullName: 'Vikram Sharma',
+        phone: '9876500001',
+        email: 'vikram@example.com',
+        role: 'CUSTOMER',
+      });
+      console.log('[Auth] Seeded Customer: vikram_sharma / Customer@123');
+    }
+
   },
 };
+

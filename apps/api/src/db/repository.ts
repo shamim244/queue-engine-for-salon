@@ -94,8 +94,13 @@ const memoryStore = {
   } as MaintenanceMode,
 };
 
-// Seed initial demo data
 export function seedDemoData() {
+  memoryStore.tickets.clear();
+  memoryStore.ticketSequence.clear();
+  memoryStore.salons.clear();
+  memoryStore.stylists.clear();
+  memoryStore.services.clear();
+  memoryStore.organizations.clear();
   memoryStore.settings = JSON.parse(JSON.stringify(defaultPlatformSettings));
   memoryStore.auditLogs = [...defaultAuditLogs];
   memoryStore.maintenanceMode = {
@@ -211,6 +216,106 @@ export function seedDemoData() {
 
   memoryStore.ticketSequence.set(ruralSalon.id, 100);
   memoryStore.ticketSequence.set(modernSalon.id, 200);
+
+  // Pre-seed completed visits for demo customer Vikram Sharma (phone: 9876500001)
+  const vikramHistory: QueueTicket[] = [
+    {
+      id: 'tkt-seed-001',
+      salonId: ruralSalon.id,
+      stylistId: rameshStylist.id,
+      ticketNumber: 88,
+      customerName: 'Vikram Sharma',
+      customerPhone: '9876500001',
+      serviceId: ruralServices[2].id,
+      serviceName: ruralServices[2].name,
+      selectedAddOns: [],
+      totalPrice: 110,
+      totalDurationMinutes: 25,
+      status: 'COMPLETED',
+      source: 'QR_SCAN',
+      estimatedWaitMinutes: 0,
+      checkInTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      summonedTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000 + 10 * 60000).toISOString(),
+      startedTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000 + 12 * 60000).toISOString(),
+      completedTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000 + 35 * 60000).toISOString(),
+      paymentStatus: 'ONLINE_PAID',
+      paymentAmount: 110,
+      positionInQueue: 0,
+    },
+    {
+      id: 'tkt-seed-002',
+      salonId: ruralSalon.id,
+      stylistId: rameshStylist.id,
+      ticketNumber: 92,
+      customerName: 'Vikram Sharma',
+      customerPhone: '9876500001',
+      serviceId: ruralServices[0].id,
+      serviceName: ruralServices[0].name,
+      selectedAddOns: [],
+      totalPrice: 80,
+      totalDurationMinutes: 15,
+      status: 'COMPLETED',
+      source: 'QR_SCAN',
+      estimatedWaitMinutes: 0,
+      checkInTime: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+      summonedTime: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000 + 5 * 60000).toISOString(),
+      startedTime: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000 + 7 * 60000).toISOString(),
+      completedTime: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000 + 22 * 60000).toISOString(),
+      paymentStatus: 'CASH_PAID',
+      paymentAmount: 80,
+      positionInQueue: 0,
+    },
+    {
+      id: 'tkt-seed-003',
+      salonId: modernSalon.id,
+      stylistId: modernStylists[0].id,
+      ticketNumber: 155,
+      customerName: 'Vikram Sharma',
+      customerPhone: '9876500001',
+      serviceId: modernServices[0].id,
+      serviceName: modernServices[0].name,
+      selectedAddOns: [],
+      totalPrice: 450,
+      totalDurationMinutes: 30,
+      status: 'COMPLETED',
+      source: 'QR_SCAN',
+      estimatedWaitMinutes: 0,
+      checkInTime: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
+      summonedTime: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000 + 15 * 60000).toISOString(),
+      startedTime: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000 + 18 * 60000).toISOString(),
+      completedTime: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000 + 48 * 60000).toISOString(),
+      paymentStatus: 'ONLINE_PAID',
+      paymentAmount: 450,
+      positionInQueue: 0,
+    },
+    {
+      id: 'tkt-seed-004',
+      salonId: ruralSalon.id,
+      stylistId: rameshStylist.id,
+      ticketNumber: 97,
+      customerName: 'Vikram Sharma',
+      customerPhone: '9876500001',
+      serviceId: ruralServices[1].id,
+      serviceName: ruralServices[1].name,
+      selectedAddOns: [],
+      totalPrice: 50,
+      totalDurationMinutes: 10,
+      status: 'COMPLETED',
+      source: 'QR_SCAN',
+      estimatedWaitMinutes: 0,
+      checkInTime: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
+      summonedTime: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000 + 2 * 60000).toISOString(),
+      startedTime: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000 + 4 * 60000).toISOString(),
+      completedTime: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000 + 14 * 60000).toISOString(),
+      paymentStatus: 'CASH_PAID',
+      paymentAmount: 50,
+      positionInQueue: 0,
+    },
+  ];
+
+  for (const t of vikramHistory) {
+    memoryStore.tickets.set(t.id, t);
+  }
 
   // Sync to MySQL if connected
   if (isMySqlConnected) {
@@ -837,6 +942,54 @@ export const repository = {
       };
     }
     return memoryStore.tickets.get(ticketId) || null;
+  },
+
+  async getTicketsByCustomer(phone: string): Promise<QueueTicket[]> {
+    const rawClean = (phone || '').trim().replace(/[^0-9]/g, '');
+    if (!rawClean || rawClean.length < 4) {
+      return [];
+    }
+    const last10 = rawClean.slice(-10);
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      const [rows]: any = await db.query(
+        `SELECT * FROM queue_tickets 
+         WHERE customer_phone LIKE ? 
+         ORDER BY check_in_time DESC`,
+        [`%${last10}`]
+      );
+      return rows.map((r: any) => ({
+        id: r.id,
+        salonId: r.salon_id,
+        stylistId: r.stylist_id,
+        ticketNumber: r.ticket_number,
+        customerName: r.customer_name,
+        customerPhone: r.customer_phone,
+        serviceId: r.service_id,
+        serviceName: r.service_name,
+        selectedAddOns: typeof r.selected_add_ons === 'string' ? JSON.parse(r.selected_add_ons || '[]') : r.selected_add_ons || [],
+        totalPrice: Number(r.total_price),
+        totalDurationMinutes: Number(r.total_duration_minutes),
+        status: r.status,
+        source: r.source,
+        estimatedWaitMinutes: Number(r.estimated_wait_minutes),
+        checkInTime: r.check_in_time,
+        summonedTime: r.summoned_time,
+        startedTime: r.started_time,
+        completedTime: r.completed_time,
+        paymentStatus: r.payment_status,
+        paymentAmount: r.payment_amount ? Number(r.payment_amount) : null,
+        positionInQueue: 0,
+      }));
+    }
+
+    return Array.from(memoryStore.tickets.values())
+      .filter((t) => {
+        const ticketDigits = t.customerPhone.replace(/[^0-9]/g, '');
+        return ticketDigits && (ticketDigits.endsWith(last10) || last10.endsWith(ticketDigits));
+      })
+      .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
   },
 
   async updateTicketStatus(
