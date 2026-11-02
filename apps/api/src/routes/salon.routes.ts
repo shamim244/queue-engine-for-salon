@@ -149,6 +149,41 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
     })
   })
 
+  // 3.1 Update Salon Details (Admin / Owner)
+  .patch('/:id', async ({ params, body, set }) => {
+    try {
+      const salon = await repository.updateSalon(params.id, body as any);
+      if (!salon) {
+        set.status = 404;
+        return { success: false, message: 'Salon not found' };
+      }
+      return { success: true, salon };
+    } catch (err: any) {
+      set.status = 400;
+      return { success: false, message: err.message };
+    }
+  }, {
+    body: t.Object({
+      name: t.Optional(t.String()),
+      phone: t.Optional(t.String()),
+      address: t.Optional(t.String()),
+      upiPaymentId: t.Optional(t.String()),
+      operatingMode: t.Optional(t.Union([t.Literal('RURAL_SOLO'), t.Literal('MODERN_MULTI')])),
+      status: t.Optional(t.Union([t.Literal('ACTIVE'), t.Literal('SUSPENDED'), t.Literal('MAINTENANCE')])),
+      currency: t.Optional(t.String()),
+    })
+  })
+
+  // 3.2 Delete / Archive Salon (Admin)
+  .delete('/:id', async ({ params, set }) => {
+    const success = await repository.deleteSalon(params.id);
+    if (!success) {
+      set.status = 404;
+      return { success: false, message: 'Salon not found' };
+    }
+    return { success: true, message: 'Salon removed successfully' };
+  })
+
   // 4. Add Service (Salon Owner)
   .post('/:id/services', async ({ params, body, set }) => {
     try {

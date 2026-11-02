@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { Elysia } from 'elysia';
 import { adminRoutes } from '../src/routes/admin.routes';
+import { salonRoutes } from '../src/routes/salon.routes';
 import { repository, seedDemoData } from '../src/db/repository';
 import { authService } from '../src/auth/auth-service';
 
 describe('Admin Telemetry, Configuration, and Onboarding API', () => {
-  const app = new Elysia().use(adminRoutes);
+  const app = new Elysia().use(adminRoutes).use(salonRoutes);
 
   beforeEach(async () => {
     seedDemoData();
@@ -183,5 +184,59 @@ describe('Admin Telemetry, Configuration, and Onboarding API', () => {
     const data = await res.json();
     expect(data.success).toBe(true);
     expect(data.provider).toBe('SIMULATOR');
+  });
+
+  it('PATCH /api/salons/:id should update salon details and toggle status', async () => {
+    // 1. Update Ramesh Barber details
+    const patchRes = await app.handle(
+      new Request('http://localhost/api/salons/ramesh-barber', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Ramesh Elite Traditional Barber',
+          phone: '+91 98765 99999',
+          upiPaymentId: 'ramesh@upi',
+          status: 'SUSPENDED',
+        }),
+      })
+    );
+    expect(patchRes.status).toBe(200);
+    const patchData = await patchRes.json();
+    expect(patchData.success).toBe(true);
+    expect(patchData.salon.name).toBe('Ramesh Elite Traditional Barber');
+    expect(patchData.salon.phone).toBe('+91 98765 99999');
+    expect(patchData.salon.upiPaymentId).toBe('ramesh@upi');
+    expect(patchData.salon.status).toBe('SUSPENDED');
+
+    // Verify GET retrieves the updated salon
+    const getRes = await app.handle(new Request('http://localhost/api/salons/ramesh-barber'));
+    expect(getRes.status).toBe(200);
+    const getData = await getRes.json();
+    expect(getData.salon.name).toBe('Ramesh Elite Traditional Barber');
+  });
+
+  it('DELETE /api/salons/:id should delete salon branch', async () => {
+    // 1. Create a temporary salon to delete
+    const tempSalon = await repository.createSalon({
+      name: 'Temp Deletable Salon',
+      slug: 'temp-deletable-salon',
+      phone: '+91 00000 11111',
+      operatingMode: 'RURAL_SOLO',
+    });
+    expect(await repository.getSalonBySlug('temp-deletable-salon')).not.toBeNull();
+
+    // 2. Delete it via API
+    const delRes = await app.handle(
+      new Request(`http://localhost/api/salons/${tempSalon.id}`, {
+        method: 'DELETE',
+      })
+    );
+    expect(delRes.status).toBe(200);
+    const delData = await delRes.json();
+    expect(delData.success).toBe(true);
+
+    // 3. Verify it is no longer found
+    const getDeleted = await app.handle(new Request(`http://localhost/api/salons/${tempSalon.id}`));
+    expect(getDeleted.status).toBe(404);
   });
 });

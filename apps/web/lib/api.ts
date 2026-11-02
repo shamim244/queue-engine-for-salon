@@ -13,6 +13,7 @@ export interface Stylist {
   isOwner?: boolean;
   currentTicketId?: string | null;
   avgDurationMinutes?: number;
+  historicalAvgDurationMinutes?: number;
 }
 
 export interface Service {
@@ -37,6 +38,7 @@ export interface Salon {
   currency: string;
   countryCode: string;
   upiPaymentId?: string;
+  status?: "ACTIVE" | "SUSPENDED" | "MAINTENANCE";
   stylists: Stylist[];
   services: Service[];
   createdAt?: string;
@@ -398,6 +400,28 @@ export const api = {
       request<{ success: boolean; mode: string }>(`/api/salons/${salonId}/mode`, {
         method: "POST",
         body: JSON.stringify({ mode }),
+      }),
+
+    update: (
+      salonId: string,
+      data: {
+        name?: string;
+        phone?: string;
+        address?: string;
+        upiPaymentId?: string;
+        operatingMode?: "RURAL_SOLO" | "MODERN_MULTI";
+        status?: "ACTIVE" | "SUSPENDED" | "MAINTENANCE";
+        currency?: string;
+      }
+    ) =>
+      request<{ success: boolean; salon: Salon }>(`/api/salons/${salonId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+
+    delete: (salonId: string) =>
+      request<{ success: boolean; message: string }>(`/api/salons/${salonId}`, {
+        method: "DELETE",
       }),
 
     addStylist: (

@@ -667,6 +667,58 @@ export const repository = {
     }
   },
 
+  async updateSalon(salonId: string, updates: {
+    name?: string;
+    phone?: string;
+    address?: string;
+    upiPaymentId?: string;
+    operatingMode?: 'RURAL_SOLO' | 'MODERN_MULTI';
+    currency?: string;
+    status?: 'ACTIVE' | 'SUSPENDED' | 'MAINTENANCE';
+  }): Promise<Salon | null> {
+    const all = await this.getAllSalons();
+    const salon = all.find((s) => s.id === salonId || s.slug === salonId);
+    if (!salon) return null;
+
+    if (updates.name !== undefined) salon.name = updates.name.trim();
+    if (updates.phone !== undefined) salon.phone = updates.phone.trim();
+    if (updates.address !== undefined) salon.address = updates.address.trim();
+    if (updates.upiPaymentId !== undefined) salon.upiPaymentId = updates.upiPaymentId.trim();
+    if (updates.operatingMode !== undefined) salon.operatingMode = updates.operatingMode;
+    if (updates.currency !== undefined) salon.currency = updates.currency.trim();
+    if (updates.status !== undefined) (salon as any).status = updates.status;
+
+    memoryStore.salons.set(salon.id, salon);
+    memoryStore.salons.set(salon.slug, salon);
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query(
+        'UPDATE salons SET name = ?, phone = ?, address = ?, upi_payment_id = ?, operating_mode = ? WHERE id = ?',
+        [salon.name, salon.phone, salon.address || null, salon.upiPaymentId || null, salon.operatingMode, salon.id]
+      );
+    }
+    return salon;
+  },
+
+  async deleteSalon(salonId: string): Promise<boolean> {
+    const all = await this.getAllSalons();
+    const salon = all.find((s) => s.id === salonId || s.slug === salonId);
+    if (!salon) return false;
+
+    memoryStore.salons.delete(salon.id);
+    memoryStore.salons.delete(salon.slug);
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query('DELETE FROM queue_tickets WHERE salon_id = ?', [salon.id]);
+      await db.query('DELETE FROM services WHERE salon_id = ?', [salon.id]);
+      await db.query('DELETE FROM stylists WHERE salon_id = ?', [salon.id]);
+      await db.query('DELETE FROM salons WHERE id = ?', [salon.id]);
+    }
+    return true;
+  },
+
   // Tickets
   async getNextTicketNumber(salonId: string): Promise<number> {
     if (isMySqlConnected) {

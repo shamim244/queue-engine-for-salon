@@ -147,11 +147,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Button>
           )}
 
-          <div className="flex justify-between items-center text-[11px] text-slate-500 px-1">
-            <Link href="/" className="hover:text-blue-400 transition-colors">
-              &larr; Main Launcher
-            </Link>
-            <span>v1.4.3 decoupled</span>
+          <div className="flex justify-between items-center text-[11px] text-slate-500 px-1 pt-1">
+            <div className="flex items-center gap-2">
+              <Link href="/" className="hover:text-blue-400 transition-colors">
+                Home
+              </Link>
+              <span>•</span>
+              <Link href="/dev" className="hover:text-blue-400 transition-colors">
+                Dev Hub
+              </Link>
+            </div>
+            <span>v1.4.3</span>
           </div>
         </div>
       </aside>
