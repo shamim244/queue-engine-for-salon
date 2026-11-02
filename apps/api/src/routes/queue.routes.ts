@@ -64,20 +64,26 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
 
   // 5. Barber 1-Tap [CALL NEXT]
   .post('/call-next', async ({ body, headers, cookie: { engine_session }, set }) => {
-    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
-    if (token) {
-      const auth = await authService.validateSession(token);
-      if (auth && auth.role === 'CUSTOMER') {
-        set.status = 403;
-        return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+    try {
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && auth.role === 'CUSTOMER') {
+          set.status = 403;
+          return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+        }
       }
+      const { salonId, stylistId } = body as { salonId: string; stylistId?: string };
+      const ticket = await queueEngine.callNext(salonId, stylistId);
+      if (!ticket) {
+        return { success: false, message: 'No waiting clients in queue' };
+      }
+      return { success: true, ticket };
+    } catch (err: any) {
+      console.error('[queueRoutes:call-next] Error:', err);
+      set.status = 500;
+      return { success: false, message: err.message || 'Internal Server Error' };
     }
-    const { salonId, stylistId } = body as { salonId: string; stylistId?: string };
-    const ticket = await queueEngine.callNext(salonId, stylistId);
-    if (!ticket) {
-      return { success: false, message: 'No waiting clients in queue' };
-    }
-    return { success: true, ticket };
   }, {
     body: t.Object({
       salonId: t.String(),
@@ -87,21 +93,27 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
 
   // 6. Seat Customer in Chair
   .post('/seat', async ({ body, headers, cookie: { engine_session }, set }) => {
-    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
-    if (token) {
-      const auth = await authService.validateSession(token);
-      if (auth && auth.role === 'CUSTOMER') {
-        set.status = 403;
-        return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+    try {
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && auth.role === 'CUSTOMER') {
+          set.status = 403;
+          return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+        }
       }
+      const { ticketId, stylistId } = body as { ticketId: string; stylistId?: string };
+      const ticket = await queueEngine.seatCustomer(ticketId, stylistId);
+      if (!ticket) {
+        set.status = 404;
+        return { success: false, message: 'Ticket not found' };
+      }
+      return { success: true, ticket };
+    } catch (err: any) {
+      console.error('[queueRoutes:seat] Error:', err);
+      set.status = 500;
+      return { success: false, message: err.message || 'Internal Server Error' };
     }
-    const { ticketId, stylistId } = body as { ticketId: string; stylistId?: string };
-    const ticket = await queueEngine.seatCustomer(ticketId, stylistId);
-    if (!ticket) {
-      set.status = 404;
-      return { message: 'Ticket not found' };
-    }
-    return { success: true, ticket };
   }, {
     body: t.Object({
       ticketId: t.String(),
@@ -111,25 +123,31 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
 
   // 7. Finish Service & Log Payment (Cash or Online)
   .post('/finish', async ({ body, headers, cookie: { engine_session }, set }) => {
-    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
-    if (token) {
-      const auth = await authService.validateSession(token);
-      if (auth && auth.role === 'CUSTOMER') {
-        set.status = 403;
-        return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+    try {
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && auth.role === 'CUSTOMER') {
+          set.status = 403;
+          return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+        }
       }
+      const { ticketId, paymentStatus, paymentAmount } = body as {
+        ticketId: string;
+        paymentStatus: 'CASH_PAID' | 'ONLINE_PAID';
+        paymentAmount?: number;
+      };
+      const ticket = await queueEngine.finishService(ticketId, paymentStatus, paymentAmount);
+      if (!ticket) {
+        set.status = 404;
+        return { success: false, message: 'Ticket not found' };
+      }
+      return { success: true, ticket };
+    } catch (err: any) {
+      console.error('[queueRoutes:finish] Error:', err);
+      set.status = 500;
+      return { success: false, message: err.message || 'Internal Server Error' };
     }
-    const { ticketId, paymentStatus, paymentAmount } = body as {
-      ticketId: string;
-      paymentStatus: 'CASH_PAID' | 'ONLINE_PAID';
-      paymentAmount?: number;
-    };
-    const ticket = await queueEngine.finishService(ticketId, paymentStatus, paymentAmount);
-    if (!ticket) {
-      set.status = 404;
-      return { message: 'Ticket not found' };
-    }
-    return { success: true, ticket };
   }, {
     body: t.Object({
       ticketId: t.String(),
@@ -140,21 +158,27 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
 
   // 8. 3-Minute Soft Bump (No-show grace hold)
   .post('/soft-bump', async ({ body, headers, cookie: { engine_session }, set }) => {
-    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
-    if (token) {
-      const auth = await authService.validateSession(token);
-      if (auth && auth.role === 'CUSTOMER') {
-        set.status = 403;
-        return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+    try {
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && auth.role === 'CUSTOMER') {
+          set.status = 403;
+          return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+        }
       }
+      const { ticketId } = body as { ticketId: string };
+      const ticket = await queueEngine.softBump(ticketId);
+      if (!ticket) {
+        set.status = 404;
+        return { success: false, message: 'Ticket not found' };
+      }
+      return { success: true, ticket };
+    } catch (err: any) {
+      console.error('[queueRoutes:soft-bump] Error:', err);
+      set.status = 500;
+      return { success: false, message: err.message || 'Internal Server Error' };
     }
-    const { ticketId } = body as { ticketId: string };
-    const ticket = await queueEngine.softBump(ticketId);
-    if (!ticket) {
-      set.status = 404;
-      return { message: 'Ticket not found' };
-    }
-    return { success: true, ticket };
   }, {
     body: t.Object({
       ticketId: t.String(),
@@ -163,21 +187,27 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
 
   // 8.1 Summon Specific Ticket (Front Desk 1-Tap)
   .post('/summon', async ({ body, headers, cookie: { engine_session }, set }) => {
-    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
-    if (token) {
-      const auth = await authService.validateSession(token);
-      if (auth && auth.role === 'CUSTOMER') {
-        set.status = 403;
-        return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+    try {
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && auth.role === 'CUSTOMER') {
+          set.status = 403;
+          return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+        }
       }
+      const { ticketId, stylistId } = body as { ticketId: string; stylistId?: string };
+      const ticket = await queueEngine.summonTicket(ticketId, stylistId);
+      if (!ticket) {
+        set.status = 404;
+        return { success: false, message: 'Ticket not found' };
+      }
+      return { success: true, ticket };
+    } catch (err: any) {
+      console.error('[queueRoutes:summon] Error:', err);
+      set.status = 500;
+      return { success: false, message: err.message || 'Internal Server Error' };
     }
-    const { ticketId, stylistId } = body as { ticketId: string; stylistId?: string };
-    const ticket = await queueEngine.summonTicket(ticketId, stylistId);
-    if (!ticket) {
-      set.status = 404;
-      return { message: 'Ticket not found' };
-    }
-    return { success: true, ticket };
   }, {
     body: t.Object({
       ticketId: t.String(),

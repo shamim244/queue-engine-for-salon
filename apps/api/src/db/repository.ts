@@ -367,6 +367,23 @@ async function syncDemoToMySql(salons: Salon[]) {
 }
 
 // -------------------------------------------------------------
+// HELPER METHODS FOR SQL FORMATTING
+// -------------------------------------------------------------
+
+export function toMySqlDatetime(val?: string | Date | null): string | null {
+  if (!val) return null;
+  const d = typeof val === 'string' ? new Date(val) : val;
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 19).replace('T', ' ');
+}
+
+export function toIsoStringSafe(val?: string | Date | null): string | null {
+  if (!val) return null;
+  if (val instanceof Date) return val.toISOString();
+  return String(val);
+}
+
+// -------------------------------------------------------------
 // REPOSITORY METHODS
 // -------------------------------------------------------------
 
@@ -848,8 +865,8 @@ export const repository = {
       await db.query(
         `INSERT INTO queue_tickets 
           (id, salon_id, stylist_id, ticket_number, customer_name, customer_phone, service_id, service_name, 
-           selected_add_ons, total_price, total_duration_minutes, status, source, estimated_wait_minutes, payment_status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           selected_add_ons, total_price, total_duration_minutes, status, source, estimated_wait_minutes, payment_status, check_in_time)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()))`,
         [
           ticket.id,
           ticket.salonId,
@@ -866,6 +883,7 @@ export const repository = {
           ticket.source,
           ticket.estimatedWaitMinutes,
           ticket.paymentStatus,
+          toMySqlDatetime(ticket.checkInTime),
         ]
       );
     }
@@ -896,10 +914,10 @@ export const repository = {
         status: r.status,
         source: r.source,
         estimatedWaitMinutes: Number(r.estimated_wait_minutes),
-        checkInTime: r.check_in_time,
-        summonedTime: r.summoned_time,
-        startedTime: r.started_time,
-        completedTime: r.completed_time,
+        checkInTime: toIsoStringSafe(r.check_in_time) || new Date().toISOString(),
+        summonedTime: toIsoStringSafe(r.summoned_time),
+        startedTime: toIsoStringSafe(r.started_time),
+        completedTime: toIsoStringSafe(r.completed_time),
         paymentStatus: r.payment_status,
         paymentAmount: r.payment_amount ? Number(r.payment_amount) : null,
         positionInQueue: 0,
@@ -932,10 +950,10 @@ export const repository = {
         status: r.status,
         source: r.source,
         estimatedWaitMinutes: Number(r.estimated_wait_minutes),
-        checkInTime: r.check_in_time,
-        summonedTime: r.summoned_time,
-        startedTime: r.started_time,
-        completedTime: r.completed_time,
+        checkInTime: toIsoStringSafe(r.check_in_time) || new Date().toISOString(),
+        summonedTime: toIsoStringSafe(r.summoned_time),
+        startedTime: toIsoStringSafe(r.started_time),
+        completedTime: toIsoStringSafe(r.completed_time),
         paymentStatus: r.payment_status,
         paymentAmount: r.payment_amount ? Number(r.payment_amount) : null,
         positionInQueue: 0,
@@ -974,10 +992,10 @@ export const repository = {
         status: r.status,
         source: r.source,
         estimatedWaitMinutes: Number(r.estimated_wait_minutes),
-        checkInTime: r.check_in_time,
-        summonedTime: r.summoned_time,
-        startedTime: r.started_time,
-        completedTime: r.completed_time,
+        checkInTime: toIsoStringSafe(r.check_in_time) || new Date().toISOString(),
+        summonedTime: toIsoStringSafe(r.summoned_time),
+        startedTime: toIsoStringSafe(r.started_time),
+        completedTime: toIsoStringSafe(r.completed_time),
         paymentStatus: r.payment_status,
         paymentAmount: r.payment_amount ? Number(r.payment_amount) : null,
         positionInQueue: 0,
@@ -1031,9 +1049,9 @@ export const repository = {
         [
           status,
           metadata?.stylistId || null,
-          metadata?.summonedTime || null,
-          metadata?.startedTime || null,
-          metadata?.completedTime || null,
+          toMySqlDatetime(metadata?.summonedTime),
+          toMySqlDatetime(metadata?.startedTime),
+          toMySqlDatetime(metadata?.completedTime),
           metadata?.paymentStatus || null,
           metadata?.paymentAmount !== undefined ? metadata.paymentAmount : null,
           ticketId,
