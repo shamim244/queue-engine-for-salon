@@ -248,6 +248,76 @@ describe("Enterprise Unified Authentication & Protected Route Guard System", () 
       const html = renderToString(tree);
       expect(html).toContain("Any Authenticated User");
     });
+
+    it("should support an array of allowed roles (e.g. SUPER_ADMIN or SALON_OWNER)", () => {
+      // 1. Salon Owner should pass
+      const ownerAuth = createMockAuthContext({
+        isLoading: false,
+        user: {
+          id: "u-owner-01",
+          username: "aura_owner",
+          role: "SALON_OWNER",
+          status: "ACTIVE",
+        },
+      });
+
+      const ownerTree = React.createElement(
+        AuthContext.Provider,
+        { value: ownerAuth },
+        React.createElement(
+          AuthGuard,
+          { requiredRole: ["SUPER_ADMIN", "SALON_OWNER"] },
+          React.createElement("div", { id: "owner-view" }, "Salon Owner Hub Content")
+        )
+      );
+      expect(renderToString(ownerTree)).toContain("Salon Owner Hub Content");
+
+      // 2. Super Admin should also pass
+      const adminAuth = createMockAuthContext({
+        isLoading: false,
+        user: {
+          id: "u-admin-01",
+          username: "admin",
+          role: "SUPER_ADMIN",
+          status: "ACTIVE",
+        },
+      });
+
+      const adminTree = React.createElement(
+        AuthContext.Provider,
+        { value: adminAuth },
+        React.createElement(
+          AuthGuard,
+          { requiredRole: ["SUPER_ADMIN", "SALON_OWNER"] },
+          React.createElement("div", { id: "admin-view" }, "Salon Owner Hub Content")
+        )
+      );
+      expect(renderToString(adminTree)).toContain("Salon Owner Hub Content");
+
+      // 3. Staff member should be restricted
+      const staffAuth = createMockAuthContext({
+        isLoading: false,
+        user: {
+          id: "u-staff-01",
+          username: "ramesh",
+          role: "STAFF",
+          status: "ACTIVE",
+        },
+      });
+
+      const staffTree = React.createElement(
+        AuthContext.Provider,
+        { value: staffAuth },
+        React.createElement(
+          AuthGuard,
+          { requiredRole: ["SUPER_ADMIN", "SALON_OWNER"] },
+          React.createElement("div", { id: "staff-view" }, "Salon Owner Hub Content")
+        )
+      );
+      const staffHtml = renderToString(staffTree);
+      expect(staffHtml).toContain("Access Restricted");
+      expect(staffHtml).not.toContain("Salon Owner Hub Content");
+    });
   });
 
   describe("Unified Login View (LoginPage)", () => {

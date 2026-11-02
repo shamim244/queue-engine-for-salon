@@ -13,7 +13,7 @@ export type AllowedRole = "SUPER_ADMIN" | "SALON_OWNER" | "STAFF" | "CUSTOMER";
 
 export interface AuthGuardProps {
   children: React.ReactNode;
-  requiredRole?: AllowedRole;
+  requiredRole?: AllowedRole | AllowedRole[];
 }
 
 export function getRoleDestination(role?: string, defaultSalonSlug = "ramesh-barber"): string {
@@ -110,7 +110,13 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
   }
 
   // State 3: Role Mismatch
-  if (requiredRole && user.role !== requiredRole) {
+  const isRoleAllowed = !requiredRole
+    ? true
+    : Array.isArray(requiredRole)
+    ? requiredRole.includes(user.role as AllowedRole)
+    : user.role === requiredRole;
+
+  if (!isRoleAllowed) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-4">
         <Card className="max-w-md w-full border-amber-800/40 bg-slate-900/90 shadow-2xl">
@@ -134,7 +140,7 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
               <div className="flex justify-between items-center">
                 <span className="text-slate-400">Required Role:</span>
                 <Badge variant="purple" className="text-purple-300">
-                  {requiredRole}
+                  {Array.isArray(requiredRole) ? requiredRole.join(" / ") : requiredRole}
                 </Badge>
               </div>
             </div>
