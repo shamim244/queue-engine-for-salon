@@ -140,7 +140,7 @@ function OnboardingWizardContent() {
         services: preset.services,
       }));
     } else {
-      const preset = getModernMultiPreset(formData.name);
+      const preset = getModernMultiPreset(formData.name, formData.ownerUser.fullName);
       setFormData((prev) => ({
         ...prev,
         operatingMode: "MODERN_MULTI",
@@ -731,7 +731,7 @@ function OnboardingWizardContent() {
                 </div>
 
                 <div className="mt-6 pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
-                  <span>Pre-seeds 3 stylists & 4 services</span>
+                  <span>Pre-seeds modern services & clean initial station</span>
                   <span className="font-semibold text-purple-400">Default: Pro Tier</span>
                 </div>
               </div>

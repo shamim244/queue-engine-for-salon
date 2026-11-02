@@ -46,6 +46,7 @@ export const authService = {
     username: string;
     password: string;
     role: UserRole;
+    fullName?: string | null;
     organizationId?: string | null;
     salonId?: string | null;
     staffId?: string | null;
@@ -69,6 +70,7 @@ export const authService = {
       organizationId: params.organizationId || null,
       salonId: params.salonId || null,
       username: cleanUsername,
+      fullName: params.fullName ? params.fullName.trim() : null,
       phone: params.phone ? params.phone.trim() : null,
       email: params.email ? params.email.trim().toLowerCase() : null,
       passwordHash,
@@ -88,13 +90,14 @@ export const authService = {
     if (isMySqlConnected) {
       const db = getDb();
       await db.query(
-        `INSERT INTO users (id, organization_id, salon_id, username, phone, email, password_hash, pin_hash, role, staff_id, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO users (id, organization_id, salon_id, username, full_name, phone, email, password_hash, pin_hash, role, staff_id, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           user.id,
           user.organizationId,
           user.salonId,
           user.username,
+          user.fullName,
           user.phone,
           user.email,
           user.passwordHash,
@@ -163,6 +166,7 @@ export const authService = {
       organizationId: r.organization_id || null,
       salonId: r.salon_id || null,
       username: r.username,
+      fullName: r.full_name || null,
       phone: r.phone || null,
       email: r.email || null,
       passwordHash: r.password_hash,
@@ -362,6 +366,128 @@ export const authService = {
       return rows.map((r: any) => this.mapUserRow(r));
     }
     return Array.from(memoryUsers.values()).filter((u) => u.salonId === salonId && u.role === 'STAFF');
+  },
+
+  // 12. Enterprise Platform User Directory (Super Admin)
+  async listAllUsers(params?: {
+    role?: string;
+    salonId?: string;
+    search?: string;
+  }): Promise<(User & { salonName?: string | null; organizationName?: string | null })[]> {
+    let allUsers: User[] = [];
+    if (isMySqlConnected) {
+      const db = getDb();
+      let query = 'SELECT * FROM users WHERE 1=1';
+      const queryParams: any[] = [];
+      if (params?.role && params.role !== 'ALL') {
+        query += ' AND role = ?';
+        queryParams.push(params.role);
+      }
+      if (params?.salonId && params.salonId !== 'ALL') {
+        query += ' AND salon_id = ?';
+        queryParams.push(params.salonId);
+      }
+      query += ' ORDER BY created_at DESC';
+      const [rows]: any = await db.query(query, queryParams);
+      allUsers = rows.map((r: any) => this.mapUserRow(r));
+    } else {
+      const unique = new Map<string, User>();
+      for (const u of memoryUsers.values()) {
+        unique.set(u.id, u);
+      }
+      allUsers = Array.from(unique.values()).filter((u) => {
+        if (params?.role && params.role !== 'ALL' && u.role !== params.role) return false;
+        if (params?.salonId && params.salonId !== 'ALL' && u.salonId !== params.salonId) return false;
+        return true;
+      });
+    }
+
+    if (params?.search && params.search.trim()) {
+      const term = params.search.toLowerCase().trim();
+      allUsers = allUsers.filter(
+        (u) =>
+          u.username.toLowerCase().includes(term) ||
+          (u.fullName && u.fullName.toLowerCase().includes(term)) ||
+          (u.email && u.email.toLowerCase().includes(term)) ||
+          (u.phone && u.phone.includes(term))
+      );
+    }
+
+    // Attach salon and org names
+    const salons = await repository.getAllSalons();
+    const orgs = await repository.getAllOrganizations();
+    const salonMap = new Map(salons.map((s) => [s.id, s.name]));
+    const orgMap = new Map(orgs.map((o) => [o.id, o.name]));
+
+    return allUsers.map((u) => ({
+      ...u,
+      salonName: u.salonId ? salonMap.get(u.salonId) || null : null,
+      organizationName: u.organizationId ? orgMap.get(u.organizationId) || null : null,
+    }));
+  },
+
+  async updateUser(
+    id: string,
+    updates: {
+      fullName?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      role?: UserRole;
+      status?: UserStatus;
+      salonId?: string | null;
+      organizationId?: string | null;
+    }
+  ): Promise<User | null> {
+    const user = await this.getUserById(id);
+    if (!user) return null;
+
+    if (updates.fullName !== undefined) user.fullName = updates.fullName;
+    if (updates.email !== undefined) user.email = updates.email;
+    if (updates.phone !== undefined) user.phone = updates.phone;
+    if (updates.role !== undefined) user.role = updates.role;
+    if (updates.status !== undefined) user.status = updates.status;
+    if (updates.salonId !== undefined) user.salonId = updates.salonId;
+    if (updates.organizationId !== undefined) user.organizationId = updates.organizationId;
+
+    memoryUsers.set(user.username, user);
+    memoryUsers.set(user.id, user);
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query(
+        `UPDATE users
+         SET full_name = ?, email = ?, phone = ?, role = ?, status = ?, salon_id = ?, organization_id = ?
+         WHERE id = ?`,
+        [
+          user.fullName,
+          user.email,
+          user.phone,
+          user.role,
+          user.status,
+          user.salonId,
+          user.organizationId,
+          id,
+        ]
+      );
+    }
+
+    return user;
+  },
+
+  async deleteUser(id: string): Promise<boolean> {
+    const user = await this.getUserById(id);
+    if (!user) return false;
+
+    memoryUsers.delete(user.username);
+    memoryUsers.delete(user.id);
+    if (user.phone) memoryUsers.delete(`phone:${user.phone}`);
+    if (user.email) memoryUsers.delete(`email:${user.email}`);
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query('DELETE FROM users WHERE id = ?', [id]);
+    }
+    return true;
   },
 
   // Context builder for multi-branch organizations

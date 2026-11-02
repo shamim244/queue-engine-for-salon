@@ -186,27 +186,46 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
     }),
   })
 
-  // 8. Create Staff User ID & Password (Owner Panel)
+  // 8. Create Staff User Account with Unified Credentials & Station (Owner Panel)
   .post('/staff/create', async ({ body, set }) => {
     try {
-      const { salonId, staffId, username, password, phone, pin } = body as {
+      const { salonId, staffId, fullName, username, password, email, phone, pin, avgDurationMinutes } = body as {
         salonId: string;
-        staffId: string;
+        staffId?: string;
+        fullName?: string;
         username: string;
         password: string;
+        email?: string;
         phone?: string;
         pin?: string;
+        avgDurationMinutes?: number;
       };
 
       const salon = await repository.getSalonBySlug(salonId) || (await repository.getAllSalons()).find(s => s.id === salonId);
+      if (!salon) {
+        set.status = 404;
+        return { success: false, message: 'Salon branch not found' };
+      }
+
+      let finalStaffId = staffId;
+      if (!finalStaffId) {
+        const createdStylist = await repository.addStylist(salon.id, {
+          name: fullName || username,
+          phone: phone || '',
+          avgDurationMinutes: Number(avgDurationMinutes) || 25,
+        });
+        finalStaffId = createdStylist.id;
+      }
 
       const user = await authService.createUser({
         username,
         password,
         role: 'STAFF',
-        organizationId: salon?.organizationId || null,
-        salonId,
-        staffId,
+        fullName: fullName || username,
+        email: email || undefined,
+        organizationId: salon.organizationId || null,
+        salonId: salon.id,
+        staffId: finalStaffId,
         phone,
         pin,
       });
@@ -216,29 +235,126 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
         user: {
           id: user.id,
           username: user.username,
+          fullName: user.fullName,
+          email: user.email,
           staffId: user.staffId,
           phone: user.phone,
+          status: user.status,
+          role: user.role,
         },
       };
     } catch (err: any) {
       set.status = 400;
-      return { message: err.message };
+      return { success: false, message: err.message };
     }
   }, {
     body: t.Object({
       salonId: t.String(),
-      staffId: t.String(),
+      staffId: t.Optional(t.String()),
+      fullName: t.Optional(t.String()),
       username: t.String(),
       password: t.String(),
+      email: t.Optional(t.String()),
       phone: t.Optional(t.String()),
       pin: t.Optional(t.String()),
+      avgDurationMinutes: t.Optional(t.Number()),
     }),
   })
 
   // 9. List Staff Logins for a Salon
   .get('/staff/:salonId', async ({ params }) => {
-    const staffUsers = await authService.listStaffUsersBySalon(params.salonId);
+    const salon = await repository.getSalonBySlug(params.salonId) || (await repository.getAllSalons()).find(s => s.id === params.salonId);
+    const targetSalonId = salon ? salon.id : params.salonId;
+    const staffUsers = await authService.listStaffUsersBySalon(targetSalonId);
     return { staffUsers };
+  })
+
+  // 9b. Update Staff Member Account (Owner Panel)
+  .patch('/staff/:userId', async ({ params, body, set }) => {
+    try {
+      const { fullName, email, phone, pin, avgDurationMinutes, status } = body as {
+        fullName?: string;
+        email?: string;
+        phone?: string;
+        pin?: string;
+        avgDurationMinutes?: number;
+        status?: 'ACTIVE' | 'SUSPENDED';
+      };
+
+      const updatedUser = await authService.updateUser(params.userId, {
+        fullName,
+        email,
+        phone,
+        status,
+      });
+
+      if (!updatedUser) {
+        set.status = 404;
+        return { success: false, message: 'Staff user not found' };
+      }
+
+      if (pin && /^\d{4}$/.test(pin)) {
+        await authService.setStaffPin(params.userId, pin);
+      }
+
+      if (updatedUser.staffId && avgDurationMinutes) {
+        await repository.updateStylistPreference(updatedUser.staffId, {
+          customAvgDurationMinutes: avgDurationMinutes,
+        });
+      }
+
+      return { success: true, user: updatedUser };
+    } catch (err: any) {
+      set.status = 400;
+      return { success: false, message: err.message };
+    }
+  }, {
+    body: t.Object({
+      fullName: t.Optional(t.String()),
+      email: t.Optional(t.String()),
+      phone: t.Optional(t.String()),
+      pin: t.Optional(t.String()),
+      avgDurationMinutes: t.Optional(t.Number()),
+      status: t.Optional(t.Union([t.Literal('ACTIVE'), t.Literal('SUSPENDED')])),
+    }),
+  })
+
+  // 9c. Reset Staff Password (Owner Panel)
+  .post('/staff/:userId/reset-password', async ({ params, body, set }) => {
+    try {
+      const { newPassword } = body as { newPassword: string };
+      if (!newPassword || newPassword.length < 6) {
+        set.status = 400;
+        return { success: false, message: 'Password must be at least 6 characters long' };
+      }
+      await authService.updatePassword(params.userId, newPassword);
+      await authService.revokeAllUserSessions(params.userId);
+      return { success: true, message: 'Password updated successfully' };
+    } catch (err: any) {
+      set.status = 400;
+      return { success: false, message: err.message };
+    }
+  }, {
+    body: t.Object({
+      newPassword: t.String(),
+    }),
+  })
+
+  // 9d. Delete Staff Member Account (Owner Panel)
+  .delete('/staff/:userId', async ({ params, set }) => {
+    try {
+      const user = await authService.getUserById(params.userId);
+      if (!user) {
+        set.status = 404;
+        return { success: false, message: 'Staff user not found' };
+      }
+      await authService.revokeAllUserSessions(params.userId);
+      await authService.deleteUser(params.userId);
+      return { success: true, message: 'Staff member removed successfully' };
+    } catch (err: any) {
+      set.status = 400;
+      return { success: false, message: err.message };
+    }
   })
 
   // 10. Staff Preference Update (Calibrate personal speed or status)

@@ -49,6 +49,7 @@ export interface User {
   organizationId?: string | null;
   salonId?: string | null;
   username: string;
+  fullName?: string | null;
   phone?: string | null;
   email?: string | null;
   passwordHash: string;
@@ -91,7 +92,10 @@ export interface Stylist {
   salonId: string;
   name: string;
   phone: string;
+  email?: string | null;
   username?: string | null;
+  userId?: string | null;
+  pin?: string | null;
   customAvgDurationMinutes?: number | null;
   isActive: boolean;
   historicalAvgDurationMinutes: number;

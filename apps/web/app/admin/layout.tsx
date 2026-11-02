@@ -8,6 +8,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import {
   LayoutDashboard,
   Building2,
+  Users,
   CreditCard,
   Radio,
   LogOut,
@@ -32,6 +33,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       items: [
         { label: "Overview", href: "/admin", icon: LayoutDashboard },
         { label: "Tenant Directory", href: "/admin/tenants", icon: Building2 },
+        { label: "User Management", href: "/admin/users", icon: Users },
         { label: "Onboard Salon", href: "/admin/onboarding", icon: Sparkles },
         { label: "Subscription Tiers", href: "/admin/billing", icon: CreditCard },
       ],

@@ -92,9 +92,9 @@ export function getRuralSoloPreset(
 }
 
 /**
- * Generates the Modern Multi-Station preset catalog and default station stylist roster.
+ * Generates the Modern Multi-Station preset catalog and default initial station.
  */
-export function getModernMultiPreset(customSalonName?: string): {
+export function getModernMultiPreset(customSalonName?: string, ownerName?: string): {
   operatingMode: "MODERN_MULTI";
   services: ServiceInput[];
   stylists: StylistInput[];
@@ -108,9 +108,11 @@ export function getModernMultiPreset(customSalonName?: string): {
       { name: "Hair Wash", basePrice: 120, estimatedDurationMinutes: 15, isAddOn: true, icon: "🧴" },
     ],
     stylists: [
-      { name: "Senior Stylist (Station 1)", avgDurationMinutes: 30, pin: "1001" },
-      { name: "Creative Director (Station 2)", avgDurationMinutes: 35, pin: "1002" },
-      { name: "Color & Spa Specialist (Station 3)", avgDurationMinutes: 40, pin: "1003" },
+      {
+        name: ownerName?.trim() || "Main Station #1",
+        avgDurationMinutes: 30,
+        pin: "1001",
+      },
     ],
   };
 }

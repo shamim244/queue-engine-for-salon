@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { repository } from '../db/repository';
 import { notificationService } from '../notifications/whatsapp';
+import { authService } from '../auth/auth-service';
 
 export const adminRoutes = new Elysia({ prefix: '/api/admin' })
   // 1. System Telemetry & Health Statistics
@@ -220,4 +221,153 @@ export const adminRoutes = new Elysia({ prefix: '/api/admin' })
         })
       ),
     }
-  );
+  )
+
+  // 8. Super Admin User Directory Management (GET /api/admin/users)
+  .get('/users', async ({ query }) => {
+    const q = query as { role?: string; salonId?: string; search?: string };
+    const users = await authService.listAllUsers(q);
+    return { success: true, users };
+  })
+
+  // 9. Super Admin Create User (POST /api/admin/users)
+  .post(
+    '/users',
+    async ({ body, set }) => {
+      try {
+        const { username, password, role, fullName, email, phone, salonId, organizationId } = body as {
+          username: string;
+          password: string;
+          role: 'SUPER_ADMIN' | 'SALON_OWNER' | 'STAFF';
+          fullName?: string;
+          email?: string;
+          phone?: string;
+          salonId?: string;
+          organizationId?: string;
+        };
+
+        const user = await authService.createUser({
+          username,
+          password,
+          role,
+          fullName,
+          email,
+          phone,
+          salonId: salonId || null,
+          organizationId: organizationId || null,
+        });
+
+        repository.addAuditLog(
+          'USER_CREATED',
+          'superadmin',
+          `Created user '${user.username}' with role '${user.role}'`,
+          'SECURITY'
+        );
+
+        return { success: true, user };
+      } catch (err: any) {
+        set.status = 400;
+        return { success: false, message: err.message };
+      }
+    },
+    {
+      body: t.Object({
+        username: t.String(),
+        password: t.String(),
+        role: t.Union([t.Literal('SUPER_ADMIN'), t.Literal('SALON_OWNER'), t.Literal('STAFF')]),
+        fullName: t.Optional(t.String()),
+        email: t.Optional(t.String()),
+        phone: t.Optional(t.String()),
+        salonId: t.Optional(t.String()),
+        organizationId: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // 10. Super Admin Update User (PATCH /api/admin/users/:id)
+  .patch(
+    '/users/:id',
+    async ({ params, body, set }) => {
+      try {
+        const updated = await authService.updateUser(params.id, body as any);
+        if (!updated) {
+          set.status = 404;
+          return { success: false, message: 'User not found' };
+        }
+        repository.addAuditLog(
+          'USER_UPDATED',
+          'superadmin',
+          `Updated profile/status for user ID '${params.id}'`,
+          'SECURITY'
+        );
+        return { success: true, user: updated };
+      } catch (err: any) {
+        set.status = 400;
+        return { success: false, message: err.message };
+      }
+    },
+    {
+      body: t.Object({
+        fullName: t.Optional(t.String()),
+        email: t.Optional(t.String()),
+        phone: t.Optional(t.String()),
+        role: t.Optional(t.Union([t.Literal('SUPER_ADMIN'), t.Literal('SALON_OWNER'), t.Literal('STAFF')])),
+        status: t.Optional(t.Union([t.Literal('ACTIVE'), t.Literal('SUSPENDED'), t.Literal('INACTIVE')])),
+        salonId: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // 11. Super Admin Password Reset (POST /api/admin/users/:id/reset-password)
+  .post(
+    '/users/:id/reset-password',
+    async ({ params, body, set }) => {
+      try {
+        const { newPassword } = body as { newPassword: string };
+        if (!newPassword || newPassword.length < 6) {
+          set.status = 400;
+          return { success: false, message: 'Password must be at least 6 characters long' };
+        }
+        await authService.updatePassword(params.id, newPassword);
+        // Revoke existing sessions for security
+        await authService.revokeAllUserSessions(params.id);
+
+        repository.addAuditLog(
+          'PASSWORD_RESET',
+          'superadmin',
+          `Administrative password reset performed for user ID '${params.id}'`,
+          'SECURITY'
+        );
+        return { success: true, message: 'Password reset successfully' };
+      } catch (err: any) {
+        set.status = 400;
+        return { success: false, message: err.message };
+      }
+    },
+    {
+      body: t.Object({
+        newPassword: t.String(),
+      }),
+    }
+  )
+
+  // 12. Super Admin Delete User (DELETE /api/admin/users/:id)
+  .delete('/users/:id', async ({ params, set }) => {
+    try {
+      const deleted = await authService.deleteUser(params.id);
+      if (!deleted) {
+        set.status = 404;
+        return { success: false, message: 'User not found' };
+      }
+      repository.addAuditLog(
+        'USER_DELETED',
+        'superadmin',
+        `Deleted user ID '${params.id}'`,
+        'SECURITY'
+      );
+      return { success: true, message: 'User deleted successfully' };
+    } catch (err: any) {
+      set.status = 400;
+      return { success: false, message: err.message };
+    }
+  });

@@ -9,6 +9,7 @@ export interface Stylist {
   name: string;
   phone?: string;
   pin?: string;
+  userId?: string;
   isAvailable: boolean;
   isOwner?: boolean;
   currentTicketId?: string | null;
@@ -92,13 +93,19 @@ export interface Ticket {
 export interface AuthUser {
   id: string;
   username: string;
+  fullName?: string | null;
   role: "SUPER_ADMIN" | "SALON_OWNER" | "STAFF" | "CUSTOMER";
   organizationId?: string | null;
   salonId?: string | null;
   staffId?: string | null;
   phone?: string | null;
   email?: string | null;
-  status: "ACTIVE" | "SUSPENDED" | "TERMINATED";
+  pin?: string | null;
+  status: "ACTIVE" | "SUSPENDED" | "TERMINATED" | "INACTIVE";
+  salonName?: string | null;
+  organizationName?: string | null;
+  createdAt?: string;
+  lastLoginAt?: string | null;
 }
 
 export interface AuthSessionResponse {
@@ -341,15 +348,48 @@ export const api = {
 
     createStaff: (data: {
       salonId: string;
-      staffId: string;
+      staffId?: string;
+      fullName?: string;
       username: string;
       password: string;
+      email?: string;
       phone?: string;
       pin?: string;
+      avgDurationMinutes?: number;
     }) =>
       request<{ success: boolean; user: Partial<AuthUser> }>("/api/auth/staff/create", {
         method: "POST",
         body: JSON.stringify(data),
+      }),
+
+    updateStaff: (
+      userId: string,
+      data: {
+        fullName?: string;
+        email?: string;
+        phone?: string;
+        pin?: string;
+        avgDurationMinutes?: number;
+        status?: "ACTIVE" | "SUSPENDED";
+      }
+    ) =>
+      request<{ success: boolean; user: AuthUser }>(`/api/auth/staff/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+
+    resetStaffPassword: (userId: string, newPassword: string) =>
+      request<{ success: boolean; message: string }>(
+        `/api/auth/staff/${userId}/reset-password`,
+        {
+          method: "POST",
+          body: JSON.stringify({ newPassword }),
+        }
+      ),
+
+    deleteStaff: (userId: string) =>
+      request<{ success: boolean; message: string }>(`/api/auth/staff/${userId}`, {
+        method: "DELETE",
       }),
 
     listStaff: (salonId: string) =>
@@ -588,5 +628,63 @@ export const api = {
           body: JSON.stringify({ phone, message }),
         }
       ),
+
+    users: {
+      list: (params?: { role?: string; salonId?: string; search?: string }) => {
+        const q = new URLSearchParams();
+        if (params?.role) q.set("role", params.role);
+        if (params?.salonId) q.set("salonId", params.salonId);
+        if (params?.search) q.set("search", params.search);
+        const queryStr = q.toString();
+        return request<{ success: boolean; users: AuthUser[] }>(
+          `/api/admin/users${queryStr ? `?${queryStr}` : ""}`
+        );
+      },
+
+      create: (data: {
+        username: string;
+        password: string;
+        role: "SUPER_ADMIN" | "SALON_OWNER" | "STAFF";
+        fullName?: string;
+        email?: string;
+        phone?: string;
+        salonId?: string;
+        organizationId?: string;
+      }) =>
+        request<{ success: boolean; user: AuthUser }>("/api/admin/users", {
+          method: "POST",
+          body: JSON.stringify(data),
+        }),
+
+      update: (
+        id: string,
+        data: {
+          fullName?: string;
+          email?: string;
+          phone?: string;
+          role?: "SUPER_ADMIN" | "SALON_OWNER" | "STAFF";
+          status?: "ACTIVE" | "SUSPENDED" | "TERMINATED" | "INACTIVE";
+          salonId?: string;
+        }
+      ) =>
+        request<{ success: boolean; user: AuthUser }>(`/api/admin/users/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify(data),
+        }),
+
+      resetPassword: (id: string, newPassword: string) =>
+        request<{ success: boolean; message: string }>(
+          `/api/admin/users/${id}/reset-password`,
+          {
+            method: "POST",
+            body: JSON.stringify({ newPassword }),
+          }
+        ),
+
+      delete: (id: string) =>
+        request<{ success: boolean; message: string }>(`/api/admin/users/${id}`, {
+          method: "DELETE",
+        }),
+    },
   },
 };

@@ -100,8 +100,8 @@ describe("Tenant Onboarding Wizard Logic & Validation", () => {
       expect(serviceNames).toContain("Hair Spa");
       expect(serviceNames).toContain("Hair Wash");
 
-      // Verify Multiple Stylists
-      expect(preset.stylists.length).toBeGreaterThanOrEqual(2);
+      // Verify Initial Stylist Station
+      expect(preset.stylists.length).toBeGreaterThanOrEqual(1);
       for (const st of preset.stylists) {
         expect(st.name.length).toBeGreaterThan(0);
         expect(st.pin).toBeDefined();
