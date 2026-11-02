@@ -1,6 +1,18 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, mock } from "bun:test";
 import React from "react";
 import { renderToString } from "react-dom/server";
+
+// Mock next/navigation for unit testing App Router components
+mock.module("next/navigation", () => ({
+  useRouter: () => ({
+    push: mock((_url: string) => {}),
+    replace: mock((_url: string) => {}),
+    prefetch: mock(() => {}),
+    back: mock(() => {}),
+  }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(""),
+}));
 
 describe("Home Page & Developer Launcher Routing", () => {
   describe("Task 1: Developer Testing Launcher (/dev)", () => {
@@ -83,7 +95,7 @@ describe("Home Page & Developer Launcher Routing", () => {
       expect(html).toContain("Register Your Salon");
       expect(html).toContain("Salon Name");
       expect(html).toContain("Phone");
-      expect(html).toContain("Operating Mode");
+      expect(html).toContain("Operating Architecture Mode");
       expect(html).toContain("Owner Account");
       expect(html).toContain("Password");
       expect(html).toContain("Autofill Demo Salon");
