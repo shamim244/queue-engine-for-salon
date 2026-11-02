@@ -126,7 +126,7 @@ async function runMigrations() {
         salon_id VARCHAR(36) NULL,
         username VARCHAR(100) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
-        role ENUM('SUPER_ADMIN', 'SALON_OWNER', 'STAFF') NOT NULL,
+        role VARCHAR(50) NOT NULL,
         staff_id VARCHAR(36) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_user_salon (salon_id)
@@ -184,9 +184,10 @@ async function runMigrations() {
     `ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL;`,
     `ALTER TABLE users ADD COLUMN email VARCHAR(100) NULL;`,
     `ALTER TABLE users ADD COLUMN pin_hash VARCHAR(255) NULL;`,
-    `ALTER TABLE users ADD COLUMN status ENUM('ACTIVE', 'SUSPENDED', 'INACTIVE') DEFAULT 'ACTIVE';`,
+    `ALTER TABLE users ADD COLUMN status VARCHAR(30) DEFAULT 'ACTIVE';`,
     `ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP NULL;`,
-    `ALTER TABLE users MODIFY COLUMN role ENUM('SUPER_ADMIN', 'SALON_OWNER', 'BRANCH_MANAGER', 'STAFF') NOT NULL;`
+    `ALTER TABLE users MODIFY COLUMN role VARCHAR(50) NOT NULL;`,
+    `ALTER TABLE users MODIFY COLUMN status VARCHAR(30) DEFAULT 'ACTIVE';`
   ];
 
   for (const colSql of safeColumns) {
