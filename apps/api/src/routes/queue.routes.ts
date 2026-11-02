@@ -128,6 +128,38 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
     })
   })
 
+  // 8.1 Summon Specific Ticket (Front Desk 1-Tap)
+  .post('/summon', async ({ body, set }) => {
+    const { ticketId, stylistId } = body as { ticketId: string; stylistId?: string };
+    const ticket = await queueEngine.summonTicket(ticketId, stylistId);
+    if (!ticket) {
+      set.status = 404;
+      return { message: 'Ticket not found' };
+    }
+    return { success: true, ticket };
+  }, {
+    body: t.Object({
+      ticketId: t.String(),
+      stylistId: t.Optional(t.String()),
+    })
+  })
+
+  // 8.2 Cancel / Remove Ticket (Front Desk Manual Removal / No-show)
+  .post('/cancel', async ({ body, set }) => {
+    const { ticketId, reason } = body as { ticketId: string; reason?: string };
+    const ticket = await queueEngine.cancelTicket(ticketId, reason);
+    if (!ticket) {
+      set.status = 404;
+      return { message: 'Ticket not found' };
+    }
+    return { success: true, ticket };
+  }, {
+    body: t.Object({
+      ticketId: t.String(),
+      reason: t.Optional(t.String()),
+    })
+  })
+
   // 9. Inspect WhatsApp Notifications Simulator
   .get('/notifications', ({ query }) => {
     return notificationService.getRecentNotifications(query.salonId as string | undefined);

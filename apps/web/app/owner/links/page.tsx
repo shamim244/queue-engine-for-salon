@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import QRCode from "qrcode";
 import { useAuth } from "@/lib/auth-context";
 import { api, Salon } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
@@ -19,6 +20,8 @@ import {
   Smartphone,
   Coffee,
   BellRing,
+  IndianRupee,
+  Sparkles,
 } from "lucide-react";
 
 function OwnerLinksAndPosterContent() {
@@ -28,6 +31,9 @@ function OwnerLinksAndPosterContent() {
 
   const currentSlug = salon?.slug || searchParams.get("salon") || "salon-rural-01";
   const [origin, setOrigin] = useState("http://localhost:3000");
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  const [upiQrDataUrl, setUpiQrDataUrl] = useState<string>("");
+  const [includeUpi, setIncludeUpi] = useState<boolean>(Boolean(salon?.upiPaymentId));
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -39,10 +45,34 @@ function OwnerLinksAndPosterContent() {
   const lobbyTvUrl = `${origin}/s/${currentSlug}/tv`;
   const chairStationUrl = `${origin}/s/${currentSlug}/station`;
 
-  // QR Code SVG generator using Google Chart API / QR Server
-  const qrImageSrc = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(
-    doorQrUrl
-  )}&format=svg&margin=10`;
+  // Offline-capable client-side QR generation
+  useEffect(() => {
+    QRCode.toDataURL(doorQrUrl, {
+      width: 400,
+      margin: 2,
+      color: {
+        dark: "#020617",
+        light: "#ffffff",
+      },
+      errorCorrectionLevel: "H",
+    })
+      .then((url) => setQrDataUrl(url))
+      .catch((err) => console.error("QR Code generation error:", err));
+
+    if (salon?.upiPaymentId) {
+      const upiUrl = `upi://pay?pa=${salon.upiPaymentId}&pn=${encodeURIComponent(salon.name)}&cu=INR`;
+      QRCode.toDataURL(upiUrl, {
+        width: 250,
+        margin: 2,
+        color: {
+          dark: "#020617",
+          light: "#ffffff",
+        },
+      })
+        .then((url) => setUpiQrDataUrl(url))
+        .catch((err) => console.error("UPI QR error:", err));
+    }
+  }, [doorQrUrl, salon?.upiPaymentId, salon?.name]);
 
   const copyToClipboard = (url: string, key: string) => {
     navigator.clipboard.writeText(url);
@@ -67,14 +97,28 @@ function OwnerLinksAndPosterContent() {
           </p>
         </div>
 
-        <Button
-          onClick={handlePrint}
-          size="lg"
-          className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold gap-2 shadow-lg shadow-amber-500/20"
-        >
-          <Printer className="h-5 w-5" />
-          Print A4 Mirror Poster
-        </Button>
+        <div className="flex items-center gap-3">
+          {salon?.upiPaymentId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIncludeUpi(!includeUpi)}
+              className="text-xs gap-1.5 border-slate-700"
+            >
+              <IndianRupee className="h-3.5 w-3.5 text-emerald-400" />
+              {includeUpi ? "Hide Counter UPI QR" : "Show Counter UPI QR"}
+            </Button>
+          )}
+
+          <Button
+            onClick={handlePrint}
+            size="lg"
+            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold gap-2 shadow-lg shadow-amber-500/20"
+          >
+            <Printer className="h-5 w-5" />
+            Print A4 Mirror Poster
+          </Button>
+        </div>
       </div>
 
       {/* Touchpoint Links Hub */}
@@ -174,70 +218,102 @@ function OwnerLinksAndPosterContent() {
       </div>
 
       {/* A4 Minimalist Printable Mirror Poster */}
-      <div className="max-w-xl mx-auto bg-white text-slate-950 p-8 sm:p-12 rounded-3xl shadow-2xl border-4 border-slate-900 print:border-none print:shadow-none print:p-0 print:m-0 print:max-w-none text-center space-y-8">
+      <div className="max-w-xl mx-auto bg-white text-slate-950 p-8 sm:p-12 rounded-3xl shadow-2xl border-4 border-slate-900 print:border-none print:shadow-none print:p-0 print:m-0 print:max-w-none text-center space-y-7">
         {/* Salon Branding Header */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-slate-950 text-white mx-auto shadow-md">
             <Scissors className="h-7 w-7 text-amber-400" />
           </div>
           <h2 className="text-3xl sm:text-4xl font-black tracking-tight uppercase text-slate-950">
             {salon?.name || "Royal Barbers"}
           </h2>
-          <p className="text-xs uppercase tracking-widest font-bold text-slate-600">
-            Skip The Waiting Lounge • Live Digital Queue
+          <p className="text-xs uppercase tracking-widest font-extrabold text-slate-600">
+            डिजिटल टोकन • लाइव डिजिटल कतार / Live Digital Queue
           </p>
         </div>
 
-        {/* Big Crisp QR Code Container */}
-        <div className="p-6 bg-slate-100 rounded-3xl border-2 border-dashed border-slate-300 max-w-xs mx-auto shadow-inner">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={qrImageSrc}
-            alt="Door QR Code"
-            className="w-64 h-64 mx-auto rounded-xl shadow-md"
-          />
-          <p className="text-[11px] font-mono text-slate-500 mt-3 font-semibold">
+        {/* Big Crisp QR Code Container (Generated Offline) */}
+        <div className="p-5 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-300 max-w-xs mx-auto shadow-inner space-y-2">
+          {qrDataUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={qrDataUrl}
+              alt="Door QR Code"
+              className="w-64 h-64 mx-auto rounded-xl shadow-md"
+            />
+          ) : (
+            <div className="w-64 h-64 mx-auto bg-slate-200 animate-pulse rounded-xl flex items-center justify-center text-xs text-slate-500">
+              Generating Vector QR...
+            </div>
+          )}
+          <p className="text-[11px] font-mono text-slate-500 font-semibold truncate">
             {doorQrUrl}
           </p>
         </div>
 
-        {/* 3 Step Visual Instructions */}
-        <div className="grid grid-cols-3 gap-3 pt-2 text-left">
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1.5">
-            <div className="h-8 w-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs mx-auto">
+        {/* 3 Step Visual Bilingual Instructions */}
+        <div className="grid grid-cols-3 gap-3 pt-1 text-center">
+          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+            <div className="h-8 w-8 rounded-full bg-slate-950 text-white flex items-center justify-center font-black text-xs mx-auto">
               1
             </div>
-            <p className="font-bold text-xs text-slate-900">Scan QR Code</p>
-            <p className="text-[10px] text-slate-600 leading-tight">
-              Open phone camera & tap the notification.
+            <p className="font-bold text-xs text-slate-900">QR स्कैन करें</p>
+            <p className="text-[10px] text-slate-500 font-medium">Scan with camera</p>
+            <p className="text-[10px] text-slate-600 leading-tight pt-1">
+              फोन कैमरा से QR कोड स्कैन करें और टोकन लें।
             </p>
           </div>
 
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1.5">
-            <div className="h-8 w-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs mx-auto">
+          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+            <div className="h-8 w-8 rounded-full bg-slate-950 text-white flex items-center justify-center font-black text-xs mx-auto">
               2
             </div>
-            <p className="font-bold text-xs text-slate-900">Grab a Chai</p>
-            <p className="text-[10px] text-slate-600 leading-tight">
-              Pick your service & relax at the tea stall nearby.
+            <p className="font-bold text-xs text-slate-900">चाय या नाश्ता लें</p>
+            <p className="text-[10px] text-slate-500 font-medium">Grab a Chai & Relax</p>
+            <p className="text-[10px] text-slate-600 leading-tight pt-1">
+              लाइन में खड़े रहने की जरूरत नहीं, आसपास आराम करें।
             </p>
           </div>
 
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1.5">
-            <div className="h-8 w-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs mx-auto">
+          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+            <div className="h-8 w-8 rounded-full bg-slate-950 text-white flex items-center justify-center font-black text-xs mx-auto">
               3
             </div>
-            <p className="font-bold text-xs text-slate-900">We Alert You</p>
-            <p className="text-[10px] text-slate-600 leading-tight">
-              WhatsApp & audio buzzer when your chair is ready!
+            <p className="font-bold text-xs text-slate-900">WhatsApp अलर्ट</p>
+            <p className="text-[10px] text-slate-500 font-medium">We WhatsApp You</p>
+            <p className="text-[10px] text-slate-600 leading-tight pt-1">
+              कुर्सी तैयार होते ही मोबाइल पर WhatsApp मैसेज आएगा।
             </p>
           </div>
         </div>
 
+        {/* Optional UPI QR Code for Counter Payments */}
+        {includeUpi && upiQrDataUrl && (
+          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-4 text-left">
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider bg-emerald-200/60 px-2 py-0.5 rounded">
+                Direct UPI Counter Payment
+              </span>
+              <p className="text-xs font-bold text-slate-900">
+                GPay / PhonePe / Paytm Accepted
+              </p>
+              <p className="text-[11px] font-mono text-emerald-700">
+                UPI ID: {salon?.upiPaymentId}
+              </p>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={upiQrDataUrl}
+              alt="UPI QR Code"
+              className="w-20 h-20 rounded-lg border border-emerald-300 shadow-sm shrink-0"
+            />
+          </div>
+        )}
+
         {/* Footer info */}
-        <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-          <span>Contact: {salon?.phone || "+91 98765 43210"}</span>
-          <span>Powered by Engine Que System</span>
+        <div className="pt-3 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+          <span>हेल्पलाइन / Phone: {salon?.phone || "+91 98765 43210"}</span>
+          <span className="font-bold text-slate-700">Engine Que System</span>
         </div>
       </div>
     </div>

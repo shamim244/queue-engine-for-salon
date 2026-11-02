@@ -254,7 +254,71 @@ export const queueEngine = {
     return updated;
   },
 
-  // 7. Recalculate dynamic wait times for all active tickets
+  // 7. Summon specific ticket directly (Front Desk / Owner trigger)
+  async summonTicket(ticketId: string, stylistId?: string): Promise<QueueTicket | null> {
+    const ticket = await repository.getTicketById(ticketId);
+    if (!ticket) return null;
+
+    const updated = await repository.updateTicketStatus(ticketId, 'SUMMONED', {
+      stylistId: stylistId || ticket.stylistId || undefined,
+      summonedTime: new Date().toISOString(),
+    });
+    if (!updated) return null;
+
+    const salon = (await repository.getAllSalons()).find((s) => s.id === ticket.salonId);
+    if (salon) {
+      const stylist = salon.stylists.find((st) => st.id === (stylistId || ticket.stylistId));
+      await notificationService.sendWhatsApp({
+        salonId: salon.id,
+        salonName: salon.name,
+        ticketId: updated.id,
+        recipientPhone: updated.customerPhone,
+        recipientName: updated.customerName,
+        type: 'CHAIR_READY',
+        ticketNumber: updated.ticketNumber,
+        stylistName: stylist?.name,
+      });
+    }
+
+    await this.recalculateQueue(ticket.salonId);
+
+    const activeTickets = await repository.getActiveTickets(ticket.salonId);
+    websocketHub.broadcastToSalon(ticket.salonId, {
+      type: 'TICKET_SUMMONED',
+      salonId: ticket.salonId,
+      ticket: updated,
+      activeQueueCount: activeTickets.length,
+      timestamp: new Date().toISOString(),
+    });
+
+    return updated;
+  },
+
+  // 8. Cancel ticket (Customer left / no-show / desk manual removal)
+  async cancelTicket(ticketId: string, reason?: string): Promise<QueueTicket | null> {
+    const ticket = await repository.getTicketById(ticketId);
+    if (!ticket) return null;
+
+    const updated = await repository.updateTicketStatus(ticketId, 'CANCELLED', {
+      completedTime: new Date().toISOString(),
+    });
+    if (!updated) return null;
+
+    await this.recalculateQueue(ticket.salonId);
+
+    const activeTickets = await repository.getActiveTickets(ticket.salonId);
+    websocketHub.broadcastToSalon(ticket.salonId, {
+      type: 'TICKET_CANCELLED',
+      salonId: ticket.salonId,
+      ticket: updated,
+      activeQueueCount: activeTickets.length,
+      timestamp: new Date().toISOString(),
+    });
+
+    return updated;
+  },
+
+  // 9. Recalculate dynamic wait times for all active tickets
   async recalculateQueue(salonId: string) {
     const salon = (await repository.getAllSalons()).find((s) => s.id === salonId);
     if (!salon) return;

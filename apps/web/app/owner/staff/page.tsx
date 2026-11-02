@@ -50,8 +50,16 @@ function OwnerStaffContent() {
   const [staffPin, setStaffPin] = useState("");
   const [savingLogin, setSavingLogin] = useState(false);
 
-  // Emergency Kill-Switch State
+  // In-app Kill-Switch Modal State
+  const [killSwitchTarget, setKillSwitchTarget] = useState<{ userId: string; stylistName: string } | null>(null);
   const [revokingUserId, setRevokingUserId] = useState<string | null>(null);
+
+  // In-App Toast Banner
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   const currentSlug = salon?.slug || searchParams.get("salon") || "salon-rural-01";
 
@@ -88,9 +96,10 @@ function OwnerStaffContent() {
       setIsAddStylistOpen(false);
       setNewStylistName("");
       setNewStylistPhone("");
+      showToast(`Stylist ${newStylistName.trim()} added!`, "success");
       fetchStaffData();
     } catch (err) {
-      alert("Failed to add stylist: " + (err as Error).message);
+      showToast("Failed to add stylist: " + (err as Error).message, "error");
     } finally {
       setSavingStylist(false);
     }
@@ -99,7 +108,7 @@ function OwnerStaffContent() {
   const handleUpdatePin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStylistForPin || !/^\d{4}$/.test(pinValue)) {
-      alert("Please enter a valid 4-digit numeric PIN (e.g. 1234)");
+      showToast("Please enter a valid 4-digit numeric PIN (e.g. 1234)", "error");
       return;
     }
     setSavingPin(true);
@@ -120,10 +129,10 @@ function OwnerStaffContent() {
       }
       setSelectedStylistForPin(null);
       setPinValue("");
+      showToast("4-Digit Mirror PIN updated successfully!", "success");
       fetchStaffData();
-      alert("4-Digit Mirror PIN updated successfully!");
     } catch (err) {
-      alert("Failed to set PIN: " + (err as Error).message);
+      showToast("Failed to set PIN: " + (err as Error).message, "error");
     } finally {
       setSavingPin(false);
     }
@@ -132,7 +141,7 @@ function OwnerStaffContent() {
   const handleCreateLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStylistForLogin || !staffUsername || !staffPassword) {
-      alert("Username and password are required");
+      showToast("Username and password are required", "error");
       return;
     }
     setSavingLogin(true);
@@ -148,30 +157,25 @@ function OwnerStaffContent() {
       setStaffUsername("");
       setStaffPassword("");
       setStaffPin("");
+      showToast("Staff login credentials created!", "success");
       fetchStaffData();
-      alert("Staff credentials created successfully!");
     } catch (err) {
-      alert("Failed to create credentials: " + (err as Error).message);
+      showToast("Failed to create credentials: " + (err as Error).message, "error");
     } finally {
       setSavingLogin(false);
     }
   };
 
-  const handleEmergencyKillSwitch = async (userId: string, stylistName: string) => {
-    if (
-      !confirm(
-        `🚨 EMERGENCY KILL-SWITCH:\n\nAre you sure you want to revoke ALL active login sessions for ${stylistName} across all devices immediately?`
-      )
-    ) {
-      return;
-    }
-    setRevokingUserId(userId);
+  const handleConfirmKillSwitch = async () => {
+    if (!killSwitchTarget) return;
+    setRevokingUserId(killSwitchTarget.userId);
     try {
-      await api.auth.revokeAll(userId);
-      alert(`All active sessions for ${stylistName} have been invalidated.`);
+      await api.auth.revokeAll(killSwitchTarget.userId);
+      showToast(`All active sessions for ${killSwitchTarget.stylistName} have been invalidated.`, "info");
+      setKillSwitchTarget(null);
       fetchStaffData();
     } catch (err) {
-      alert("Kill-switch error: " + (err as Error).message);
+      showToast("Kill-switch error: " + (err as Error).message, "error");
     } finally {
       setRevokingUserId(null);
     }
@@ -179,6 +183,32 @@ function OwnerStaffContent() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
+      {/* Toast Alert Banner */}
+      {toast && (
+        <div
+          className={`p-3.5 rounded-xl border flex items-center justify-between shadow-lg transition-all animate-in slide-in-from-top-2 ${
+            toast.type === "success"
+              ? "bg-emerald-950/80 border-emerald-600/50 text-emerald-200"
+              : toast.type === "error"
+              ? "bg-rose-950/80 border-rose-600/50 text-rose-200"
+              : "bg-blue-950/80 border-blue-600/50 text-blue-200"
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {toast.type === "success" && <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />}
+            {toast.type === "error" && <ShieldAlert className="h-5 w-5 text-rose-400 shrink-0" />}
+            {toast.type === "info" && <Users className="h-5 w-5 text-blue-400 shrink-0" />}
+            <span className="text-sm font-semibold">{toast.message}</span>
+          </div>
+          <button
+            onClick={() => setToast(null)}
+            className="text-xs opacity-70 hover:opacity-100 p-1 rounded"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -311,7 +341,7 @@ function OwnerStaffContent() {
                     variant="destructive"
                     size="sm"
                     className="w-full text-xs h-8 gap-1.5 bg-rose-600/20 text-rose-300 border border-rose-500/30 hover:bg-rose-600 hover:text-white transition-all"
-                    onClick={() => handleEmergencyKillSwitch(login.id, st.name)}
+                    onClick={() => setKillSwitchTarget({ userId: login.id, stylistName: st.name })}
                     disabled={isRevoking}
                   >
                     <ShieldAlert className="h-3.5 w-3.5" />
@@ -522,6 +552,45 @@ function OwnerStaffContent() {
             </DialogFooter>
           </form>
         </Dialog>
+
+        {/* Modal: Emergency Kill-Switch Confirmation */}
+        {killSwitchTarget && (
+          <Dialog open={Boolean(killSwitchTarget)} onOpenChange={() => setKillSwitchTarget(null)}>
+            <DialogClose onClose={() => setKillSwitchTarget(null)} />
+            <div>
+              <DialogHeader>
+                <DialogTitle className="text-rose-400 flex items-center gap-2">
+                  <ShieldAlert className="h-5 w-5 text-rose-500" />
+                  🚨 Revoke Active Sessions for {killSwitchTarget.stylistName}?
+                </DialogTitle>
+                <DialogDescription>
+                  This will immediately terminate all active login tokens and mirror tablet sessions for{" "}
+                  <strong className="text-white">{killSwitchTarget.stylistName}</strong> across all devices. The staff member will be logged out on the next heartbeat.
+                </DialogDescription>
+              </DialogHeader>
+
+              <DialogFooter className="mt-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setKillSwitchTarget(null)}
+                  disabled={Boolean(revokingUserId)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleConfirmKillSwitch}
+                  disabled={Boolean(revokingUserId)}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold gap-2"
+                >
+                  {revokingUserId ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
+                  Revoke Sessions Immediately
+                </Button>
+              </DialogFooter>
+            </div>
+          </Dialog>
+        )}
     </div>
   );
 }

@@ -19,6 +19,8 @@ import {
   RefreshCw,
   Info,
   Sliders,
+  Check,
+  AlertCircle,
 } from "lucide-react";
 
 function OwnerServicesContent() {
@@ -37,6 +39,17 @@ function OwnerServicesContent() {
   const [icon, setIcon] = useState("✂️");
   const [isAddOn, setIsAddOn] = useState(false);
   const [savingService, setSavingService] = useState(false);
+
+  // In-app Delete Confirmation Modal State
+  const [serviceToDelete, setServiceToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deletingService, setDeletingService] = useState(false);
+
+  // In-App Toast Banner
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   const currentSlug = salon?.slug || searchParams.get("salon") || "salon-rural-01";
 
@@ -72,28 +85,57 @@ function OwnerServicesContent() {
       setName("");
       setBasePrice(150);
       setDuration(25);
+      showToast(`Service "${name.trim()}" added to catalog!`, "success");
       fetchServices();
     } catch (err) {
-      alert("Failed to add service: " + (err as Error).message);
+      showToast("Failed to add service: " + (err as Error).message, "error");
     } finally {
       setSavingService(false);
     }
   };
 
-  const handleDeleteService = async (serviceId: string, serviceName: string) => {
-    if (!salon || !confirm(`Are you sure you want to remove "${serviceName}" from your catalog?`)) {
-      return;
-    }
+  const handleConfirmDeleteService = async () => {
+    if (!salon || !serviceToDelete) return;
+    setDeletingService(true);
     try {
-      await api.salons.deleteService(salon.id, serviceId);
+      await api.salons.deleteService(salon.id, serviceToDelete.id);
+      showToast(`Service "${serviceToDelete.name}" removed from catalog.`, "info");
+      setServiceToDelete(null);
       fetchServices();
     } catch (err) {
-      alert("Failed to delete service: " + (err as Error).message);
+      showToast("Failed to delete service: " + (err as Error).message, "error");
+    } finally {
+      setDeletingService(false);
     }
   };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
+      {/* Toast Alert Banner */}
+      {toast && (
+        <div
+          className={`p-3.5 rounded-xl border flex items-center justify-between shadow-lg transition-all animate-in slide-in-from-top-2 ${
+            toast.type === "success"
+              ? "bg-emerald-950/80 border-emerald-600/50 text-emerald-200"
+              : toast.type === "error"
+              ? "bg-rose-950/80 border-rose-600/50 text-rose-200"
+              : "bg-blue-950/80 border-blue-600/50 text-blue-200"
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {toast.type === "success" && <Check className="h-5 w-5 text-emerald-400 shrink-0" />}
+            {toast.type === "error" && <AlertCircle className="h-5 w-5 text-rose-400 shrink-0" />}
+            {toast.type === "info" && <Sparkles className="h-5 w-5 text-blue-400 shrink-0" />}
+            <span className="text-sm font-semibold">{toast.message}</span>
+          </div>
+          <button
+            onClick={() => setToast(null)}
+            className="text-xs opacity-70 hover:opacity-100 p-1 rounded"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -215,7 +257,7 @@ function OwnerServicesContent() {
                 variant="ghost"
                 size="sm"
                 className="text-xs text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 gap-1.5"
-                onClick={() => handleDeleteService(srv.id, srv.name)}
+                onClick={() => setServiceToDelete({ id: srv.id, name: srv.name })}
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 Remove
@@ -338,6 +380,44 @@ function OwnerServicesContent() {
           </DialogFooter>
         </form>
       </Dialog>
+
+      {/* Modal: Confirm Delete Service */}
+      {serviceToDelete && (
+        <Dialog open={Boolean(serviceToDelete)} onOpenChange={() => setServiceToDelete(null)}>
+          <DialogClose onClose={() => setServiceToDelete(null)} />
+          <div>
+            <DialogHeader>
+              <DialogTitle className="text-rose-400 flex items-center gap-2">
+                <Trash2 className="h-5 w-5" />
+                Remove &quot;{serviceToDelete.name}&quot; from Catalog?
+              </DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this service? Existing active queue tickets with this service will keep their price, but new customers won&apos;t be able to select it.
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogFooter className="mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setServiceToDelete(null)}
+                disabled={deletingService}
+              >
+                Keep Service
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirmDeleteService}
+                disabled={deletingService}
+                className="bg-rose-600 hover:bg-rose-500 text-white font-bold gap-2"
+              >
+                {deletingService ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Confirm Delete
+              </Button>
+            </DialogFooter>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }

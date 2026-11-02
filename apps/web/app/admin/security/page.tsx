@@ -56,6 +56,7 @@ function SecurityContent() {
   );
   const [togglingKillSwitch, setTogglingKillSwitch] = useState<boolean>(false);
   const [killSwitchFeedback, setKillSwitchFeedback] = useState<string | null>(null);
+  const [killSwitchError, setKillSwitchError] = useState<string | null>(null);
 
   const fetchLogs = async () => {
     setLoadingLogs(true);
@@ -78,6 +79,7 @@ function SecurityContent() {
   const handleToggleKillSwitch = async (nextState: boolean) => {
     setTogglingKillSwitch(true);
     setKillSwitchFeedback(null);
+    setKillSwitchError(null);
     try {
       const res = await api.admin.toggleKillSwitch(nextState, maintenanceMessage);
       if (res && res.success) {
@@ -91,7 +93,8 @@ function SecurityContent() {
         setTimeout(() => setKillSwitchFeedback(null), 5000);
       }
     } catch (err: any) {
-      alert("Failed to toggle kill-switch: " + (err.message || "Unknown error"));
+      setKillSwitchError("Failed to toggle kill-switch: " + (err.message || "Unknown error"));
+      setTimeout(() => setKillSwitchError(null), 6000);
     } finally {
       setTogglingKillSwitch(false);
     }
@@ -247,6 +250,13 @@ function SecurityContent() {
             }`}>
               {isMaintenanceActive ? <AlertCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
               {killSwitchFeedback}
+            </div>
+          )}
+
+          {killSwitchError && (
+            <div className="p-3 rounded-xl border border-red-700 bg-red-950/80 text-red-200 text-xs font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />
+              {killSwitchError}
             </div>
           )}
         </CardContent>

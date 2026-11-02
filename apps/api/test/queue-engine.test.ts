@@ -295,4 +295,30 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
     expect(newStylist).toBeDefined();
     expect(newStylist.name).toBe('Assistant Barber Sanjay');
   });
+
+  it('should support front desk manual summon and ticket cancellation', async () => {
+    // 1. Check in client
+    const ticket = await queueEngine.checkIn({
+      salonSlug: 'aura-salon',
+      customerName: 'Priya Patel',
+      customerPhone: '9876543201',
+      serviceId: 'srv-m-1',
+    });
+    expect(ticket.status).toBe('WAITING');
+
+    // 2. Direct summon by ticket ID
+    const summoned = await queueEngine.summonTicket(ticket.id, 'stylist-aura-1');
+    expect(summoned).not.toBeNull();
+    expect(summoned?.status).toBe('SUMMONED');
+    expect(summoned?.stylistId).toBe('stylist-aura-1');
+
+    // 3. Cancel ticket
+    const cancelled = await queueEngine.cancelTicket(ticket.id, 'Customer stepped out');
+    expect(cancelled).not.toBeNull();
+    expect(cancelled?.status).toBe('CANCELLED');
+
+    // Verify it is no longer in active tickets
+    const active = await repository.getActiveTickets('salon-modern-01');
+    expect(active.some((t) => t.id === ticket.id)).toBe(false);
+  });
 });

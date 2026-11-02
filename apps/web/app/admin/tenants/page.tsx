@@ -64,6 +64,7 @@ export default function AdminTenantsPage() {
   const [inspectTab, setInspectTab] = useState("overview");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
     phone: "",
@@ -72,6 +73,13 @@ export default function AdminTenantsPage() {
     operatingMode: "RURAL_SOLO" as "RURAL_SOLO" | "MODERN_MULTI",
     status: "ACTIVE" as "ACTIVE" | "SUSPENDED" | "MAINTENANCE",
   });
+
+  // In-app Toast Banner
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   // Stylist quick add in modal
   const [newStylistName, setNewStylistName] = useState("");
@@ -126,30 +134,26 @@ export default function AdminTenantsPage() {
     try {
       await api.salons.update(selectedSalon.id, editForm);
       await fetchSalons();
-      alert("Salon details updated successfully!");
+      showToast("Salon details updated successfully!", "success");
     } catch (err: any) {
-      alert("Failed to update salon: " + (err.message || "Unknown error"));
+      showToast("Failed to update salon: " + (err.message || "Unknown error"), "error");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDeleteSalon = async () => {
+  const handleConfirmDeleteSalon = async () => {
     if (!selectedSalon) return;
-    const confirmDelete = window.confirm(
-      `Are you sure you want to permanently delete or archive "${selectedSalon.name}"? This action cannot be undone.`
-    );
-    if (!confirmDelete) return;
-
     setIsDeleting(true);
     try {
       await api.salons.delete(selectedSalon.id);
+      setIsConfirmDeleteOpen(false);
       setIsInspectModalOpen(false);
       setSelectedSalon(null);
       await fetchSalons();
-      alert("Salon removed successfully.");
+      showToast("Salon removed successfully.", "info");
     } catch (err: any) {
-      alert("Failed to delete salon: " + (err.message || "Unknown error"));
+      showToast("Failed to delete salon: " + (err.message || "Unknown error"), "error");
     } finally {
       setIsDeleting(false);
     }
@@ -168,9 +172,10 @@ export default function AdminTenantsPage() {
       setNewStylistName("");
       setNewStylistPhone("");
       setNewStylistDuration(25);
+      showToast(`Stylist ${newStylistName.trim()} added!`, "success");
       await fetchSalons();
     } catch (err: any) {
-      alert("Failed to add stylist: " + (err.message || "Unknown error"));
+      showToast("Failed to add stylist: " + (err.message || "Unknown error"), "error");
     } finally {
       setIsAddingStylist(false);
     }
@@ -189,9 +194,10 @@ export default function AdminTenantsPage() {
       setNewServiceName("");
       setNewServicePrice(100);
       setNewServiceDuration(20);
+      showToast(`Service "${newServiceName.trim()}" added!`, "success");
       await fetchSalons();
     } catch (err: any) {
-      alert("Failed to add service: " + (err.message || "Unknown error"));
+      showToast("Failed to add service: " + (err.message || "Unknown error"), "error");
     } finally {
       setIsAddingService(false);
     }
@@ -205,8 +211,9 @@ export default function AdminTenantsPage() {
       setSalons((prev) =>
         prev.map((s) => (s.id === salon.id ? { ...s, operatingMode: nextMode } : s))
       );
+      showToast(`Operating mode updated to ${nextMode === "RURAL_SOLO" ? "Rural Solo" : "Multi-Station"}`, "success");
     } catch (err) {
-      alert("Failed to update operating mode: " + (err as Error).message);
+      showToast("Failed to update operating mode: " + (err as Error).message, "error");
     } finally {
       setUpdatingModeId(null);
     }
@@ -215,7 +222,7 @@ export default function AdminTenantsPage() {
   const handleCreateSalon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSalonName.trim() || !newSalonPhone.trim()) {
-      alert("Name and Phone are required");
+      showToast("Name and Phone are required", "error");
       return;
     }
     setCreating(true);
@@ -235,9 +242,10 @@ export default function AdminTenantsPage() {
       setNewSalonName("");
       setNewSalonSlug("");
       setNewSalonPhone("");
+      showToast(`Salon "${newSalonName.trim()}" created!`, "success");
       fetchSalons();
     } catch (err) {
-      alert("Failed to create salon: " + (err as Error).message);
+      showToast("Failed to create salon: " + (err as Error).message, "error");
     } finally {
       setCreating(false);
     }
@@ -415,6 +423,32 @@ export default function AdminTenantsPage() {
 
   return (
     <div className="space-y-6">
+      {/* In-app Toast Banner */}
+      {toast && (
+        <div
+          className={`p-3.5 rounded-xl border flex items-center justify-between shadow-lg transition-all animate-in slide-in-from-top-2 ${
+            toast.type === "success"
+              ? "bg-emerald-950/80 border-emerald-600/50 text-emerald-200"
+              : toast.type === "error"
+              ? "bg-rose-950/80 border-rose-600/50 text-rose-200"
+              : "bg-blue-950/80 border-blue-600/50 text-blue-200"
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {toast.type === "success" && <Check className="h-5 w-5 text-emerald-400 shrink-0" />}
+            {toast.type === "error" && <AlertTriangle className="h-5 w-5 text-rose-400 shrink-0" />}
+            {toast.type === "info" && <Sparkles className="h-5 w-5 text-blue-400 shrink-0" />}
+            <span className="text-sm font-semibold">{toast.message}</span>
+          </div>
+          <button
+            onClick={() => setToast(null)}
+            className="text-xs opacity-70 hover:opacity-100 p-1 rounded"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -1061,14 +1095,10 @@ export default function AdminTenantsPage() {
                         type="button"
                         variant="destructive"
                         disabled={isDeleting}
-                        onClick={handleDeleteSalon}
+                        onClick={() => setIsConfirmDeleteOpen(true)}
                         className="gap-2 text-xs"
                       >
-                        {isDeleting ? (
-                          <RefreshCw className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
+                        <Trash2 className="h-4 w-4" />
                         Permanently Delete {selectedSalon.name}
                       </Button>
                     </div>
@@ -1076,6 +1106,44 @@ export default function AdminTenantsPage() {
                 </TabsContent>
               </Tabs>
             </div>
+          </div>
+        </Dialog>
+      )}
+
+      {/* Modal: In-App Delete Confirmation */}
+      {selectedSalon && (
+        <Dialog open={isConfirmDeleteOpen} onOpenChange={setIsConfirmDeleteOpen}>
+          <DialogClose onClose={() => setIsConfirmDeleteOpen(false)} />
+          <div>
+            <DialogHeader>
+              <DialogTitle className="text-rose-400 flex items-center gap-2">
+                <Trash2 className="h-5 w-5 text-rose-500" />
+                Permanently Delete &quot;{selectedSalon.name}&quot;?
+              </DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete <strong className="text-white">{selectedSalon.name}</strong>? This action cannot be undone. All active tickets, chair assignments, door QR routes, and TV dashboards for this branch will be permanently removed.
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogFooter className="mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsConfirmDeleteOpen(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirmDeleteSalon}
+                disabled={isDeleting}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold gap-2"
+              >
+                {isDeleting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Confirm Permanent Deletion
+              </Button>
+            </DialogFooter>
           </div>
         </Dialog>
       )}

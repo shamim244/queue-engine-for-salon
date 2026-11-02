@@ -88,6 +88,13 @@ export default function AdminBillingPage() {
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceFilter, setInvoiceFilter] = useState<string>("ALL");
 
+  // In-App Toast Banner
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
   const fetchOrgs = async () => {
     try {
       const data = await api.salons.getOrganizations();
@@ -107,9 +114,10 @@ export default function AdminBillingPage() {
     setUpdatingOrgId(orgId);
     try {
       await api.salons.updateTier(orgId, nextTier);
+      showToast(`Subscription plan updated to ${nextTier}`, "success");
       await fetchOrgs();
     } catch (err) {
-      alert("Failed to update tier: " + (err as Error).message);
+      showToast("Failed to update tier: " + (err as Error).message, "error");
     } finally {
       setUpdatingOrgId(null);
     }
@@ -176,6 +184,31 @@ export default function AdminBillingPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
+      {/* Toast Alert Banner */}
+      {toast && (
+        <div
+          className={`p-3.5 rounded-xl border flex items-center justify-between shadow-lg transition-all animate-in slide-in-from-top-2 ${
+            toast.type === "success"
+              ? "bg-emerald-950/80 border-emerald-600/50 text-emerald-200"
+              : toast.type === "error"
+              ? "bg-rose-950/80 border-rose-600/50 text-rose-200"
+              : "bg-blue-950/80 border-blue-600/50 text-blue-200"
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {toast.type === "success" && <Check className="h-5 w-5 text-emerald-400 shrink-0" />}
+            {toast.type === "error" && <AlertCircle className="h-5 w-5 text-rose-400 shrink-0" />}
+            {toast.type === "info" && <CreditCard className="h-5 w-5 text-blue-400 shrink-0" />}
+            <span className="text-sm font-semibold">{toast.message}</span>
+          </div>
+          <button
+            onClick={() => setToast(null)}
+            className="text-xs opacity-70 hover:opacity-100 p-1 rounded"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
@@ -389,22 +422,16 @@ export default function AdminBillingPage() {
             <div>
               <CardTitle className="text-lg text-white flex items-center gap-2">
                 <Receipt className="h-5 w-5 text-blue-400" />
-                Subscription Invoices & Settlement Ledger
+                Subscription Settlements & Quota Enforcement
               </CardTitle>
               <CardDescription className="text-xs text-slate-400 mt-0.5">
-                Audit trail of recurring automated payments, platform license collections, and mandates.
+                Centralized multi-tenant franchise quotas, tier upgrade logs, and automated settlement records.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => alert("Simulating Razorpay webhook reconciliation...")}
-                className="text-xs border-slate-700 hover:text-white gap-1.5"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Reconcile Mandates
-              </Button>
+              <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-xs">
+                Webhook Active (200 OK)
+              </Badge>
             </div>
           </div>
         </CardHeader>
@@ -414,7 +441,7 @@ export default function AdminBillingPage() {
             <div className="relative flex-1 max-w-sm">
               <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
               <Input
-                placeholder="Search invoice #, tenant, method..."
+                placeholder="Search tenant, plan, method..."
                 value={invoiceSearch}
                 onChange={(e) => setInvoiceSearch(e.target.value)}
                 className="pl-9 bg-slate-950 border-slate-800 text-xs"
@@ -433,32 +460,31 @@ export default function AdminBillingPage() {
                       : "bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-800"
                   }`}
                 >
-                  {f === "ALL" ? "All Invoices" : f}
+                  {f === "ALL" ? "All Tiers" : f}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Invoices Table */}
+          {/* Settlements Table */}
           <div className="rounded-xl border border-slate-800 overflow-x-auto bg-slate-950/40">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-900/80 border-b border-slate-800 text-slate-400 uppercase font-semibold">
                 <tr>
-                  <th className="py-3 px-4">Invoice #</th>
+                  <th className="py-3 px-4">Billing Ref #</th>
                   <th className="py-3 px-4">Organization Tenant</th>
                   <th className="py-3 px-4">Tier Plan</th>
                   <th className="py-3 px-4">Settlement Amount</th>
                   <th className="py-3 px-4">Billing Date</th>
                   <th className="py-3 px-4">Payment Method</th>
                   <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
                 {filteredInvoices.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-500">
-                      No matching invoice settlements found.
+                    <td colSpan={7} className="py-8 text-center text-slate-500">
+                      No matching settlement records found.
                     </td>
                   </tr>
                 ) : (
@@ -497,17 +523,6 @@ export default function AdminBillingPage() {
                         <Badge variant="success" className="text-[10px] py-0">
                           {tx.status}
                         </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => alert(`Generating GST Tax Receipt for ${tx.invoiceNo}...`)}
-                          className="h-7 px-2 text-xs text-slate-400 hover:text-white"
-                        >
-                          <Download className="h-3.5 w-3.5 mr-1" />
-                          Receipt
-                        </Button>
                       </td>
                     </tr>
                   ))

@@ -64,9 +64,19 @@ export interface Ticket {
   customerName: string;
   customerPhone: string;
   serviceId: string;
+  serviceName?: string;
   addOnIds?: string[];
   stylistId?: string | null;
-  status: "WAITING" | "CALLED" | "IN_SERVICE" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+  status:
+    | "WAITING"
+    | "CALLED"
+    | "IN_SERVICE"
+    | "COMPLETED"
+    | "CANCELLED"
+    | "NO_SHOW"
+    | "SUMMONED"
+    | "IN_CHAIR"
+    | "SOFT_BUMPED";
   positionInQueue: number;
   estimatedWaitMinutes: number;
   servedByStylistId?: string | null;
@@ -522,6 +532,18 @@ export const api = {
       request<{ success: boolean; ticket: Ticket }>("/api/queue/soft-bump", {
         method: "POST",
         body: JSON.stringify({ ticketId }),
+      }),
+
+    summon: (ticketId: string, stylistId?: string) =>
+      request<{ success: boolean; ticket: Ticket }>("/api/queue/summon", {
+        method: "POST",
+        body: JSON.stringify({ ticketId, stylistId }),
+      }),
+
+    cancel: (ticketId: string, reason?: string) =>
+      request<{ success: boolean; ticket: Ticket }>("/api/queue/cancel", {
+        method: "POST",
+        body: JSON.stringify({ ticketId, reason }),
       }),
 
     getNotifications: (salonId?: string) =>
