@@ -529,6 +529,7 @@ export const api = {
         salon: Salon;
         organization?: Organization | null;
         ownerUser?: any;
+        message?: string;
       }>("/api/admin/onboard", {
         method: "POST",
         body: JSON.stringify(payload),
