@@ -24,8 +24,38 @@ await authService.seedDefaultUsers();
 
 const publicDir = path.resolve(import.meta.dir, 'src/public');
 
+// CORS Allowed Origin Validator
+const configuredOrigins = new Set([
+  'https://web.nexgentech.site',
+  'http://web.nexgentech.site',
+  'https://nexgentech.site',
+  'http://nexgentech.site',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  ...(config.cors?.allowedOrigins || []),
+]);
+
+export function isAllowedOrigin(origin: string | null | undefined): boolean {
+  if (!origin) return true;
+  const clean = origin.trim().replace(/\/+$/, '');
+  if (configuredOrigins.has(clean)) return true;
+  if (clean.endsWith('.nexgentech.site') || clean.includes('nexgentech.site')) return true;
+  if (/^https?:\/\/localhost(:\d+)?$/.test(clean)) return true;
+  if (/^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(clean)) return true;
+  return false;
+}
+
 const app = new Elysia()
-  .use(cors())
+  .use(
+    cors({
+      origin: (request) => isAllowedOrigin(request.headers.get('origin')),
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+      maxAge: 86400,
+    })
+  )
   .use(swagger({
     path: '/swagger',
     documentation: {

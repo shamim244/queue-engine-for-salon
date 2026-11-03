@@ -23,4 +23,12 @@ export const config = {
   // Defaults
   defaultCurrency: process.env.DEFAULT_CURRENCY || 'INR',
   defaultCountryCode: process.env.DEFAULT_COUNTRY_CODE || '+91',
+
+  // CORS Configuration
+  cors: {
+    allowedOrigins: (process.env.CORS_ALLOWED_ORIGINS || '')
+      .split(',')
+      .map((s) => s.trim().replace(/\/+$/, ''))
+      .filter(Boolean),
+  },
 };

@@ -1,3 +1,38 @@
+export function getApiBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.includes("localhost")) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    const hostname = window.location.hostname;
+    // When accessed through remote domain (e.g. web.nexgentech.site) or remote host,
+    // use relative path "" so requests go through Next.js reverse proxy (/api/...) on the same domain and protocol (HTTPS)
+    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+      return "";
+    }
+    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  }
+
+  return process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+}
+
+export function getWsBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_WS_URL && !process.env.NEXT_PUBLIC_WS_URL.includes("localhost")) {
+    return process.env.NEXT_PUBLIC_WS_URL;
+  }
+
+  if (typeof window !== "undefined" && window.location?.host) {
+    const { protocol, host, hostname } = window.location;
+    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+      const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
+      return `${wsProtocol}//${host}/ws`;
+    }
+    return process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001/ws";
+  }
+
+  return process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001/ws";
+}
+
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 export const WS_BASE_URL =
@@ -230,10 +265,12 @@ export function setAuthToken(token: string | null) {
 }
 
 export async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const base = getApiBaseUrl();
+  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
   const url =
     endpoint.startsWith("http://") || endpoint.startsWith("https://")
       ? endpoint
-      : `${API_BASE_URL}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+      : `${base}${path}`;
 
   const token = getAuthToken();
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;

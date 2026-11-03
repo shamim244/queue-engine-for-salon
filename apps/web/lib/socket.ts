@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { WS_BASE_URL, Ticket } from "./api";
+import { WS_BASE_URL, getWsBaseUrl, Ticket } from "./api";
 
 export interface QueueSocketEvent {
   type:
@@ -98,7 +98,7 @@ export function useSalonSocket(
       socketRef.current = null;
     }
 
-    const wsUrl = `${WS_BASE_URL}?salonId=${encodeURIComponent(salonId)}`;
+    const wsUrl = `${getWsBaseUrl()}?salonId=${encodeURIComponent(salonId)}`;
     connectingStartedAtRef.current = Date.now();
 
     try {
