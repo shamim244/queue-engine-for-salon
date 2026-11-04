@@ -51,7 +51,7 @@ function OwnerServicesContent() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const currentSlug = salon?.slug || searchParams.get("salon") || "salon-rural-01";
+  const currentSlug = salon?.slug || searchParams.get("salon") || "ramesh-barber";
 
   const fetchServices = async () => {
     try {

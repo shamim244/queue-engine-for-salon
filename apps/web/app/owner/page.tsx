@@ -83,7 +83,7 @@ function OwnerDashboardContent() {
     return match?.name || "Haircut";
   };
 
-  const currentSlug = salon?.slug || searchParams.get("salon") || "salon-rural-01";
+  const currentSlug = salon?.slug || searchParams.get("salon") || "ramesh-barber";
 
   const refreshData = useCallback(async () => {
     if (!salon && !currentSlug) return;

@@ -27,7 +27,7 @@ function OwnerBillingContent() {
   const [org, setOrg] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const currentSlug = salon?.slug || searchParams.get("salon") || "salon-rural-01";
+  const currentSlug = salon?.slug || searchParams.get("salon") || "ramesh-barber";
 
   useEffect(() => {
     async function loadData() {

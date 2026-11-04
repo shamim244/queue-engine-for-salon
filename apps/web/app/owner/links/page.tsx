@@ -29,7 +29,7 @@ function OwnerLinksAndPosterContent() {
   const { salon } = useAuth();
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
-  const currentSlug = salon?.slug || searchParams.get("salon") || "salon-rural-01";
+  const currentSlug = salon?.slug || searchParams.get("salon") || "ramesh-barber";
   const [origin, setOrigin] = useState("http://localhost:3000");
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [upiQrDataUrl, setUpiQrDataUrl] = useState<string>("");

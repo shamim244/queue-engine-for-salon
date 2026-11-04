@@ -93,7 +93,7 @@ function OwnerStaffContent() {
   const [revoking, setRevoking] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const currentSlug = salon?.slug || searchParams.get("salon") || "salon-rural-01";
+  const currentSlug = salon?.slug || searchParams.get("salon") || "ramesh-barber";
 
   const fetchStaffData = async () => {
     setLoading(true);

@@ -60,7 +60,7 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
     });
   }, [searchParams, salon, setSelectedSalon]);
 
-  const currentSlug = salon?.slug || "salon-rural-01";
+  const currentSlug = salon?.slug || "ramesh-barber";
 
   const navSections = [
     {

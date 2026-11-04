@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, use } from "react";
+import React, { useEffect, useState, use, useMemo } from "react";
 import Link from "next/link";
 import { api, Salon, Ticket, Service, Stylist } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
@@ -30,6 +30,15 @@ import {
   Trash2,
   Volume2,
   Zap,
+  MapPin,
+  Store,
+  Calendar,
+  ShieldCheck,
+  ArrowRight,
+  Star,
+  Check,
+  Navigation,
+  AlertCircle,
 } from "lucide-react";
 
 export default function CustomerDoorPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -43,12 +52,25 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
   // My Ticket (if checked in on this device)
   const [myTicket, setMyTicket] = useState<Ticket | null>(null);
 
-  // Check-In Form State
+  // Check-In Modal & Form State
+  const [isCheckinOpen, setIsCheckinOpen] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [selectedStylistId, setSelectedStylistId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Service Catalog Category Filter
+  const [serviceCategory, setServiceCategory] = useState<string>("ALL");
+
+  // In-App Toast & Confirmation State
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   // Pre-fill user profile if logged in
   useEffect(() => {
@@ -140,6 +162,11 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
           }
           setLoading(false);
         }
+        // Auto-open checkin modal if URL contains checkin=true or #checkin
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get("checkin") === "true" || window.location.hash === "#checkin") {
+          setIsCheckinOpen(true);
+        }
       } catch {}
     }
     fetchSalonAndQueue();
@@ -151,19 +178,10 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
     fetchSalonAndQueue();
   });
 
-  // In-App Toast & Confirmation State
-  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
-  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
-  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
-
   const handleJoinQueue = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName.trim() || !selectedServiceId) {
-      showToast("Please enter your name and choose a service", "error");
+      showToast("Please enter your name and select a service", "error");
       return;
     }
 
@@ -182,6 +200,7 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
         if (typeof window !== "undefined") {
           localStorage.setItem(`ticket_${slug}`, resp.ticket.id);
         }
+        setIsCheckinOpen(false);
         showToast(`Joined queue! You are Ticket #${resp.ticket.ticketNumber}`, "success");
         fetchSalonAndQueue();
       }
@@ -211,6 +230,11 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
     }
   };
 
+  // Open check-in with pre-selected service
+  const handleSelectServiceAndOpen = (serviceId: string) => {
+    setSelectedServiceId(serviceId);
+    setIsCheckinOpen(true);
+  };
 
   const selectedService = salon?.services?.find((s) => s.id === selectedServiceId);
   const chairsServing = activeTickets.filter((t) => t.status === "IN_SERVICE" || t.status === "IN_CHAIR");
@@ -229,43 +253,76 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
         : (peopleAhead > 0 ? Math.max(5, peopleAhead * 15) : 3))
     : 0;
 
+  // General estimated wait for visitors
+  const totalWaitMinutes = waitingSequence.length > 0
+    ? Math.max(5, Math.ceil((waitingSequence.length * 15) / Math.max(1, salon?.stylists?.length || 1)))
+    : 0;
+
+  // Filter services by category if any
+  const filteredServices = useMemo(() => {
+    if (!salon?.services) return [];
+    if (serviceCategory === "ALL") return salon.services;
+    if (serviceCategory === "ADDONS") return salon.services.filter((s) => s.isAddOn);
+    if (serviceCategory === "CORE") return salon.services.filter((s) => !s.isAddOn);
+    return salon.services;
+  }, [salon?.services, serviceCategory]);
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between">
-      {/* Top Header */}
-      <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur sticky top-0 z-40 px-4 py-3.5">
-        <div className="max-w-md mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-md">
-              <Scissors className="h-4 w-4" />
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950">
+      {/* 1. TOP NAVBAR / BRAND HEADER */}
+      <header className="border-b border-slate-800/80 bg-slate-900/80 backdrop-blur sticky top-0 z-40 px-4 sm:px-8 py-3.5">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/20">
+              <Scissors className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="font-bold text-sm text-white leading-tight">
-                {salon?.name || "Salon Queue"}
-              </h1>
-              <p className="text-[11px] text-slate-400">Live Pocket Queue Board</p>
+              <div className="flex items-center gap-2">
+                <h1 className="font-extrabold text-base sm:text-lg text-white leading-tight">
+                  {salon?.name || "Salon Digital Storefront"}
+                </h1>
+                <Badge variant="outline" className="hidden sm:inline-flex text-[10px] border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
+                  Verified Partner
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                <span>Digital Storefront &amp; Live Queue</span>
+                <span className="text-slate-600">•</span>
+                <span className="text-emerald-400 font-medium">Open Today</span>
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <ConnectionPill isConnected={isConnected} status={status} reconnectAttempts={reconnectAttempts} />
             <Link
               href={`/s/${slug}/tv`}
               target="_blank"
-              className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 font-medium bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/60"
+              className="text-xs text-slate-300 hover:text-white flex items-center gap-1.5 font-medium bg-slate-800/80 hover:bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-700/80 transition-colors"
             >
-              <span>Lobby TV</span>
-              <ExternalLink className="h-3 w-3" />
+              <ExternalLink className="h-3.5 w-3.5 text-blue-400" />
+              <span className="hidden sm:inline">Lobby TV</span>
             </Link>
+
+            {user ? (
+              <Link href="/me" className="text-xs font-semibold text-amber-400 hover:text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/30">
+                My Profile
+              </Link>
+            ) : (
+              <Link href="/login" className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-700">
+                Sign In
+              </Link>
+            )}
           </div>
         </div>
       </header>
 
-      {/* Main Body */}
-      <main className="flex-1 max-w-md w-full mx-auto p-4 space-y-6">
+      {/* 2. MAIN STOREFRONT CONTENT */}
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         {/* Toast Alert Banner */}
         {toast && (
           <div
-            className={`p-3.5 rounded-xl border flex items-center justify-between shadow-lg transition-all animate-in slide-in-from-top-2 ${
+            className={`p-4 rounded-2xl border flex items-center justify-between shadow-xl transition-all animate-in slide-in-from-top-2 ${
               toast.type === "success"
                 ? "bg-emerald-950/90 border-emerald-600/50 text-emerald-200"
                 : toast.type === "error"
@@ -287,426 +344,641 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
             </button>
           </div>
         )}
-        {/* VIEW 1: NOT CHECKED IN YET -> LIGHTWEIGHT SELF CHECK-IN FORM */}
-        {!myTicket ? (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            {/* Salon Banner */}
-            <div className="text-center space-y-1.5 pt-2">
-              <Badge variant="warning" className="text-xs px-3 py-0.5">
-                ⚡ ZERO-FRICTION CHECK-IN
-              </Badge>
-              <h2 className="text-2xl font-black text-white">Join Today's Queue</h2>
-              <p className="text-xs text-slate-400">
-                Pick your haircut, grab a tea nearby, and we will alert you when your chair is ready!
-              </p>
+
+        {/* 3. HERO / STOREFRONT BANNER WITH PERSONALIZED WELCOME */}
+        <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/20 p-6 sm:p-10 shadow-2xl">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-3 max-w-xl">
+              <div className="flex items-center gap-2">
+                <Badge variant="warning" className="text-xs px-3 py-0.5">
+                  ⭐ 4.9 RATED SALON
+                </Badge>
+                <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Accepting Walk-ins
+                </span>
+              </div>
+
+              <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                {salon?.name || "Professional Salon & Grooming"}
+              </h2>
+
+              {/* Personalized Customer Greeting */}
+              {user ? (
+                <p className="text-sm sm:text-base text-amber-200 font-medium">
+                  👋 Welcome back, <strong className="text-white">{user.fullName || user.username}</strong>! Skip the wait and claim your chair.
+                </p>
+              ) : (
+                <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
+                  Experience seamless queue-free grooming. Join the line from anywhere, grab a tea nearby, and step into the chair right when called!
+                </p>
+              )}
+
+              {/* Salon Quick Info Chips */}
+              <div className="flex flex-wrap items-center gap-3 pt-1 text-xs text-slate-400">
+                <span className="flex items-center gap-1.5 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-slate-800">
+                  <MapPin className="h-3.5 w-3.5 text-amber-400" />
+                  {salon?.address || "Main Street Central Studio"}
+                </span>
+
+                {salon?.phone && (
+                  <a
+                    href={`tel:${salon.phone}`}
+                    className="flex items-center gap-1.5 bg-slate-950/60 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-800 text-slate-300 hover:text-white transition-colors"
+                  >
+                    <Phone className="h-3.5 w-3.5 text-emerald-400" />
+                    {salon.phone}
+                  </a>
+                )}
+
+                <span className="flex items-center gap-1.5 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-slate-800">
+                  <Clock className="h-3.5 w-3.5 text-blue-400" />
+                  8:00 AM – 9:00 PM
+                </span>
+              </div>
             </div>
 
-            {/* Signed-in / Quick Login Prompt */}
-            {user ? (
-              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-between text-xs text-blue-200">
-                <span className="flex items-center gap-1.5 truncate">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                  <span className="truncate">
-                    Signed in as <strong>{user.fullName || user.username}</strong>
-                  </span>
+            {/* Real-time Wait & Action Card */}
+            <div className="p-5 sm:p-6 rounded-2xl bg-slate-950/80 border border-slate-800 shadow-xl space-y-4 md:min-w-[280px]">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                  Live Queue Wait Time
                 </span>
-                <Link href="/me" className="text-amber-400 hover:underline font-semibold shrink-0 ml-2">
-                  View Portal &rarr;
-                </Link>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl sm:text-5xl font-black text-amber-400 tracking-tight">
+                    ~{totalWaitMinutes}m
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    ({waitingSequence.length} ahead)
+                  </span>
+                </div>
               </div>
-            ) : (
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                <span>Save your haircut specs & earn loyalty rewards</span>
-                <Link href="/login" className="text-amber-400 hover:underline font-bold shrink-0 ml-2">
-                  Sign In
-                </Link>
+
+              <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-800/80">
+                <div>
+                  <span className="text-[10px] text-slate-500 uppercase block">Active Chairs</span>
+                  <span className="font-bold text-white">{salon?.stylists?.length || 1} Stylists</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 uppercase block">In Service</span>
+                  <span className="font-bold text-emerald-400">{chairsServing.length} Chairs</span>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => setIsCheckinOpen(true)}
+                className="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm rounded-xl shadow-lg shadow-amber-500/20 gap-2"
+              >
+                <Zap className="h-4 w-4" />
+                <span>Join Live Queue Now</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* 4. ACTIVE TICKET STICKY CARD (WHEN CHECKED IN ON THIS DEVICE) */}
+        {myTicket && (
+          <Card className="border-2 border-amber-500 bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/40 shadow-2xl p-6 text-center space-y-5 animate-in slide-in-from-top-4">
+            <div className="flex items-center justify-between">
+              <Badge
+                variant={
+                  myTicket.status === "CALLED" || myTicket.status === "SUMMONED"
+                    ? "warning"
+                    : myTicket.status === "IN_SERVICE" || myTicket.status === "IN_CHAIR"
+                    ? "success"
+                    : "secondary"
+                }
+                className="px-3 py-1 font-bold text-xs"
+              >
+                {myTicket.status === "CALLED" || myTicket.status === "SUMMONED"
+                  ? "📢 STEP TO CHAIR NOW!"
+                  : myTicket.status === "IN_SERVICE" || myTicket.status === "IN_CHAIR"
+                  ? "💺 CURRENTLY IN CHAIR"
+                  : myTicket.status === "SOFT_BUMPED"
+                  ? "⏳ 3-MIN HOLD"
+                  : "🎟️ YOUR LIVE TICKET"}
+              </Badge>
+
+              <span className="text-xs text-slate-400 font-mono">
+                {myTicket.customerPhone ? maskPhone(myTicket.customerPhone) : ""}
+              </span>
+            </div>
+
+            {/* Big Ticket Number */}
+            <div className="space-y-1">
+              <span className="text-xs uppercase tracking-widest text-slate-400 font-bold">
+                Your Ticket Number
+              </span>
+              <div className="text-6xl font-black text-amber-400 tracking-tight">
+                #{myTicket.ticketNumber}
+              </div>
+              <h3 className="text-lg font-bold text-white mt-1">{myTicket.customerName}</h3>
+            </div>
+
+            {/* CHAIR READY PULSATING ALERT BANNER */}
+            {(myTicket.status === "CALLED" || myTicket.status === "SUMMONED") && (
+              <div className="p-4 rounded-2xl bg-amber-500/20 border-2 border-amber-400 text-amber-200 text-sm font-bold text-center space-y-2 animate-pulse">
+                <div className="flex items-center justify-center gap-2 text-lg text-amber-300">
+                  <Volume2 className="h-6 w-6" />
+                  <span>YOUR CHAIR IS READY!</span>
+                </div>
+                <p className="text-xs text-amber-100 font-normal">
+                  Please step up to the mirror chair. Your barber is ready to begin your cut!
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={playChime}
+                  className="text-xs border-amber-400 text-amber-300 gap-1.5"
+                >
+                  <BellRing className="h-3.5 w-3.5" />
+                  <span>Replay Audio Alert</span>
+                </Button>
               </div>
             )}
 
-            <Card className="border-slate-800 shadow-2xl">
-              <CardContent className="p-5 space-y-5">
-                <form onSubmit={handleJoinQueue} className="space-y-5">
-                  {/* Name Input */}
-                  <div>
-                    <label className="text-xs font-bold text-slate-300 block mb-1.5">
-                      Your Full Name *
-                    </label>
-                    <div className="relative">
-                      <UserIcon className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-500" />
-                      <Input
-                        placeholder="e.g. Rahul Sharma"
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        className="pl-10"
-                        autoFocus
-                        required
-                      />
-                    </div>
+            {/* If in chair: Live Service Progress. If waiting: People Ahead & Wait Time Countdown */}
+            {myTicket.status === "IN_SERVICE" || myTicket.status === "IN_CHAIR" ? (
+              <LiveServiceTimer
+                startedTime={(myTicket as any).startedTime || (myTicket as any).seatedAt || myTicket.createdAt}
+                estimatedDurationMinutes={myTicket.estimatedWaitMinutes || 20}
+                variant="customer"
+              />
+            ) : (
+              <div className="grid grid-cols-2 gap-3 py-2 border-y border-slate-800">
+                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                  <span className="text-xs text-slate-400 block">People Ahead of You</span>
+                  <span className="text-3xl font-black text-white">{peopleAhead}</span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                  <span className="text-xs text-slate-400 block">Estimated Wait</span>
+                  <span className="text-3xl font-black text-blue-400">
+                    ~{displayWait}m
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Reassuring Chai Prompt */}
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 text-left flex items-start gap-3">
+              <Coffee className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+              <p>
+                <strong>Feel free to grab tea or relax nearby!</strong> We will alert you with a WhatsApp notification and sound chime when your turn arrives.
+              </p>
+            </div>
+
+            {/* Shortcut: Save to Profile / View Portal & Leave Queue */}
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <Link href="/me" className="flex-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs border-dashed border-slate-700 hover:border-amber-400/60 text-slate-300 gap-1.5"
+                >
+                  <Bookmark className="h-3.5 w-3.5 text-amber-400" />
+                  <span>My Customer Portal</span>
+                </Button>
+              </Link>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsCancelConfirmOpen(true)}
+                className="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/20 gap-1"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Leave Queue</span>
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {/* 5. SERVICES & PRICING MENU SECTION */}
+        <section className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h3 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+                <Scissors className="h-5 w-5 text-amber-400" />
+                <span>Service Menu &amp; Transparent Pricing</span>
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                Select any haircut, beard, or spa service to join today's queue.
+              </p>
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+              {[
+                { id: "ALL", label: "All Services" },
+                { id: "CORE", label: "Hair & Beard" },
+                { id: "ADDONS", label: "Add-Ons & Spa" },
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setServiceCategory(cat.id)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                    serviceCategory === cat.id
+                      ? "bg-amber-500 text-slate-950 font-bold"
+                      : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredServices.map((srv) => (
+              <Card
+                key={srv.id}
+                className="bg-slate-900/60 border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between"
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-2xl">{srv.icon || "✂️"}</span>
+                    <Badge variant={srv.isAddOn ? "purple" : "secondary"} className="text-[10px]">
+                      {srv.isAddOn ? "Add-On" : `${srv.estimatedDurationMinutes} mins`}
+                    </Badge>
                   </div>
+                  <CardTitle className="text-base text-white mt-2 font-bold">{srv.name}</CardTitle>
+                  <CardDescription className="text-xs text-slate-400">
+                    Professional salon finish with hot towel clean up.
+                  </CardDescription>
+                </CardHeader>
 
-
-                  {/* Phone Input */}
-                  <div>
-                    <label className="text-xs font-bold text-slate-300 block mb-1.5">
-                      Mobile Number (For WhatsApp / SMS Alerts)
-                    </label>
-                    <div className="relative">
-                      <Phone className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-500" />
-                      <Input
-                        placeholder="+91 98765 43210"
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        className="pl-10"
-                      />
+                <CardContent className="pt-0">
+                  <div className="flex items-baseline justify-between pt-2 border-t border-slate-800">
+                    <div>
+                      <span className="text-[10px] uppercase text-slate-500 font-bold block">Price</span>
+                      <span className="text-xl font-black text-amber-400">
+                        {formatCurrency(srv.basePrice)}
+                      </span>
                     </div>
-                    <span className="text-[11px] text-slate-500 mt-1 block">
-                      We only message you when you are next in line.
-                    </span>
-                  </div>
 
-                  {/* Service Selection Chips */}
-                  <div>
-                    <label className="text-xs font-bold text-slate-300 block mb-2">
-                      Select Service *
-                    </label>
-                    <div className="grid grid-cols-2 gap-2.5">
-                      {salon?.services?.map((srv) => {
-                        const isSelected = selectedServiceId === srv.id;
-                        return (
-                          <button
-                            key={srv.id}
-                            type="button"
-                            onClick={() => setSelectedServiceId(srv.id)}
-                            className={`p-3 rounded-xl border text-left transition-all ${
-                              isSelected
-                                ? "border-amber-500 bg-amber-500/10 text-white shadow-md shadow-amber-500/10 ring-1 ring-amber-500"
-                                : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white hover:border-slate-700"
-                            }`}
-                          >
-                            <span className="text-xl block mb-1">{srv.icon || "✂️"}</span>
-                            <p className="font-bold text-xs truncate text-white">{srv.name}</p>
-                            <div className="flex items-center justify-between text-[11px] mt-1 text-slate-400">
-                              <span className="text-emerald-400 font-semibold">
-                                {formatCurrency(srv.basePrice)}
-                              </span>
-                              <span>{srv.estimatedDurationMinutes}m</span>
-                            </div>
-                          </button>
-                        );
-                      })}
+                    <Button
+                      size="sm"
+                      onClick={() => handleSelectServiceAndOpen(srv.id)}
+                      className="text-xs bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-white font-bold gap-1 rounded-lg border border-slate-700 transition-colors"
+                    >
+                      <span>Select &amp; Join</span>
+                      <ChevronRight className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* 6. ACTIVE STYLISTS & CHAIR FLOOR */}
+        {salon?.stylists && salon.stylists.length > 0 && (
+          <section className="space-y-4 pt-2">
+            <div>
+              <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                <Armchair className="h-5 w-5 text-blue-400" />
+                <span>Active Chairs &amp; Stylists on Floor</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Our team is actively servicing appointments and walk-in clients.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              {salon.stylists.map((st, idx) => {
+                const isServing = chairsServing.some((t) => t.stylistId === st.id);
+                return (
+                  <div
+                    key={st.id}
+                    className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-center gap-3.5"
+                  >
+                    <div className="h-10 w-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-black text-amber-400 shrink-0">
+                      #{idx + 1}
                     </div>
-                  </div>
-
-                  {/* Stylist Selection: Universal Fast Line vs Preferred Barber */}
-                  {salon?.stylists && salon.stylists.length > 1 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-300">
-                          Barber & Chair Preference
-                        </label>
-                        <span className="text-[11px] text-amber-400 font-medium">
-                          {selectedStylistId === null ? "Fast Line" : "Direct Barber"}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-white text-xs truncate">{st.name}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">~{st.avgDurationMinutes || 20}m pace</p>
+                      <div className="flex items-center gap-1 mt-1 text-[10px]">
+                        <span className={`w-1.5 h-1.5 rounded-full ${isServing ? "bg-amber-400 animate-pulse" : "bg-emerald-400"}`} />
+                        <span className={isServing ? "text-amber-300 font-medium" : "text-emerald-400 font-medium"}>
+                          {isServing ? "In Chair" : "Ready Next"}
                         </span>
                       </div>
-
-                      <div className="grid grid-cols-1 gap-2">
-                        {/* Option 1: Universal Fast Line */}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedStylistId(null)}
-                          className={`p-3 rounded-xl border text-left transition-all ${
-                            selectedStylistId === null
-                              ? "border-amber-500 bg-amber-500/15 text-white shadow-md shadow-amber-500/10 ring-1 ring-amber-500"
-                              : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white hover:border-slate-700"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-bold text-amber-400 flex items-center gap-1.5">
-                              <Zap className="h-4 w-4" />
-                              Universal Fast Line
-                            </span>
-                            <Badge variant="warning" className="text-[10px] px-2 py-0">
-                              ⚡ Fastest Available Chair
-                            </Badge>
-                          </div>
-                          <p className="text-[11px] text-slate-300 mt-1">
-                            Jump in whichever chair opens first. Minimal wait guaranteed!
-                          </p>
-                        </button>
-
-                        {/* Option 2..N: Preferred Barbers */}
-                        {salon.stylists.length > 1 && (
-                          <div className="grid grid-cols-2 gap-2 pt-1">
-                            {salon.stylists.map((st) => {
-                              const isSelected = selectedStylistId === st.id;
-                              return (
-                                <button
-                                  key={st.id}
-                                  type="button"
-                                  onClick={() => setSelectedStylistId(st.id)}
-                                  className={`p-2.5 rounded-xl border text-left transition-all ${
-                                    isSelected
-                                      ? "border-amber-500 bg-amber-500/15 text-white shadow-md shadow-amber-500/10 ring-1 ring-amber-500"
-                                      : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white hover:border-slate-700"
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-bold text-xs text-white truncate">
-                                      ✂️ {st.name}
-                                    </span>
-                                    <Badge variant="secondary" className="text-[9px] px-1 py-0">
-                                      {st.isAvailable !== false && st.isActive !== false ? "Active" : "Away"}
-                                    </Badge>
-                                  </div>
-                                  <p className="text-[10px] text-slate-400 mt-1">
-                                    ~{st.avgDurationMinutes || 25}m pace
-                                  </p>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
                     </div>
-                  )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
-                  <Button
-                    type="submit"
-                    size="lg"
-                    disabled={submitting}
-                    className="w-full h-13 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-base shadow-lg shadow-amber-500/20"
-                  >
-                    {submitting ? "Securing Your Spot..." : "🎟️ Get My Digital Ticket"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
-        ) : (
-          /* VIEW 2: CHECKED IN -> DUAL-VIEW (MY TICKET ON TOP + FULL SALON POCKET TV BELOW) */
-          <div className="space-y-6 animate-in fade-in duration-300">
-            {/* TOP CARD: PERSONAL LIVE TICKET TRACKER */}
-            <Card className="border-2 border-amber-500 bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/30 shadow-2xl p-6 text-center space-y-5">
+        {/* 7. LIVE QUEUE DEPARTURE BOARD (POCKET TV VIEW) */}
+        <section className="space-y-4 pt-2">
+          <Card className="border-slate-800 bg-slate-900/60 shadow-xl">
+            <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <Badge
-                  variant={
-                    myTicket.status === "CALLED" || myTicket.status === "SUMMONED"
-                      ? "warning"
-                      : myTicket.status === "IN_SERVICE" || myTicket.status === "IN_CHAIR"
-                      ? "success"
-                      : myTicket.status === "SOFT_BUMPED"
-                      ? "outline"
-                      : "default"
-                  }
-                  className="px-3 py-1 font-bold text-xs"
-                >
-                  {myTicket.status === "CALLED" || myTicket.status === "SUMMONED"
-                    ? "📢 STEP TO CHAIR NOW!"
-                    : myTicket.status === "IN_SERVICE" || myTicket.status === "IN_CHAIR"
-                    ? "💺 CURRENTLY IN CHAIR"
-                    : myTicket.status === "SOFT_BUMPED"
-                    ? "⏳ 3-MIN HOLD"
-                    : "🎟️ IN QUEUE"}
+                <CardTitle className="text-base font-bold flex items-center gap-2 text-white">
+                  <Users className="h-4 w-4 text-blue-400" />
+                  <span>Live Queue Flow &amp; Active Turn</span>
+                </CardTitle>
+                <Badge variant="outline" className="text-xs border-slate-700 text-slate-300">
+                  {activeTickets.length} Total Registered
                 </Badge>
-
-                <span className="text-xs text-slate-400 font-mono">
-                  {myTicket.customerPhone ? maskPhone(myTicket.customerPhone) : ""}
-                </span>
               </div>
+              <CardDescription className="text-xs text-slate-400">
+                Transparent live board updated in real time via WebSockets.
+              </CardDescription>
+            </CardHeader>
 
-              {/* Big Ticket Number */}
-              <div className="space-y-1">
-                <span className="text-xs uppercase tracking-widest text-slate-400 font-bold">
-                  Your Ticket Number
-                </span>
-                <div className="text-6xl font-black text-amber-400 tracking-tight">
-                  #{myTicket.ticketNumber}
-                </div>
-                <h3 className="text-lg font-bold text-white mt-1">{myTicket.customerName}</h3>
-              </div>
-
-              {/* CHAIR READY PULSATING ALERT BANNER */}
-              {(myTicket.status === "CALLED" || myTicket.status === "SUMMONED") && (
-                <div className="p-4 rounded-2xl bg-amber-500/20 border-2 border-amber-400 text-amber-200 text-sm font-bold text-center space-y-2 animate-pulse">
-                  <div className="flex items-center justify-center gap-2 text-lg text-amber-300">
-                    <Volume2 className="h-6 w-6" />
-                    <span>YOUR CHAIR IS READY!</span>
-                  </div>
-                  <p className="text-xs text-amber-100 font-normal">
-                    Please step up to the mirror chair. Your barber is ready to begin your cut!
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={playChime}
-                    className="text-xs border-amber-400 text-amber-300 gap-1.5"
-                  >
-                    <BellRing className="h-3.5 w-3.5" />
-                    <span>Replay Audio Alert</span>
-                  </Button>
-                </div>
-              )}
-
-              {/* If in chair: Live Service Progress. If waiting: People Ahead & Wait Time Countdown */}
-              {myTicket.status === "IN_SERVICE" || myTicket.status === "IN_CHAIR" ? (
-                <LiveServiceTimer
-                  startedTime={(myTicket as any).startedTime || (myTicket as any).seatedAt || myTicket.createdAt}
-                  estimatedDurationMinutes={myTicket.estimatedWaitMinutes || 20}
-                  variant="customer"
-                />
-              ) : (
-                <div className="grid grid-cols-2 gap-3 py-2 border-y border-slate-800">
-                  <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                    <span className="text-[11px] text-slate-400 block">People Ahead</span>
-                    <span className="text-2xl font-black text-white">{peopleAhead}</span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                    <span className="text-[11px] text-slate-400 block">Est. Wait Time</span>
-                    <span className="text-2xl font-black text-blue-400">
-                      ~{displayWait}m
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Reassuring Chai Prompt */}
-              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 text-left flex items-start gap-3">
-                <Coffee className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
-                <p>
-                  <strong>Feel free to grab tea or relax nearby!</strong> We will alert you with a WhatsApp notification and sound chime when you are summoned.
-                </p>
-              </div>
-
-              {/* Shortcut: Save to Profile / View Portal & Leave Queue */}
-              <div className="flex items-center justify-between gap-3 pt-1">
-                <Link href="/me" className="flex-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full text-xs border-dashed border-slate-700 hover:border-amber-400/60 text-slate-300 gap-1.5"
-                  >
-                    <Bookmark className="h-3.5 w-3.5 text-amber-400" />
-                    <span>My Customer Portal</span>
-                  </Button>
-                </Link>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsCancelConfirmOpen(true)}
-                  className="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/20 gap-1"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span>Leave Queue</span>
-                </Button>
-              </div>
-            </Card>
-
-
-            {/* BOTTOM CARD: LIVE SALON QUEUE BOARD (POCKET TV VIEW) */}
-            <Card className="border-slate-800 shadow-xl">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <Users className="h-4 w-4 text-blue-400" />
-                    <span>Live Salon Queue Board</span>
-                  </CardTitle>
-                  <span className="text-[11px] text-slate-400">
-                    {activeTickets.length} total tickets
+            <CardContent className="space-y-4">
+              {/* Currently Serving in Chairs */}
+              {chairsServing.length > 0 ? (
+                <div className="space-y-2">
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-emerald-400 flex items-center gap-1.5">
+                    <Armchair className="h-3.5 w-3.5" />
+                    Currently In Chair
                   </span>
-                </div>
-                <CardDescription className="text-xs">
-                  Full status of the salon right in your pocket.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                {/* 1. In Chair Now */}
-                {chairsServing.length > 0 && (
-                  <div className="space-y-2">
-                    <span className="text-[11px] uppercase tracking-wider font-bold text-emerald-400 flex items-center gap-1.5">
-                      <Armchair className="h-3.5 w-3.5" />
-                      Currently in Chair
-                    </span>
-                    <div className="space-y-1.5">
-                      {chairsServing.map((t) => (
-                        <div
-                          key={t.id}
-                          className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between text-xs"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <span className="font-bold text-emerald-400 font-mono">
-                              #{t.ticketNumber}
-                            </span>
-                            <span className="font-medium text-white">{t.customerName}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <LiveServiceTimer
-                              startedTime={(t as any).startedTime || (t as any).seatedAt || t.createdAt}
-                              variant="badge"
-                            />
-                            <Badge variant="success" className="text-[10px]">
-                              In Service
-                            </Badge>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {chairsServing.map((t) => (
+                      <div
+                        key={t.id}
+                        className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="font-bold text-emerald-400 font-mono text-sm">
+                            #{t.ticketNumber}
+                          </span>
+                          <div>
+                            <span className="font-semibold text-white block">{t.customerName}</span>
+                            <span className="text-[10px] text-slate-400">{t.serviceName || "Haircut"}</span>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                        <div className="flex items-center gap-2">
+                          <LiveServiceTimer
+                            startedTime={(t as any).startedTime || (t as any).seatedAt || t.createdAt}
+                            variant="badge"
+                          />
+                          <Badge variant="success" className="text-[10px]">
+                            In Chair
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 text-center text-xs text-slate-400">
+                  <p>All chairs are currently open and sanitized for the next walk-in client!</p>
+                </div>
+              )}
 
-                {/* 2. Next in Line Waiting Sequence */}
-                <div className="space-y-2">
+              {/* Waiting Line */}
+              {waitingSequence.length > 0 && (
+                <div className="space-y-2 pt-2">
                   <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1.5">
                     <Clock className="h-3.5 w-3.5 text-blue-400" />
-                    Next in Line
+                    Next in Line ({waitingSequence.length})
                   </span>
 
-                  <div className="divide-y divide-slate-800/80">
-                    {waitingSequence.map((t, idx) => {
-                      const isMe = myTicket.id === t.id;
+                  <div className="divide-y divide-slate-800/80 bg-slate-950/60 rounded-xl border border-slate-800/80 px-3">
+                    {waitingSequence.slice(0, 5).map((t, idx) => {
+                      const isMe = myTicket?.id === t.id;
                       return (
                         <div
                           key={t.id}
-                          className={`py-2.5 px-3 rounded-xl flex items-center justify-between text-xs transition-colors ${
-                            isMe
-                              ? "bg-amber-500/20 border border-amber-500/40 text-amber-200 font-bold"
-                              : "hover:bg-slate-800/30"
+                          className={`py-2.5 flex items-center justify-between text-xs ${
+                            isMe ? "text-amber-300 font-bold" : "text-slate-300"
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <span className={`font-mono font-bold ${isMe ? "text-amber-300" : "text-slate-400"}`}>
+                            <span className="font-mono font-bold text-slate-400">
                               #{t.ticketNumber}
                             </span>
-                            <div>
-                              <p className={`font-medium ${isMe ? "text-amber-200" : "text-white"}`}>
-                                {t.customerName} {isMe && "(YOU 👈)"}
-                              </p>
-                              <p className="text-[10px] text-slate-500">
-                                {t.customerPhone ? maskPhone(t.customerPhone) : "Guest"}
-                              </p>
-                            </div>
+                            <span>
+                              {t.customerName} {isMe && "(YOU 👈)"}
+                            </span>
                           </div>
 
-                          <div className="text-right">
-                            <span className="text-blue-400 font-semibold font-mono">
-                              ~{t.estimatedWaitMinutes > 0
-                                ? t.estimatedWaitMinutes
-                                : (idx > 0 ? Math.max(5, idx * 15) : 3)}m
+                          <div className="flex items-center gap-3">
+                            <span className="text-blue-400 font-mono">
+                              ~{t.estimatedWaitMinutes > 0 ? t.estimatedWaitMinutes : Math.max(5, (idx + 1) * 15)}m
                             </span>
-                            <p className="text-[10px] text-slate-500">Pos #{idx + 1}</p>
+                            <span className="text-[10px] text-slate-500">Pos #{idx + 1}</span>
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* 8. SALON AMENITIES & REASSURANCES */}
+        <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+          <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
+              <Zap className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-white">Zero App Download</h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Instant door check-in runs right in your phone's browser with zero installs.
+              </p>
+            </div>
           </div>
-        )}
-        {/* Modal: Confirm Cancel Queue Spot */}
+
+          <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0">
+              <BellRing className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-white">WhatsApp Summon Alerts</h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                We notify you on WhatsApp when you are next in line so you never wait inside.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 shrink-0">
+              <Coffee className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-white">Chai-Friendly Waiting</h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Grab a tea or shop nearby—your queue position is securely reserved.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* 9. CHECK-IN MODAL DIALOG */}
+        <Dialog open={isCheckinOpen} onOpenChange={setIsCheckinOpen}>
+          <DialogClose onClose={() => setIsCheckinOpen(false)} />
+          <div className="space-y-4">
+            <DialogHeader>
+              <div className="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase tracking-wider">
+                <Zap className="h-4 w-4" />
+                <span>Instant Walk-In Check-In</span>
+              </div>
+              <DialogTitle className="text-xl text-white">
+                Join Queue at {salon?.name || "Salon"}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-400">
+                Enter your details to receive live WhatsApp updates when your chair is ready.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleJoinQueue} className="space-y-4 pt-2">
+              {/* Name Input */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 block">
+                  Your Full Name <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <UserIcon className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                  <Input
+                    placeholder="e.g. Rahul Sharma"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="pl-9 bg-slate-950 border-slate-800"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Phone Input */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 block">
+                  Mobile Number (For WhatsApp / SMS Alerts)
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                  <Input
+                    placeholder="+91 98765 43210"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    className="pl-9 bg-slate-950 border-slate-800"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-500 block">
+                  We alert you when you are next in line.
+                </span>
+              </div>
+
+              {/* Service Selection */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 block">
+                  Select Service <span className="text-rose-400">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {salon?.services?.map((srv) => {
+                    const isSelected = selectedServiceId === srv.id;
+                    return (
+                      <button
+                        key={srv.id}
+                        type="button"
+                        onClick={() => setSelectedServiceId(srv.id)}
+                        className={`p-2.5 rounded-xl border text-left transition-all ${
+                          isSelected
+                            ? "border-amber-500 bg-amber-500/10 text-white ring-1 ring-amber-500"
+                            : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        <span className="text-lg block mb-0.5">{srv.icon || "✂️"}</span>
+                        <p className="font-bold text-xs truncate text-white">{srv.name}</p>
+                        <div className="flex items-center justify-between text-[10px] mt-1 text-slate-400">
+                          <span className="text-amber-400 font-semibold">{formatCurrency(srv.basePrice)}</span>
+                          <span>{srv.estimatedDurationMinutes}m</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Stylist Selection if >1 Stylist */}
+              {salon?.stylists && salon.stylists.length > 1 && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 block">
+                    Barber Preference
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStylistId(null)}
+                      className={`p-2 rounded-xl border text-left text-xs ${
+                        selectedStylistId === null
+                          ? "border-amber-500 bg-amber-500/15 text-white ring-1 ring-amber-500 font-bold"
+                          : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      ⚡ Fastest Chair
+                    </button>
+                    {salon.stylists.map((st) => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => setSelectedStylistId(st.id)}
+                        className={`p-2 rounded-xl border text-left text-xs truncate ${
+                          selectedStylistId === st.id
+                            ? "border-amber-500 bg-amber-500/15 text-white ring-1 ring-amber-500 font-bold"
+                            : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        ✂️ {st.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Total Summary */}
+              {selectedService && (
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-slate-400">Selected Service:</span>
+                    <strong className="text-white block">{selectedService.name}</strong>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-slate-400">Price:</span>
+                    <strong className="text-amber-400 text-sm block">
+                      {formatCurrency(selectedService.basePrice)}
+                    </strong>
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsCheckinOpen(false)}
+                  className="border-slate-700"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black gap-1.5"
+                >
+                  {submitting ? "Securing Spot..." : "🎟️ Get My Digital Ticket"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </div>
+        </Dialog>
+
+        {/* 10. MODAL: CONFIRM CANCEL QUEUE SPOT */}
         <Dialog open={isCancelConfirmOpen} onOpenChange={setIsCancelConfirmOpen}>
           <DialogClose onClose={() => setIsCancelConfirmOpen(false)} />
           <div>
@@ -743,9 +1015,10 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
         </Dialog>
       </main>
 
-      {/* Footer Branding */}
-      <footer className="p-4 text-center text-[11px] text-slate-500 border-t border-slate-800/60 max-w-md mx-auto w-full">
-        <span>{salon?.name || "Salon"} · Powered by Engine Que System</span>
+      {/* 11. FOOTER BRANDING */}
+      <footer className="p-6 text-center text-xs text-slate-500 border-t border-slate-800/60 max-w-5xl mx-auto w-full space-y-1">
+        <p className="font-semibold text-slate-400">{salon?.name || "Salon"} · Digital Storefront &amp; Real-Time Queue Engine</p>
+        <p className="text-[11px] text-slate-600">Built with Bun v1.4, Next.js 15, and WebSocket Core</p>
       </footer>
     </div>
   );
