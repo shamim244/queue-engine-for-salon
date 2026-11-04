@@ -2,7 +2,14 @@ import { repository } from '../db/repository';
 import { websocketHub } from '../websocket/hub';
 import { notificationService } from '../notifications/whatsapp';
 import { calculateWaitTimes } from './wait-time';
+import { selectNextTicketCandidate } from './routing';
+import { validateTicketTransition } from './state-machine';
+import { jobQueue } from '../worker/job-queue';
+import { registerNotificationHandler } from '../worker/handlers/notification.handler';
 import type { QueueTicket, TicketSource, PaymentStatus } from './types';
+
+// Ensure standard background workers are registered
+registerNotificationHandler();
 
 export const queueEngine = {
   // 1. Customer Self-Check-in via Door QR
@@ -66,17 +73,21 @@ export const queueEngine = {
     // Retrieve updated ticket with calculated wait time
     const updatedTicket = (await repository.getTicketById(ticketId)) || ticket;
 
-    // Send WhatsApp confirmation
-    await notificationService.sendWhatsApp({
-      salonId: salon.id,
-      salonName: salon.name,
-      ticketId: updatedTicket.id,
-      recipientPhone: updatedTicket.customerPhone,
-      recipientName: updatedTicket.customerName,
-      type: 'TICKET_CONFIRMATION',
-      ticketNumber: updatedTicket.ticketNumber,
-      estimatedWaitMinutes: updatedTicket.estimatedWaitMinutes,
-    });
+    // Asynchronously dispatch WhatsApp confirmation via background worker
+    jobQueue.enqueue(
+      'SEND_WHATSAPP',
+      {
+        salonId: salon.id,
+        salonName: salon.name,
+        ticketId: updatedTicket.id,
+        recipientPhone: updatedTicket.customerPhone,
+        recipientName: updatedTicket.customerName,
+        type: 'TICKET_CONFIRMATION',
+        ticketNumber: updatedTicket.ticketNumber,
+        estimatedWaitMinutes: updatedTicket.estimatedWaitMinutes,
+      },
+      { salonId: salon.id }
+    ).then(() => jobQueue.processNextJob().catch(() => {}));
 
     const activeTickets = await repository.getActiveTickets(salon.id);
     websocketHub.broadcastToSalon(salon.id, {
@@ -125,35 +136,10 @@ export const queueEngine = {
     const rawActive = await repository.getActiveTickets(salonId);
     const activeTickets = excludeTicketId ? rawActive.filter((t) => t.id !== excludeTicketId) : rawActive;
     
-    let nextTicket: QueueTicket | undefined;
-
-    if (stylistId) {
-      if (preferWaiting) {
-        // When holding a client, prioritize uncalled clients who are actively WAITING
-        nextTicket =
-          activeTickets.find((t) => t.status === 'WAITING' && t.stylistId === stylistId) ||
-          activeTickets.find((t) => t.status === 'WAITING' && (!t.stylistId || t.stylistId === null)) ||
-          activeTickets.find((t) => t.status === 'SOFT_BUMPED' && t.stylistId === stylistId) ||
-          activeTickets.find((t) => t.status === 'SOFT_BUMPED' && (!t.stylistId || t.stylistId === null));
-      } else {
-        // Priority when chair is free: 1. SOFT_BUMPED clients returning, 2. WAITING clients
-        nextTicket =
-          activeTickets.find((t) => t.status === 'SOFT_BUMPED' && t.stylistId === stylistId) ||
-          activeTickets.find((t) => t.status === 'SOFT_BUMPED' && (!t.stylistId || t.stylistId === null)) ||
-          activeTickets.find((t) => t.status === 'WAITING' && t.stylistId === stylistId) ||
-          activeTickets.find((t) => t.status === 'WAITING' && (!t.stylistId || t.stylistId === null));
-      }
-    } else {
-      if (preferWaiting) {
-        nextTicket =
-          activeTickets.find((t) => t.status === 'WAITING') ||
-          activeTickets.find((t) => t.status === 'SOFT_BUMPED');
-      } else {
-        nextTicket =
-          activeTickets.find((t) => t.status === 'SOFT_BUMPED') ||
-          activeTickets.find((t) => t.status === 'WAITING');
-      }
-    }
+    const nextTicket = selectNextTicketCandidate(rawActive, stylistId, {
+      excludeTicketId,
+      preferWaiting,
+    });
 
     if (!nextTicket) return null;
 
@@ -180,18 +166,22 @@ export const queueEngine = {
 
     if (!updated) return null;
 
-    // Send WhatsApp Chair Ready Alert
+    // Asynchronously dispatch WhatsApp Chair Ready Alert
     if (salon) {
-      await notificationService.sendWhatsApp({
-        salonId: salon.id,
-        salonName: salon.name,
-        ticketId: updated.id,
-        recipientPhone: updated.customerPhone,
-        recipientName: updated.customerName,
-        type: 'CHAIR_READY',
-        ticketNumber: updated.ticketNumber,
-        stylistName: stylist?.name,
-      });
+      jobQueue.enqueue(
+        'SEND_WHATSAPP',
+        {
+          salonId: salon.id,
+          salonName: salon.name,
+          ticketId: updated.id,
+          recipientPhone: updated.customerPhone,
+          recipientName: updated.customerName,
+          type: 'CHAIR_READY',
+          ticketNumber: updated.ticketNumber,
+          stylistName: stylist?.name,
+        },
+        { salonId: salon.id }
+      ).then(() => jobQueue.processNextJob().catch(() => {}));
     }
 
     await this.recalculateQueue(salonId);
@@ -276,15 +266,19 @@ export const queueEngine = {
 
     const salon = (await repository.getAllSalons()).find((s) => s.id === ticket.salonId);
     if (salon) {
-      await notificationService.sendWhatsApp({
-        salonId: salon.id,
-        salonName: salon.name,
-        ticketId: updated.id,
-        recipientPhone: updated.customerPhone,
-        recipientName: updated.customerName,
-        type: 'SOFT_BUMP_ALERT',
-        ticketNumber: updated.ticketNumber,
-      });
+      jobQueue.enqueue(
+        'SEND_WHATSAPP',
+        {
+          salonId: salon.id,
+          salonName: salon.name,
+          ticketId: updated.id,
+          recipientPhone: updated.customerPhone,
+          recipientName: updated.customerName,
+          type: 'SOFT_BUMP_ALERT',
+          ticketNumber: updated.ticketNumber,
+        },
+        { salonId: salon.id }
+      ).then(() => jobQueue.processNextJob().catch(() => {}));
     }
 
     await this.recalculateQueue(ticket.salonId);

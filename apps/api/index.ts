@@ -8,6 +8,8 @@ import { initDatabase } from './src/db/mysql';
 import { seedDemoData } from './src/db/repository';
 import { authService } from './src/auth/auth-service';
 import { websocketHub } from './src/websocket/hub';
+import { jobQueue } from './src/worker/job-queue';
+import { registerNotificationHandler } from './src/worker/handlers/notification.handler';
 import { salonRoutes } from './src/routes/salon.routes';
 import { queueRoutes } from './src/routes/queue.routes';
 import { authRoutes } from './src/routes/auth.routes';
@@ -21,6 +23,10 @@ console.log(`======================================================\n`);
 await initDatabase();
 seedDemoData();
 await authService.seedDefaultUsers();
+
+// Initialize SaaS Background Worker Pipeline
+registerNotificationHandler();
+jobQueue.startWorker(2000);
 
 const publicDir = path.resolve(import.meta.dir, 'src/public');
 
