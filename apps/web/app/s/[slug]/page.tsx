@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { formatCurrency, maskPhone } from "@/lib/utils";
+import { LiveServiceTimer } from "@/components/live-service-timer";
 import {
   Scissors,
   Clock,
@@ -542,20 +543,28 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
                 </div>
               )}
 
-              {/* People Ahead & Wait Time Countdown */}
-              <div className="grid grid-cols-2 gap-3 py-2 border-y border-slate-800">
-                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                  <span className="text-[11px] text-slate-400 block">People Ahead</span>
-                  <span className="text-2xl font-black text-white">{peopleAhead}</span>
-                </div>
+              {/* If in chair: Live Service Progress. If waiting: People Ahead & Wait Time Countdown */}
+              {myTicket.status === "IN_SERVICE" || myTicket.status === "IN_CHAIR" ? (
+                <LiveServiceTimer
+                  startedTime={(myTicket as any).startedTime || (myTicket as any).seatedAt || myTicket.createdAt}
+                  estimatedDurationMinutes={myTicket.estimatedWaitMinutes || 20}
+                  variant="customer"
+                />
+              ) : (
+                <div className="grid grid-cols-2 gap-3 py-2 border-y border-slate-800">
+                  <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                    <span className="text-[11px] text-slate-400 block">People Ahead</span>
+                    <span className="text-2xl font-black text-white">{peopleAhead}</span>
+                  </div>
 
-                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                  <span className="text-[11px] text-slate-400 block">Est. Wait Time</span>
-                  <span className="text-2xl font-black text-blue-400">
-                    ~{displayWait}m
-                  </span>
+                  <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                    <span className="text-[11px] text-slate-400 block">Est. Wait Time</span>
+                    <span className="text-2xl font-black text-blue-400">
+                      ~{displayWait}m
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Reassuring Chai Prompt */}
               <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 text-left flex items-start gap-3">
@@ -628,9 +637,15 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
                             </span>
                             <span className="font-medium text-white">{t.customerName}</span>
                           </div>
-                          <Badge variant="success" className="text-[10px]">
-                            In Service
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <LiveServiceTimer
+                              startedTime={(t as any).startedTime || (t as any).seatedAt || t.createdAt}
+                              variant="badge"
+                            />
+                            <Badge variant="success" className="text-[10px]">
+                              In Service
+                            </Badge>
+                          </div>
                         </div>
                       ))}
                     </div>

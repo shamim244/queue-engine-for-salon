@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { formatCurrency, maskPhone, generateUpiUri } from "@/lib/utils";
 import QRCode from "qrcode";
+import { LiveServiceTimer } from "@/components/live-service-timer";
 import {
   Armchair,
   Volume2,
@@ -750,11 +751,19 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                     CURRENTLY IN CHAIR
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2 text-xs font-mono text-emerald-300 font-bold bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
-                  <Clock className="h-3.5 w-3.5 text-emerald-400 animate-spin" />
-                  <span>Elapsed: {formatElapsed(elapsedSeconds)}</span>
-                </div>
+                <LiveServiceTimer
+                  startedTime={(currentlyServing as any).startedTime || (currentlyServing as any).seatedAt || currentlyServing.createdAt}
+                  estimatedDurationMinutes={(currentlyServing as any).estimatedDurationMinutes || 20}
+                  variant="badge"
+                />
               </div>
+
+              {/* Client RAM Live Service Progress Bar & Overtime Monitor */}
+              <LiveServiceTimer
+                startedTime={(currentlyServing as any).startedTime || (currentlyServing as any).seatedAt || currentlyServing.createdAt}
+                estimatedDurationMinutes={(currentlyServing as any).estimatedDurationMinutes || 20}
+                variant="station"
+              />
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
