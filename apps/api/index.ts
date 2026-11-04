@@ -56,6 +56,43 @@ const app = new Elysia()
       maxAge: 86400,
     })
   )
+  // Native Gzip Response Compression Middleware (>1KB)
+  .mapResponse(({ response, request, set }) => {
+    const acceptEncoding = request.headers.get('accept-encoding') || '';
+    if (!acceptEncoding.includes('gzip')) return;
+    if (response instanceof Response) return;
+
+    let bodyStr: string;
+    let contentType = 'application/json; charset=utf-8';
+    if (typeof response === 'object' && response !== null) {
+      bodyStr = JSON.stringify(response);
+    } else if (typeof response === 'string') {
+      bodyStr = response;
+      contentType = 'text/plain; charset=utf-8';
+    } else {
+      return;
+    }
+
+    const byteLength = Buffer.byteLength(bodyStr, 'utf-8');
+    if (byteLength <= 1024) return;
+
+    const compressed = Bun.gzipSync(Buffer.from(bodyStr, 'utf-8'));
+    const responseHeaders = new Headers(set.headers as HeadersInit);
+    responseHeaders.set('Content-Type', (set.headers?.['content-type'] as string) || contentType);
+    responseHeaders.set('Content-Encoding', 'gzip');
+    responseHeaders.set('Vary', 'Accept-Encoding');
+    responseHeaders.set('Content-Length', String(compressed.byteLength));
+
+    return new Response(compressed, {
+      status: set.status || 200,
+      headers: responseHeaders,
+    });
+  })
+  .get('/api/health', () => ({
+    status: 'ok',
+    timestamp: Date.now(),
+    uptime: process.uptime(),
+  }))
   .use(swagger({
     path: '/swagger',
     documentation: {
