@@ -2,6 +2,8 @@ import { Elysia, t } from 'elysia';
 import { repository } from '../db/repository';
 import { notificationService } from '../notifications/whatsapp';
 import { authService } from '../auth/auth-service';
+import { jobQueue } from '../worker/job-queue';
+import { executeMidnightQueueReset } from '../worker/handlers/reset.handler';
 
 export const adminRoutes = new Elysia({ prefix: '/api/admin' })
   // 1. System Telemetry & Health Statistics
@@ -370,4 +372,55 @@ export const adminRoutes = new Elysia({ prefix: '/api/admin' })
       set.status = 400;
       return { success: false, message: err.message };
     }
-  });
+  })
+
+  // 13. Background Worker Telemetry Stats (GET /api/admin/workers/stats)
+  .get('/workers/stats', async () => {
+    const stats = await jobQueue.getStats();
+    return {
+      success: true,
+      stats,
+    };
+  })
+
+  // 14. Retry Failed Background Jobs (POST /api/admin/workers/retry-failed)
+  .post('/workers/retry-failed', async () => {
+    const retriedCount = await jobQueue.retryFailedJobs();
+    repository.addAuditLog(
+      'WORKER_RETRY',
+      'superadmin',
+      `Manual retry triggered for ${retriedCount} failed background jobs`,
+      'SYSTEM'
+    );
+    return {
+      success: true,
+      retriedCount,
+      message: `Re-enqueued ${retriedCount} failed jobs for processing`,
+    };
+  })
+
+  // 15. Manual Nightly Queue Reset Trigger (POST /api/admin/workers/reset-nightly)
+  .post(
+    '/workers/reset-nightly',
+    async ({ body }) => {
+      const payload = (body as any) || {};
+      const result = await executeMidnightQueueReset(payload);
+      repository.addAuditLog(
+        'MIDNIGHT_RESET',
+        'superadmin',
+        `Midnight queue reset executed. Expired ${result.expiredCount} stale tickets.`,
+        'OPERATIONS'
+      );
+      return {
+        ...result,
+      };
+    },
+    {
+      body: t.Optional(
+        t.Object({
+          cutoffHours: t.Optional(t.Number()),
+          salonId: t.Optional(t.String()),
+        })
+      ),
+    }
+  );

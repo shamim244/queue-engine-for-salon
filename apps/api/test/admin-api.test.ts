@@ -239,4 +239,40 @@ describe('Admin Telemetry, Configuration, and Onboarding API', () => {
     const getDeleted = await app.handle(new Request(`http://localhost/api/salons/${tempSalon.id}`));
     expect(getDeleted.status).toBe(404);
   });
+
+  it('GET /api/admin/workers/stats should return background worker telemetry', async () => {
+    const res = await app.handle(new Request('http://localhost/api/admin/workers/stats'));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.stats).toBeDefined();
+    expect(typeof data.stats.totalJobs).toBe('number');
+    expect(typeof data.stats.pendingCount).toBe('number');
+  });
+
+  it('POST /api/admin/workers/retry-failed should trigger retry and audit log', async () => {
+    const res = await app.handle(
+      new Request('http://localhost/api/admin/workers/retry-failed', {
+        method: 'POST',
+      })
+    );
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(typeof data.retriedCount).toBe('number');
+  });
+
+  it('POST /api/admin/workers/reset-nightly should trigger midnight queue reset', async () => {
+    const res = await app.handle(
+      new Request('http://localhost/api/admin/workers/reset-nightly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cutoffHours: 12 }),
+      })
+    );
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(typeof data.expiredCount).toBe('number');
+  });
 });
