@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { formatCurrency, maskPhone } from "@/lib/utils";
 import { LiveServiceTimer } from "@/components/live-service-timer";
+import { ConnectionPill } from "@/components/connection-pill";
 import {
   Scissors,
   Clock,
@@ -145,7 +146,7 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
   }, [slug]);
 
   // Real-time WebSocket hook
-  useSalonSocket(salon?.id, (event) => {
+  const { isConnected } = useSalonSocket(salon?.id, (event) => {
     console.log("[Customer Board] Event:", event.type);
     fetchSalonAndQueue();
   });
@@ -245,14 +246,17 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
             </div>
           </div>
 
-          <Link
-            href={`/s/${slug}/tv`}
-            target="_blank"
-            className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 font-medium bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/60"
-          >
-            <span>Lobby TV</span>
-            <ExternalLink className="h-3 w-3" />
-          </Link>
+          <div className="flex items-center gap-2">
+            <ConnectionPill isConnected={isConnected} />
+            <Link
+              href={`/s/${slug}/tv`}
+              target="_blank"
+              className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 font-medium bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/60"
+            >
+              <span>Lobby TV</span>
+              <ExternalLink className="h-3 w-3" />
+            </Link>
+          </div>
         </div>
       </header>
 

@@ -12,6 +12,7 @@ import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, Dia
 import { formatCurrency, maskPhone, generateUpiUri } from "@/lib/utils";
 import QRCode from "qrcode";
 import { LiveServiceTimer } from "@/components/live-service-timer";
+import { ConnectionPill } from "@/components/connection-pill";
 import {
   Armchair,
   Volume2,
@@ -146,7 +147,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   }, [fetchStationData]);
 
   // Real-time WebSocket synchronization
-  useSalonSocket(salon?.id, (event) => {
+  const { isConnected } = useSalonSocket(salon?.id, (event) => {
     console.log("[Station UI] WebSocket event:", event.type);
     fetchStationData();
   });
@@ -565,6 +566,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          <ConnectionPill isConnected={isConnected} />
           <Button
             size="sm"
             onClick={() => setIsQuickAddOpen(true)}
