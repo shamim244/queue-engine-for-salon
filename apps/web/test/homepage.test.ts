@@ -65,9 +65,9 @@ describe("Home Page & Developer Launcher Routing", () => {
       expect(html).toContain('href="/register"');
       expect(html).toContain('href="/dev"');
 
-      // Dual architecture representation
-      expect(html).toContain("Rural Solo Barber");
-      expect(html).toContain("Modern Multi-Station");
+      // Scalable architecture representation (1 chair to multi-chair)
+      expect(html).toContain("Single-Chair");
+      expect(html).toContain("Multi-Station");
 
       // 6-Pillar Features
       expect(html).toContain("QR");
@@ -95,7 +95,7 @@ describe("Home Page & Developer Launcher Routing", () => {
       expect(html).toContain("Register Your Salon");
       expect(html).toContain("Salon Name");
       expect(html).toContain("Phone");
-      expect(html).toContain("Operating Architecture Mode");
+      expect(html).toContain("Salon Owner Account Credentials");
       expect(html).toContain("Owner Account");
       expect(html).toContain("Password");
       expect(html).toContain("Autofill Demo Salon");

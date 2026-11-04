@@ -156,10 +156,10 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <Badge
-                    variant={salon?.operatingMode === "RURAL_SOLO" ? "warning" : "default"}
-                    className="text-[9px] px-1.5 py-0"
+                    variant="outline"
+                    className="text-[9px] px-1.5 py-0 border-slate-700 bg-slate-800 text-slate-300"
                   >
-                    {salon?.operatingMode === "RURAL_SOLO" ? "Solo" : "Multi"}
+                    {(salon?.stylists?.length || 1) === 1 ? "1 Chair" : `${salon?.stylists?.length || 1} Chairs`}
                   </Badge>
                   <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
                 </div>
@@ -183,10 +183,10 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
                       <p className="text-[10px] text-slate-400">/s/{s.slug}</p>
                     </div>
                     <Badge
-                      variant={s.operatingMode === "RURAL_SOLO" ? "warning" : "default"}
-                      className="text-[9px]"
+                      variant="outline"
+                      className="text-[9px] border-slate-700 bg-slate-800 text-slate-300"
                     >
-                      {s.operatingMode === "RURAL_SOLO" ? "Solo" : "Multi"}
+                      {(s.stylists?.length || 1) === 1 ? "1 Chair" : `${s.stylists?.length || 1} Chairs`}
                     </Badge>
                   </DropdownMenuItem>
                 ))}

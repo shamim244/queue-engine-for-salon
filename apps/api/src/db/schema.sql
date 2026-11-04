@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS salons (
     name VARCHAR(150) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
     phone VARCHAR(20) NOT NULL,
-    operating_mode ENUM('RURAL_SOLO', 'MODERN_MULTI') DEFAULT 'RURAL_SOLO',
     country_code VARCHAR(5) DEFAULT '+91',
     currency VARCHAR(10) DEFAULT 'INR',
     address VARCHAR(255) NULL,

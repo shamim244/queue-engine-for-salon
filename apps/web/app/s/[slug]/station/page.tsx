@@ -411,7 +411,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     setPinError("");
   };
 
-  const isRural = salon?.operatingMode === "RURAL_SOLO";
+  const isSolo = !salon?.stylists || salon.stylists.length <= 1;
 
   // LOCKED STATE: Touch-Optimized 4-Digit Quick PIN Keypad
   if (isLocked) {
@@ -557,8 +557,8 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
               <span className="font-bold text-white text-base">
                 {activeStylist?.name || "Barber Station"}
               </span>
-              <Badge variant={isRural ? "warning" : "default"} className="text-[10px]">
-                {isRural ? "Solo Station" : "Chair #1"}
+              <Badge variant="outline" className="text-[10px] border-slate-700 bg-slate-800 text-slate-300">
+                {isSolo ? "Solo Station" : (activeStylist?.name || "Chair #1")}
               </Badge>
             </div>
             <p className="text-xs text-slate-400">{salon?.name || "Salon Station"}</p>

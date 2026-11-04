@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api, setAuthToken } from "@/lib/api";
-import { slugify, getRuralSoloPreset, getModernMultiPreset } from "@/lib/onboarding";
+import { slugify, getStandardSalonPreset } from "@/lib/onboarding";
 
 function RegisterContent() {
   const router = useRouter();
@@ -49,7 +49,6 @@ function RegisterContent() {
   const [salonName, setSalonName] = useState("");
   const [salonSlug, setSalonSlug] = useState("");
   const [phone, setPhone] = useState("+91 ");
-  const [operatingMode, setOperatingMode] = useState<"RURAL_SOLO" | "MODERN_MULTI">("RURAL_SOLO");
   const [ownerName, setOwnerName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -120,7 +119,6 @@ function RegisterContent() {
     setSalonName(name);
     setSalonSlug(slug);
     setPhone("+91 98765 0" + randomId);
-    setOperatingMode("RURAL_SOLO");
     setOwnerName("Kailash Sharma");
     setUsername(`kailash_${randomId}`);
     setPassword("Salon@1234");
@@ -154,13 +152,12 @@ function RegisterContent() {
 
     setLoading(true);
     try {
-      const preset = operatingMode === "RURAL_SOLO" ? getRuralSoloPreset() : getModernMultiPreset();
+      const preset = getStandardSalonPreset(salonName, ownerName);
 
       const payload = {
         name: salonName.trim(),
         slug: salonSlug.trim(),
         phone: phone.trim(),
-        operatingMode,
         countryCode: "+91",
         currency: "INR",
         ownerUser: {
@@ -563,67 +560,11 @@ function RegisterContent() {
                 </div>
               </div>
 
-              {/* Operating Architecture Picker */}
-              <div className="space-y-3 pt-4 border-t border-slate-800">
-                <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-purple-400" />
-                  2. Choose Operating Architecture Mode
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div
-                    onClick={() => setOperatingMode("RURAL_SOLO")}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
-                      operatingMode === "RURAL_SOLO"
-                        ? "bg-amber-950/20 border-amber-500/80 ring-1 ring-amber-500/30"
-                        : "bg-slate-950/40 border-slate-800 hover:border-slate-700"
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-amber-400">Rural Solo Barber</span>
-                        {operatingMode === "RURAL_SOLO" && (
-                          <span className="h-4 w-4 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-[10px] font-bold">
-                            ✓
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-300">
-                        1 chair, cash-first, 1-tap quick add for non-smartphone clients, voice alerts.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => setOperatingMode("MODERN_MULTI")}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
-                      operatingMode === "MODERN_MULTI"
-                        ? "bg-blue-950/20 border-blue-500/80 ring-1 ring-blue-500/30"
-                        : "bg-slate-950/40 border-slate-800 hover:border-slate-700"
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-blue-400">Modern Multi-Station</span>
-                        {operatingMode === "MODERN_MULTI" && (
-                          <span className="h-4 w-4 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold">
-                            ✓
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-300">
-                        Multi-chair, lobby TV departure board, 4-digit mirror PINs, WhatsApp Cloud API.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               {/* Owner Account */}
               <div className="space-y-4 pt-4 border-t border-slate-800">
                 <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                  3. Salon Owner Account Credentials
+                  2. Salon Owner Account Credentials
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -60,9 +60,6 @@ describe("Tenant Onboarding Wizard Logic & Validation", () => {
     it("should generate Rural Solo Barber template with rural services and 1 owner-stylist", () => {
       const preset = getRuralSoloPreset("Ramesh Traditional Barber", "Ramesh Kumar");
 
-      // Verify Operating Mode
-      expect(preset.operatingMode).toBe("RURAL_SOLO");
-
       // Verify Rural Services (Haircut, Shave, Beard Trim, Head Massage)
       expect(preset.services.length).toBeGreaterThanOrEqual(4);
       const serviceNames = preset.services.map((s) => s.name);
@@ -88,9 +85,6 @@ describe("Tenant Onboarding Wizard Logic & Validation", () => {
 
     it("should generate Modern Multi-Station template with multi-station services and multiple stylists", () => {
       const preset = getModernMultiPreset("Aura Luxury Grooming Lounge");
-
-      // Verify Operating Mode
-      expect(preset.operatingMode).toBe("MODERN_MULTI");
 
       // Verify Multi-station Services (Signature Cut, Beard Trim, Hair Spa, Hair Wash)
       expect(preset.services.length).toBeGreaterThanOrEqual(4);
@@ -119,7 +113,6 @@ describe("Tenant Onboarding Wizard Logic & Validation", () => {
       address: "123 High Street, Mumbai",
       currency: "INR",
       countryCode: "+91",
-      operatingMode: "MODERN_MULTI",
       organizationName: "Elite Salons Group",
       tier: "PRO",
       ownerUser: {
@@ -216,7 +209,6 @@ describe("Tenant Onboarding Wizard Logic & Validation", () => {
         address: "7th Avenue, Bangalore",
         currency: "INR",
         countryCode: "+91",
-        operatingMode: "MODERN_MULTI",
         organizationName: "Glow Enterprises",
         tier: "ENTERPRISE",
         ownerUser: {
@@ -239,7 +231,6 @@ describe("Tenant Onboarding Wizard Logic & Validation", () => {
       expect(payload.name).toBe("Metro Glow Salon");
       expect(payload.slug).toBe("metro-glow-salon");
       expect(payload.phone).toBe("+91 99999 11111");
-      expect(payload.operatingMode).toBe("MODERN_MULTI");
       expect(payload.organizationName).toBe("Glow Enterprises");
       expect(payload.tier).toBe("ENTERPRISE");
       expect(payload.ownerUser?.username).toBe("metro_owner");
@@ -256,7 +247,6 @@ describe("Tenant Onboarding Wizard Logic & Validation", () => {
         phone: "+91 98765 00000",
         currency: "INR",
         countryCode: "+91",
-        operatingMode: "RURAL_SOLO",
         ownerUser: {
           username: "ramesh_owner",
           password: "RameshPassword123",
@@ -277,7 +267,6 @@ describe("Tenant Onboarding Wizard Logic & Validation", () => {
           name: "Ramesh Traditional Barber",
           slug: "ramesh-barber",
           phone: "+91 98765 00000",
-          operatingMode: "RURAL_SOLO" as const,
           currency: "INR",
           countryCode: "+91",
           stylists: [

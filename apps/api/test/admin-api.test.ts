@@ -122,7 +122,6 @@ describe('Admin Telemetry, Configuration, and Onboarding API', () => {
       salonName: 'Royal Crown Barber & Spa',
       slug: 'royal-crown-barber',
       phone: '+91 91234 56789',
-      operatingMode: 'MODERN_MULTI' as const,
       organizationName: 'Royal Group of Salons',
       tier: 'PRO' as const,
       ownerUser: {
@@ -221,7 +220,6 @@ describe('Admin Telemetry, Configuration, and Onboarding API', () => {
       name: 'Temp Deletable Salon',
       slug: 'temp-deletable-salon',
       phone: '+91 00000 11111',
-      operatingMode: 'RURAL_SOLO',
     });
     expect(await repository.getSalonBySlug('temp-deletable-salon')).not.toBeNull();
 

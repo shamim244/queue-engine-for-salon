@@ -1,4 +1,4 @@
-export type SalonOperatingMode = 'RURAL_SOLO' | 'MODERN_MULTI';
+export type SalonOperatingMode = string;
 
 export type SubscriptionTier = 'SOLO' | 'PRO' | 'ENTERPRISE';
 
@@ -108,7 +108,7 @@ export interface Salon {
   name: string;
   slug: string;
   phone: string;
-  operatingMode: SalonOperatingMode;
+  operatingMode?: string;
   countryCode: string;
   currency: string;
   address?: string;

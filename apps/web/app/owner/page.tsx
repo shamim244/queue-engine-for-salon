@@ -255,19 +255,6 @@ function OwnerDashboardContent() {
     }
   };
 
-  const handleToggleOperatingMode = async () => {
-    if (!salon) return;
-    const nextMode = salon.operatingMode === "RURAL_SOLO" ? "MODERN_MULTI" : "RURAL_SOLO";
-    try {
-      await api.salons.updateMode(salon.id, nextMode);
-      setSelectedSalon({ ...salon, operatingMode: nextMode });
-      showToast(`Switched salon mode to ${nextMode === "RURAL_SOLO" ? "Rural Solo" : "Multi-Station"}`, "success");
-    } catch (err: any) {
-      showToast("Failed to toggle mode: " + (err.message || "Unknown error"), "error");
-    }
-  };
-
-  const isRural = salon?.operatingMode === "RURAL_SOLO";
   const waitingTickets = activeTickets.filter((t) => t.status === "WAITING" || t.status === "SOFT_BUMPED");
   const inServiceTickets = activeTickets.filter((t) => t.status === "IN_CHAIR" || t.status === "IN_SERVICE");
   const summonedTickets = activeTickets.filter((t) => t.status === "SUMMONED" || t.status === "CALLED");
@@ -307,8 +294,8 @@ function OwnerDashboardContent() {
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               {salon?.name || "Salon Command Hub"}
             </h1>
-            <Badge variant={isRural ? "warning" : "default"}>
-              {isRural ? "Rural Solo Mode" : "Modern Multi-Station"}
+            <Badge variant="outline" className="text-xs border-slate-700 bg-slate-800 text-slate-300">
+              {(salon?.stylists?.length || 1) === 1 ? "1 Station (Solo)" : `${salon?.stylists?.length || 1} Stations`}
             </Badge>
           </div>
           <p className="text-slate-400 text-sm mt-1">
@@ -317,17 +304,6 @@ function OwnerDashboardContent() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleToggleOperatingMode}
-            className="text-xs border-slate-700 hover:border-slate-500 gap-1.5"
-            title="Toggle between Rural Solo & Modern Multi Mode"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5 text-amber-400" />
-            Switch to {isRural ? "Multi-Station" : "Rural Solo"}
-          </Button>
-
           <Button
             size="sm"
             variant="outline"

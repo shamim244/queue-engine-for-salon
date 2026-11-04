@@ -106,7 +106,7 @@ const app = new Elysia()
     documentation: {
       info: {
         title: 'Engine Que System API',
-        description: 'Real-time Hybrid Queue Engine for Salons (Rural Solo-Barber & Modern Multi-Station)',
+        description: 'Real-time Queue Engine for Salons (Universal Standard Architecture)',
         version: '1.0.0',
       },
     },
@@ -124,6 +124,7 @@ const app = new Elysia()
   .get('/s/:slug', ({ params, redirect }) => redirect(`/customer.html?salon=${params.slug}`))
   .get('/s/:slug/poster', ({ params, redirect }) => redirect(`/poster.html?salon=${params.slug}`))
   .get('/s/:slug/tv', ({ params, redirect }) => redirect(`/tv.html?salon=${params.slug}`))
+  .get('/s/:slug/station', ({ params, redirect }) => redirect(`/desk.html?salon=${params.slug}`))
   .get('/s/:slug/desk', ({ params, redirect }) => redirect(`/desk.html?salon=${params.slug}`))
   .get('/s/:slug/barber', ({ params, redirect }) => redirect(`/barber.html?salon=${params.slug}`))
   .get('/s/:slug/staff', ({ params, redirect }) => redirect(`/staff.html?salon=${params.slug}`))
@@ -163,10 +164,9 @@ const app = new Elysia()
     console.log(`\n✨ Engine Que Server running at: http://${hostname}:${port}`);
     console.log(`📖 Swagger API Docs available at: http://${hostname}:${port}/swagger`);
     console.log(`💈 Salon Portal: http://${hostname}:${port}/index.html`);
-    console.log(`📱 Rural Solo-Barber Phone: http://${hostname}:${port}/barber.html?salon=ramesh-barber`);
-    console.log(`🚪 Customer Door QR Check-in: http://${hostname}:${port}/customer.html?salon=ramesh-barber`);
-    console.log(`💻 Modern Reception Desk: http://${hostname}:${port}/desk.html?salon=aura-salon`);
-    console.log(`📺 Modern Lobby TV: http://${hostname}:${port}/tv.html?salon=aura-salon\n`);
+    console.log(`📱 Station / Barber Live Desk: http://${hostname}:${port}/s/ramesh-barber/station`);
+    console.log(`🚪 Customer Door QR Check-in: http://${hostname}:${port}/s/ramesh-barber`);
+    console.log(`📺 Lobby Live TV Display: http://${hostname}:${port}/s/aura-salon/tv\n`);
   });
 
 export type App = typeof app;

@@ -122,9 +122,7 @@ export const adminRoutes = new Elysia({ prefix: '/api/admin' })
         salonName: t.Optional(t.String()),
         name: t.Optional(t.String()),
         slug: t.Optional(t.String()),
-        operatingMode: t.Optional(
-          t.Union([t.Literal('RURAL_SOLO'), t.Literal('MODERN_MULTI')])
-        ),
+        operatingMode: t.Optional(t.String()),
         phone: t.String(),
         address: t.Optional(t.String()),
         currency: t.Optional(t.String()),

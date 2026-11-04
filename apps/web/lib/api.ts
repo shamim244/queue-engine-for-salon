@@ -71,7 +71,7 @@ export interface Salon {
   slug: string;
   phone: string;
   address?: string;
-  operatingMode: "RURAL_SOLO" | "MODERN_MULTI";
+  operatingMode?: string;
   currency: string;
   countryCode: string;
   upiPaymentId?: string;
@@ -213,7 +213,7 @@ export interface OnboardSalonPayload {
   salonName?: string;
   name?: string;
   slug?: string;
-  operatingMode?: "RURAL_SOLO" | "MODERN_MULTI";
+  operatingMode?: string;
   phone: string;
   address?: string;
   currency?: string;
@@ -506,7 +506,7 @@ export const api = {
         }
       ),
 
-    updateMode: (salonId: string, mode: "RURAL_SOLO" | "MODERN_MULTI") =>
+    updateMode: (salonId: string, mode: string) =>
       request<{ success: boolean; mode: string }>(`/api/salons/${salonId}/mode`, {
         method: "POST",
         body: JSON.stringify({ mode }),
@@ -519,7 +519,7 @@ export const api = {
         phone?: string;
         address?: string;
         upiPaymentId?: string;
-        operatingMode?: "RURAL_SOLO" | "MODERN_MULTI";
+        operatingMode?: string;
         status?: "ACTIVE" | "SUSPENDED" | "MAINTENANCE";
         currency?: string;
       }

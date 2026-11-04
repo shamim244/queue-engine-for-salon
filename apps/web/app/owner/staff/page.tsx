@@ -372,7 +372,7 @@ function OwnerStaffContent() {
 
   const activeStaffCount = staffUsers.filter((u) => u.status === "ACTIVE").length;
   const configuredPinsCount = staffUsers.filter((u) => Boolean(u.pin)).length;
-  const tierQuotaMax = salon?.operatingMode === "RURAL_SOLO" ? 1 : 5;
+  const tierQuotaMax = 10;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -501,10 +501,10 @@ function OwnerStaffContent() {
             <div>
               <p className="text-xs text-slate-400 font-medium">Branch Capacity</p>
               <p className="text-sm font-semibold text-white tracking-tight">
-                {stylists.length} / {tierQuotaMax} Stylists
+                {stylists.length} Active Stylists
               </p>
               <p className="text-[11px] text-slate-400">
-                Mode: {salon?.operatingMode === "RURAL_SOLO" ? "Rural Solo" : "Modern Multi"}
+                Stations: {stylists.length} Active Mirrors
               </p>
             </div>
           </CardContent>

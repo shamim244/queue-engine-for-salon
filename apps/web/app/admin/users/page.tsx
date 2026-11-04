@@ -653,7 +653,7 @@ function AdminUsersContent() {
                     <option value="">Select Salon Branch...</option>
                     {salons.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.name} ({s.operatingMode === "RURAL_SOLO" ? "Rural Solo" : "Multi-Station"})
+                        {s.name} ({(s.stylists?.length || 1) === 1 ? "1 Station" : `${s.stylists?.length || 1} Stations`})
                       </option>
                     ))}
                   </select>

@@ -34,8 +34,8 @@ import {
 } from "lucide-react";
 import {
   slugify,
-  getRuralSoloPreset,
-  getModernMultiPreset,
+  getSingleStationPreset,
+  getMultiStationPreset,
   validateOnboardingForm,
   submitOnboarding,
   type OnboardingFormData,
@@ -69,7 +69,6 @@ function OnboardingWizardContent() {
     currency: "INR",
     countryCode: "+91",
     upiPaymentId: "",
-    operatingMode: "RURAL_SOLO",
     organizationName: "",
     tier: "SOLO",
     ownerUser: {
@@ -92,12 +91,13 @@ function OnboardingWizardContent() {
 
   // Track if slug has been manually edited by user
   const [isSlugManual, setIsSlugManual] = useState<boolean>(false);
+  const [selectedPresetType, setSelectedPresetType] = useState<"SINGLE" | "MULTI">("SINGLE");
 
   // Initialize query parameters if available
   useEffect(() => {
     const initialMode = searchParams.get("mode");
-    if (initialMode === "MODERN_MULTI" || initialMode === "modern") {
-      applyPreset("MODERN_MULTI");
+    if (initialMode === "MODERN_MULTI" || initialMode === "modern" || initialMode === "multi") {
+      applyPreset("MULTI");
     }
   }, [searchParams]);
 
@@ -129,21 +129,20 @@ function OnboardingWizardContent() {
   };
 
   // Apply Presets
-  const applyPreset = (mode: "RURAL_SOLO" | "MODERN_MULTI") => {
-    if (mode === "RURAL_SOLO") {
-      const preset = getRuralSoloPreset(formData.name, formData.ownerUser.fullName);
+  const applyPreset = (presetType: "SINGLE" | "MULTI") => {
+    setSelectedPresetType(presetType);
+    if (presetType === "SINGLE") {
+      const preset = getSingleStationPreset(formData.name, formData.ownerUser.fullName);
       setFormData((prev) => ({
         ...prev,
-        operatingMode: "RURAL_SOLO",
         tier: "SOLO",
         stylists: preset.stylists,
         services: preset.services,
       }));
     } else {
-      const preset = getModernMultiPreset(formData.name, formData.ownerUser.fullName);
+      const preset = getMultiStationPreset(formData.name, formData.ownerUser.fullName);
       setFormData((prev) => ({
         ...prev,
-        operatingMode: "MODERN_MULTI",
         tier: "PRO",
         stylists: preset.stylists,
         services: preset.services,
@@ -213,7 +212,7 @@ function OnboardingWizardContent() {
         {
           name: `Stylist ${index}`,
           phone: "",
-          avgDurationMinutes: prev.operatingMode === "RURAL_SOLO" ? 20 : 30,
+          avgDurationMinutes: 25,
           pin: `${1000 + index}`,
         },
       ],
@@ -315,7 +314,6 @@ function OnboardingWizardContent() {
       currency: "INR",
       countryCode: "+91",
       upiPaymentId: "",
-      operatingMode: "RURAL_SOLO",
       organizationName: "",
       tier: "SOLO",
       ownerUser: {
@@ -335,6 +333,7 @@ function OnboardingWizardContent() {
         { name: "Head Massage", basePrice: 60, estimatedDurationMinutes: 15, isAddOn: true, icon: "💆" },
       ],
     });
+    setSelectedPresetType("SINGLE");
     setProvisionedSalon(null);
     setProvisionedOrg(null);
     setCurrentStep(1);
@@ -345,7 +344,7 @@ function OnboardingWizardContent() {
 
   const steps = [
     { id: 1, title: "Identity & Location", desc: "Basic details & slug" },
-    { id: 2, title: "Architecture Model", desc: "Rural Solo vs Modern Multi" },
+    { id: 2, title: "Station Setup", desc: "Single vs Multi-Station" },
     { id: 3, title: "Owner Account", desc: "Admin credentials" },
     { id: 4, title: "Stylist Roster", desc: "Chairs & Station PINs" },
     { id: 5, title: "Service Catalog", desc: "Prices & Durations" },
@@ -613,18 +612,18 @@ function OnboardingWizardContent() {
               <Armchair className="h-4 w-4" />
               <span>Step 2 of 5</span>
             </div>
-            <CardTitle className="text-xl text-white">Select Architecture Model</CardTitle>
+            <CardTitle className="text-xl text-white">Select Starter Setup & Capacity</CardTitle>
             <CardDescription className="text-slate-400">
-              Engine Que provides two operational models calibrated for specific physical environments.
+              Choose an initial capacity preset. You can always add or remove stations and services dynamically at any time.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Option 1: Rural Solo Barber */}
+              {/* Option 1: Single-Station Starter */}
               <div
-                onClick={() => applyPreset("RURAL_SOLO")}
+                onClick={() => applyPreset("SINGLE")}
                 className={`p-6 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                  formData.operatingMode === "RURAL_SOLO"
+                  selectedPresetType === "SINGLE"
                     ? "bg-blue-950/30 border-blue-500 ring-2 ring-blue-500/20 shadow-lg shadow-blue-500/10"
                     : "bg-slate-950/40 border-slate-800 hover:border-slate-700"
                 }`}
@@ -632,9 +631,9 @@ function OnboardingWizardContent() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <Badge variant="default" className="text-xs px-2 py-0.5">
-                      Solo Barber Model
+                      1 Station (Single Chair)
                     </Badge>
-                    {formData.operatingMode === "RURAL_SOLO" && (
+                    {selectedPresetType === "SINGLE" && (
                       <span className="h-5 w-5 rounded-full bg-blue-600 text-white flex items-center justify-center">
                         <Check className="h-3 w-3" />
                       </span>
@@ -642,10 +641,10 @@ function OnboardingWizardContent() {
                   </div>
                   <h3 className="text-lg font-bold text-white mb-1.5 flex items-center gap-2">
                     <Store className="h-5 w-5 text-amber-400" />
-                    Rural Solo Barber
+                    Single-Station Starter
                   </h3>
                   <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                    Engineered for single-chair community barbers, village setups, and small shops. Minimal setup, zero staff management friction, and 1-tap queue actions.
+                    Ideal for single-chair barbers and boutique studios. Streamlined setup, quick walk-in tickets, and 1-tap queue actions.
                   </p>
 
                   <div className="space-y-2 pt-2 border-t border-slate-800/80">
@@ -666,23 +665,23 @@ function OnboardingWizardContent() {
                         Cash First + UPI QR
                       </span>
                       <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700/50">
-                        Low bandwidth (2G/3G)
+                        Live Client Timers
                       </span>
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-6 pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
-                  <span>Pre-seeds 4 rural services</span>
+                  <span>Pre-seeds 4 starter services</span>
                   <span className="font-semibold text-blue-400">Default: Solo Tier</span>
                 </div>
               </div>
 
-              {/* Option 2: Modern Multi-Station */}
+              {/* Option 2: Multi-Station Growth */}
               <div
-                onClick={() => applyPreset("MODERN_MULTI")}
+                onClick={() => applyPreset("MULTI")}
                 className={`p-6 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                  formData.operatingMode === "MODERN_MULTI"
+                  selectedPresetType === "MULTI"
                     ? "bg-purple-950/30 border-purple-500 ring-2 ring-purple-500/20 shadow-lg shadow-purple-500/10"
                     : "bg-slate-950/40 border-slate-800 hover:border-slate-700"
                 }`}
@@ -690,9 +689,9 @@ function OnboardingWizardContent() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <Badge variant="purple" className="text-xs px-2 py-0.5">
-                      Multi-Station Enterprise
+                      Multi-Station Setup
                     </Badge>
-                    {formData.operatingMode === "MODERN_MULTI" && (
+                    {selectedPresetType === "MULTI" && (
                       <span className="h-5 w-5 rounded-full bg-purple-600 text-white flex items-center justify-center">
                         <Check className="h-3 w-3" />
                       </span>
@@ -700,10 +699,10 @@ function OnboardingWizardContent() {
                   </div>
                   <h3 className="text-lg font-bold text-white mb-1.5 flex items-center gap-2">
                     <Users className="h-5 w-5 text-indigo-400" />
-                    Modern Multi-Station Salon
+                    Multi-Station Setup
                   </h3>
                   <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                    Designed for multi-chair salons, luxury parlors, and grooming lounges. Provides per-station PIN access, split queue routing, and TV departure boards.
+                    Designed for multi-chair salons, parlors, and grooming lounges. Provides per-station PIN access, split queue routing, and TV departure boards.
                   </p>
 
                   <div className="space-y-2 pt-2 border-t border-slate-800/80">
@@ -731,7 +730,7 @@ function OnboardingWizardContent() {
                 </div>
 
                 <div className="mt-6 pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
-                  <span>Pre-seeds modern services & clean initial station</span>
+                  <span>Pre-seeds multi-station services & chairs</span>
                   <span className="font-semibold text-purple-400">Default: Pro Tier</span>
                 </div>
               </div>
@@ -1025,26 +1024,26 @@ function OnboardingWizardContent() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const p = getRuralSoloPreset(formData.name, formData.ownerUser.fullName);
+                  const p = getSingleStationPreset(formData.name, formData.ownerUser.fullName);
                   setFormData((prev) => ({ ...prev, stylists: p.stylists }));
                 }}
                 className="text-xs gap-1.5"
               >
                 <Store className="h-3.5 w-3.5" />
-                Reset to Solo Barber (1 Chair)
+                Reset to Single Station (1 Chair)
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const p = getModernMultiPreset(formData.name);
+                  const p = getMultiStationPreset(formData.name);
                   setFormData((prev) => ({ ...prev, stylists: p.stylists }));
                 }}
                 className="text-xs gap-1.5"
               >
                 <Users className="h-3.5 w-3.5" />
-                Reset to Multi-Station (3 Chairs)
+                Reset to Multi-Station (2+ Chairs)
               </Button>
             </div>
           </CardContent>
@@ -1104,26 +1103,26 @@ function OnboardingWizardContent() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const p = getRuralSoloPreset(formData.name);
+                    const p = getSingleStationPreset(formData.name);
                     setFormData((prev) => ({ ...prev, services: p.services }));
                   }}
                   className="text-xs gap-1.5 h-8"
                 >
                   <Store className="h-3.5 w-3.5" />
-                  Load Rural Preset (Haircut, Shave, Beard, Massage)
+                  Load Starter Grooming Preset (Haircut, Shave, Beard, Massage)
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const p = getModernMultiPreset(formData.name);
+                    const p = getMultiStationPreset(formData.name);
                     setFormData((prev) => ({ ...prev, services: p.services }));
                   }}
                   className="text-xs gap-1.5 h-8"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  Load Modern Multi Preset (Signature Cut, Beard, Spa, Wash)
+                  Load Multi-Station Preset (Signature Cut, Beard, Spa, Wash)
                 </Button>
               </div>
             </div>

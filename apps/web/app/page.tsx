@@ -34,7 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function MarketingHomePage() {
-  const [activeMode, setActiveMode] = useState<"RURAL_SOLO" | "MODERN_MULTI">("RURAL_SOLO");
+  const [activeSetup, setActiveSetup] = useState<"SINGLE" | "MULTI">("SINGLE");
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
   return (
@@ -298,39 +298,39 @@ export default function MarketingHomePage() {
               Whether you are an independent village barber running a single chair or a modern 10-chair salon chain, Engine Que adapts seamlessly to your floor reality.
             </p>
 
-            {/* Mode Toggle Pills */}
+            {/* Setup Toggle Pills */}
             <div className="mt-8 inline-flex p-1.5 rounded-2xl bg-slate-900 border border-slate-700/80">
               <button
-                onClick={() => setActiveMode("RURAL_SOLO")}
+                onClick={() => setActiveSetup("SINGLE")}
                 className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
-                  activeMode === "RURAL_SOLO"
+                  activeSetup === "SINGLE"
                     ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-black"
                     : "text-slate-400 hover:text-white"
                 }`}
               >
                 <Store className="h-4 w-4" />
-                Rural Solo Barber
+                Single-Chair Studio
               </button>
               <button
-                onClick={() => setActiveMode("MODERN_MULTI")}
+                onClick={() => setActiveSetup("MULTI")}
                 className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
-                  activeMode === "MODERN_MULTI"
+                  activeSetup === "MULTI"
                     ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 font-black"
                     : "text-slate-400 hover:text-white"
                 }`}
               >
                 <Building2 className="h-4 w-4" />
-                Modern Multi-Station
+                Multi-Station Salon
               </button>
             </div>
           </div>
 
           {/* Mode Card Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-            {/* Mode A: Rural Solo-Barber Card */}
+            {/* Mode A: Single-Chair Studio Card */}
             <div
               className={`p-6 sm:p-8 rounded-3xl border transition-all duration-300 flex flex-col justify-between ${
-                activeMode === "RURAL_SOLO"
+                activeSetup === "SINGLE"
                   ? "bg-gradient-to-br from-amber-950/20 via-slate-900 to-slate-900 border-amber-500/50 shadow-xl shadow-amber-500/10 ring-1 ring-amber-500/20"
                   : "bg-slate-900/50 border-slate-800 opacity-70 hover:opacity-100"
               }`}
@@ -338,9 +338,9 @@ export default function MarketingHomePage() {
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <Badge variant="warning" className="text-xs px-2.5 py-0.5">
-                    Mode 1: Solo Barber Edition
+                    Setup: 1 Station
                   </Badge>
-                  <span className="text-xs font-mono text-amber-400">1 Chair / 100% Cash-First</span>
+                  <span className="text-xs font-mono text-amber-400">1 Chair / Fast Walk-In</span>
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 flex items-center gap-2">
                   <Store className="h-6 w-6 text-amber-400" />
@@ -384,7 +384,7 @@ export default function MarketingHomePage() {
                 </Link>
                 <Link href="/register">
                   <Button size="sm" variant="outline" className="text-xs border-amber-500/40 hover:bg-amber-500/10 text-amber-300">
-                    Register as Solo Barber
+                    Register Salon
                   </Button>
                 </Link>
               </div>
@@ -393,7 +393,7 @@ export default function MarketingHomePage() {
             {/* Mode B: Modern Multi-Station Card */}
             <div
               className={`p-6 sm:p-8 rounded-3xl border transition-all duration-300 flex flex-col justify-between ${
-                activeMode === "MODERN_MULTI"
+                activeSetup === "MULTI"
                   ? "bg-gradient-to-br from-blue-950/20 via-slate-900 to-slate-900 border-blue-500/50 shadow-xl shadow-blue-500/10 ring-1 ring-blue-500/20"
                   : "bg-slate-900/50 border-slate-800 opacity-70 hover:opacity-100"
               }`}
@@ -401,7 +401,7 @@ export default function MarketingHomePage() {
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <Badge variant="default" className="text-xs px-2.5 py-0.5">
-                    Mode 2: Modern Multi-Station
+                    Setup: Multi-Station
                   </Badge>
                   <span className="text-xs font-mono text-blue-400">Multi-Chair / Touch Tablets</span>
                 </div>

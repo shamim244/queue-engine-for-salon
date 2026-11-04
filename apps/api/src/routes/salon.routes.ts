@@ -15,8 +15,11 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
         salon,
         links: {
           poster: `/poster.html?salon=${salon.slug}`,
-          customer: `/customer.html?salon=${salon.slug}`,
-          barber: salon.operatingMode === 'RURAL_SOLO' ? `/barber.html?salon=${salon.slug}` : `/desk.html?salon=${salon.slug}`,
+          customer: `/s/${salon.slug}`,
+          station: `/s/${salon.slug}/station`,
+          barber: `/s/${salon.slug}/station`,
+          desk: `/s/${salon.slug}/station`,
+          tv: `/s/${salon.slug}/tv`,
         }
       };
     } catch (err: any) {
@@ -29,7 +32,7 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
       slug: t.Optional(t.String()),
       organizationId: t.Optional(t.String()),
       phone: t.String(),
-      operatingMode: t.Union([t.Literal('RURAL_SOLO'), t.Literal('MODERN_MULTI')]),
+      operatingMode: t.Optional(t.String()),
       currency: t.Optional(t.String()),
       countryCode: t.Optional(t.String()),
       address: t.Optional(t.String()),
@@ -134,18 +137,16 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
     };
   })
 
-  // 3. Update Operating Mode
+  // 3. Update Operating Mode (Deprecated compatibility endpoint)
   .post('/:id/mode', async ({ params, body, set }) => {
-    const { mode } = body as { mode: 'RURAL_SOLO' | 'MODERN_MULTI' };
-    if (!['RURAL_SOLO', 'MODERN_MULTI'].includes(mode)) {
-      set.status = 400;
-      return { message: 'Invalid mode' };
+    const { mode } = body as { mode?: string };
+    if (mode) {
+      await repository.updateSalonOperatingMode(params.id, mode);
     }
-    await repository.updateSalonOperatingMode(params.id, mode);
-    return { success: true, mode };
+    return { success: true, mode: mode || 'STANDARD' };
   }, {
     body: t.Object({
-      mode: t.Union([t.Literal('RURAL_SOLO'), t.Literal('MODERN_MULTI')]),
+      mode: t.Optional(t.String()),
     })
   })
 
@@ -168,7 +169,7 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
       phone: t.Optional(t.String()),
       address: t.Optional(t.String()),
       upiPaymentId: t.Optional(t.String()),
-      operatingMode: t.Optional(t.Union([t.Literal('RURAL_SOLO'), t.Literal('MODERN_MULTI')])),
+      operatingMode: t.Optional(t.String()),
       status: t.Optional(t.Union([t.Literal('ACTIVE'), t.Literal('SUSPENDED'), t.Literal('MAINTENANCE')])),
       currency: t.Optional(t.String()),
     })

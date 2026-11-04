@@ -56,7 +56,7 @@ export const defaultAuditLogs: AuditLog[] = [
     timestamp: new Date(Date.now() - 3600000 * 12).toISOString(),
     action: 'TENANT_SEEDED',
     actor: 'SYSTEM',
-    details: 'Seeded default tenants: Ramesh Traditional Barber (RURAL_SOLO) and Aura Luxury Wellness (MODERN_MULTI).',
+    details: 'Seeded default tenants: Ramesh Grooming Studio and Aura Wellness Group.',
     category: 'ONBOARDING',
   },
   {
@@ -143,17 +143,16 @@ export function seedDemoData() {
   memoryStore.organizations.set(auraOrg.id, auraOrg);
   memoryStore.organizations.set(auraOrg.slug, auraOrg);
 
-  // 1. Rural Solo-Barber Shop
+  // 1. Standard Single-Chair Salon
   const ruralSalon: Salon = {
     id: 'salon-rural-01',
     organizationId: rameshOrg.id,
     name: 'Ramesh Traditional Barber',
     slug: 'ramesh-barber',
     phone: '+91 98765 43210',
-    operatingMode: 'RURAL_SOLO',
     countryCode: '+91',
     currency: 'INR',
-    address: 'Near Main Market Tea Stall, Village Center',
+    address: 'Near Main Market, Central Point',
     upiPaymentId: 'rameshbarber@upi',
     createdAt: new Date(),
     stylists: [],
@@ -163,7 +162,7 @@ export function seedDemoData() {
   const rameshStylist: Stylist = {
     id: 'stylist-ramesh-01',
     salonId: ruralSalon.id,
-    name: 'Ramesh Kumar (Owner & Barber)',
+    name: 'Ramesh Kumar',
     phone: '+91 98765 43210',
     isActive: true,
     historicalAvgDurationMinutes: 20,
@@ -178,14 +177,13 @@ export function seedDemoData() {
     { id: 'srv-r-5', salonId: ruralSalon.id, name: 'Head Massage / Champy (चम्पी)', basePrice: 50, estimatedDurationMinutes: 15, isAddOn: true, icon: '💆' },
   ];
 
-  // 2. Modern Multi-Station Salon
+  // 2. Multi-Chair Salon
   const modernSalon: Salon = {
     id: 'salon-modern-01',
     organizationId: auraOrg.id,
     name: 'Aura Premium Salon & Spa',
     slug: 'aura-salon',
     phone: '+91 99887 76655',
-    operatingMode: 'MODERN_MULTI',
     countryCode: '+91',
     currency: 'INR',
     address: 'Plot 42, High Street Galleria, 2nd Floor',
@@ -352,7 +350,7 @@ async function syncDemoToMySql(salons: Salon[]) {
       `INSERT INTO salons (id, organization_id, name, slug, phone, operating_mode, country_code, currency, address, upi_payment_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE name=VALUES(name), organization_id=VALUES(organization_id), operating_mode=VALUES(operating_mode)`,
-      [salon.id, salon.organizationId || null, salon.name, salon.slug, salon.phone, salon.operatingMode, salon.countryCode, salon.currency, salon.address || null, salon.upiPaymentId || null]
+      [salon.id, salon.organizationId || null, salon.name, salon.slug, salon.phone, salon.operatingMode || null, salon.countryCode, salon.currency, salon.address || null, salon.upiPaymentId || null]
     );
 
     for (const st of salon.stylists) {
@@ -670,7 +668,7 @@ export const repository = {
     slug?: string;
     organizationId?: string;
     phone: string;
-    operatingMode: 'RURAL_SOLO' | 'MODERN_MULTI';
+    operatingMode?: string;
     currency?: string;
     countryCode?: string;
     address?: string;
@@ -701,7 +699,7 @@ export const repository = {
       name: params.name,
       slug,
       phone: params.phone,
-      operatingMode: params.operatingMode || 'RURAL_SOLO',
+      operatingMode: params.operatingMode || 'STANDARD',
       countryCode: params.countryCode || '+91',
       currency: params.currency || 'INR',
       address: params.address,
@@ -714,7 +712,7 @@ export const repository = {
     // Default stylist if none provided
     const stylistInputs = params.stylists && params.stylists.length > 0
       ? params.stylists
-      : [{ name: params.operatingMode === 'RURAL_SOLO' ? `${params.name} Owner` : 'Master Stylist' }];
+      : [{ name: `${params.name} Stylist` }];
 
     if (params.organizationId) {
       const org = await this.getOrganizationById(params.organizationId);
@@ -729,16 +727,16 @@ export const repository = {
       name: st.name,
       phone: st.phone || params.phone,
       isActive: true,
-      historicalAvgDurationMinutes: st.avgDurationMinutes || (params.operatingMode === 'RURAL_SOLO' ? 20 : 30),
+      historicalAvgDurationMinutes: st.avgDurationMinutes || 25,
     }));
 
     // Default services if none provided
     const serviceInputs = params.services && params.services.length > 0
       ? params.services
       : [
-          { name: 'Signature Haircut', basePrice: params.operatingMode === 'RURAL_SOLO' ? 80 : 350, estimatedDurationMinutes: 25, isAddOn: false, icon: '✂️' },
-          { name: 'Beard Trim & Sculpt', basePrice: params.operatingMode === 'RURAL_SOLO' ? 40 : 150, estimatedDurationMinutes: 15, isAddOn: false, icon: '🧔' },
-          { name: 'Hair Wash & Styling', basePrice: params.operatingMode === 'RURAL_SOLO' ? 50 : 200, estimatedDurationMinutes: 15, isAddOn: true, icon: '💆' },
+          { name: 'Signature Haircut', basePrice: 150, estimatedDurationMinutes: 25, isAddOn: false, icon: '✂️' },
+          { name: 'Beard Trim & Sculpt', basePrice: 80, estimatedDurationMinutes: 15, isAddOn: false, icon: '🧔' },
+          { name: 'Hair Wash & Styling', basePrice: 120, estimatedDurationMinutes: 15, isAddOn: true, icon: '💆' },
         ];
 
     newSalon.services = serviceInputs.map((srv, idx) => ({
@@ -825,14 +823,16 @@ export const repository = {
     return stylist;
   },
 
-  async updateSalonOperatingMode(salonId: string, mode: 'RURAL_SOLO' | 'MODERN_MULTI') {
+  async updateSalonOperatingMode(salonId: string, mode?: string) {
     if (isMySqlConnected) {
-      const db = getDb();
-      await db.query('UPDATE salons SET operating_mode = ? WHERE id = ?', [mode, salonId]);
+      try {
+        const db = getDb();
+        await db.query('UPDATE salons SET operating_mode = ? WHERE id = ?', [mode || 'STANDARD', salonId]);
+      } catch {}
     }
     for (const [k, s] of memoryStore.salons.entries()) {
       if (s.id === salonId) {
-        s.operatingMode = mode;
+        s.operatingMode = mode || 'STANDARD';
       }
     }
     this.invalidateSalonCache(salonId);
@@ -843,7 +843,7 @@ export const repository = {
     phone?: string;
     address?: string;
     upiPaymentId?: string;
-    operatingMode?: 'RURAL_SOLO' | 'MODERN_MULTI';
+    operatingMode?: string;
     currency?: string;
     status?: 'ACTIVE' | 'SUSPENDED' | 'MAINTENANCE';
   }): Promise<Salon | null> {
@@ -866,7 +866,7 @@ export const repository = {
       const db = getDb();
       await db.query(
         'UPDATE salons SET name = ?, phone = ?, address = ?, upi_payment_id = ?, operating_mode = ? WHERE id = ?',
-        [salon.name, salon.phone, salon.address || null, salon.upiPaymentId || null, salon.operatingMode, salon.id]
+        [salon.name, salon.phone, salon.address || null, salon.upiPaymentId || null, salon.operatingMode || 'STANDARD', salon.id]
       );
     }
     this.invalidateSalonCache(salon.id);
@@ -1443,7 +1443,7 @@ export const repository = {
       slug: finalSlug,
       organizationId: org ? org.id : undefined,
       phone: payload.phone,
-      operatingMode: payload.operatingMode || 'RURAL_SOLO',
+      operatingMode: payload.operatingMode || 'STANDARD',
       currency: payload.currency || 'INR',
       countryCode: payload.countryCode || '+91',
       address: payload.address,

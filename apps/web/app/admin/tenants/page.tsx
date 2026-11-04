@@ -47,15 +47,13 @@ export default function AdminTenantsPage() {
   const [salons, setSalons] = useState<Salon[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [modeFilter, setModeFilter] = useState<"ALL" | "RURAL_SOLO" | "MODERN_MULTI">("ALL");
-  const [updatingModeId, setUpdatingModeId] = useState<string | null>(null);
+  const [stationFilter, setStationFilter] = useState<"ALL" | "SINGLE" | "MULTI">("ALL");
 
   // New Salon Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newSalonName, setNewSalonName] = useState("");
   const [newSalonSlug, setNewSalonSlug] = useState("");
   const [newSalonPhone, setNewSalonPhone] = useState("");
-  const [newSalonMode, setNewSalonMode] = useState<"RURAL_SOLO" | "MODERN_MULTI">("RURAL_SOLO");
   const [creating, setCreating] = useState(false);
 
   // Inspect & Manage Modal State
@@ -70,7 +68,6 @@ export default function AdminTenantsPage() {
     phone: "",
     address: "",
     upiPaymentId: "",
-    operatingMode: "RURAL_SOLO" as "RURAL_SOLO" | "MODERN_MULTI",
     status: "ACTIVE" as "ACTIVE" | "SUSPENDED" | "MAINTENANCE",
   });
 
@@ -120,7 +117,6 @@ export default function AdminTenantsPage() {
       phone: salon.phone || "",
       address: salon.address || "",
       upiPaymentId: salon.upiPaymentId || "",
-      operatingMode: salon.operatingMode || "RURAL_SOLO",
       status: salon.status || "ACTIVE",
     });
     setInspectTab("overview");
@@ -203,22 +199,6 @@ export default function AdminTenantsPage() {
     }
   };
 
-  const handleToggleMode = async (salon: Salon) => {
-    const nextMode = salon.operatingMode === "RURAL_SOLO" ? "MODERN_MULTI" : "RURAL_SOLO";
-    setUpdatingModeId(salon.id);
-    try {
-      await api.salons.updateMode(salon.id, nextMode);
-      setSalons((prev) =>
-        prev.map((s) => (s.id === salon.id ? { ...s, operatingMode: nextMode } : s))
-      );
-      showToast(`Operating mode updated to ${nextMode === "RURAL_SOLO" ? "Rural Solo" : "Multi-Station"}`, "success");
-    } catch (err) {
-      showToast("Failed to update operating mode: " + (err as Error).message, "error");
-    } finally {
-      setUpdatingModeId(null);
-    }
-  };
-
   const handleCreateSalon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSalonName.trim() || !newSalonPhone.trim()) {
@@ -231,7 +211,6 @@ export default function AdminTenantsPage() {
         name: newSalonName.trim(),
         slug: newSalonSlug.trim() || undefined,
         phone: newSalonPhone.trim(),
-        operatingMode: newSalonMode,
         stylists: [{ name: "Master Stylist", avgDurationMinutes: 25 }],
         services: [
           { name: "Haircut", basePrice: 150, estimatedDurationMinutes: 25 },
@@ -251,11 +230,12 @@ export default function AdminTenantsPage() {
     }
   };
 
-  // Filter salons by mode before passing to TanStack Table
+  // Filter salons by station capacity
   const filteredData = useMemo(() => {
-    if (modeFilter === "ALL") return salons;
-    return salons.filter((s) => s.operatingMode === modeFilter);
-  }, [salons, modeFilter]);
+    if (stationFilter === "ALL") return salons;
+    if (stationFilter === "SINGLE") return salons.filter((s) => (s.stylists?.length || 0) <= 1);
+    return salons.filter((s) => (s.stylists?.length || 0) > 1);
+  }, [salons, stationFilter]);
 
   const columns = useMemo<ColumnDef<Salon>[]>(
     () => [
@@ -277,30 +257,15 @@ export default function AdminTenantsPage() {
         },
       },
       {
-        header: "Operating Mode",
-        accessorKey: "operatingMode",
+        header: "Stations & Capacity",
+        id: "stations",
         cell: ({ row }) => {
           const salon = row.original;
-          const isRural = salon.operatingMode === "RURAL_SOLO";
-          const isUpdating = updatingModeId === salon.id;
-
+          const count = salon.stylists?.length || 1;
           return (
-            <div className="flex items-center gap-2">
-              <Badge variant={isRural ? "warning" : "default"} className="font-semibold text-xs">
-                {isRural ? "Rural Solo" : "Multi-Station"}
-              </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs px-2 py-0 border-slate-700 hover:border-slate-500"
-                onClick={() => handleToggleMode(salon)}
-                disabled={isUpdating}
-                title="1-Click Operating Mode Switcher"
-              >
-                <SlidersHorizontal className={`h-3 w-3 mr-1 ${isUpdating ? "animate-spin" : ""}`} />
-                Switch to {isRural ? "Multi" : "Solo"}
-              </Button>
-            </div>
+            <Badge variant="outline" className="font-semibold text-xs border-slate-700 bg-slate-800/80 text-slate-300">
+              {count === 1 ? "1 Station (Solo)" : `${count} Stations`}
+            </Badge>
           );
         },
       },
@@ -400,7 +365,7 @@ export default function AdminTenantsPage() {
         },
       },
     ],
-    [updatingModeId, salons]
+    [salons]
   );
 
   const table = useReactTable({
@@ -496,18 +461,18 @@ export default function AdminTenantsPage() {
         </div>
 
         <div className="flex items-center gap-2 self-stretch sm:self-auto">
-          <span className="text-xs text-slate-400 font-medium">Mode:</span>
-          {(["ALL", "RURAL_SOLO", "MODERN_MULTI"] as const).map((mode) => (
+          <span className="text-xs text-slate-400 font-medium">Capacity:</span>
+          {(["ALL", "SINGLE", "MULTI"] as const).map((filter) => (
             <button
-              key={mode}
-              onClick={() => setModeFilter(mode)}
+              key={filter}
+              onClick={() => setStationFilter(filter)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                modeFilter === mode
+                stationFilter === filter
                   ? "bg-blue-600 text-white shadow-sm"
                   : "bg-slate-800 text-slate-400 hover:text-white"
               }`}
             >
-              {mode === "ALL" ? "All Modes" : mode === "RURAL_SOLO" ? "Rural Solo" : "Multi-Station"}
+              {filter === "ALL" ? "All Salons" : filter === "SINGLE" ? "1 Station (Solo)" : "Multi-Station (2+ Chairs)"}
             </button>
           ))}
         </div>
@@ -643,39 +608,6 @@ export default function AdminTenantsPage() {
                 onChange={(e) => setNewSalonPhone(e.target.value)}
                 required
               />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                Initial Operating Mode
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setNewSalonMode("RURAL_SOLO")}
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    newSalonMode === "RURAL_SOLO"
-                      ? "border-amber-500 bg-amber-500/10 text-amber-200"
-                      : "border-slate-800 bg-slate-900 text-slate-400"
-                  }`}
-                >
-                  <p className="font-bold text-sm">Rural Solo-Barber</p>
-                  <p className="text-[11px] opacity-75">1 chair, fast walk-in, simple numpad</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setNewSalonMode("MODERN_MULTI")}
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    newSalonMode === "MODERN_MULTI"
-                      ? "border-blue-500 bg-blue-500/10 text-blue-200"
-                      : "border-slate-800 bg-slate-900 text-slate-400"
-                  }`}
-                >
-                  <p className="font-bold text-sm">Modern Multi-Station</p>
-                  <p className="text-[11px] opacity-75">Multi-barber, smart desk assignment</p>
-                </button>
-              </div>
             </div>
           </div>
 
@@ -819,38 +751,6 @@ export default function AdminTenantsPage() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                      <div>
-                        <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                          Operating Mode
-                        </label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setEditForm({ ...editForm, operatingMode: "RURAL_SOLO" })}
-                            className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
-                              editForm.operatingMode === "RURAL_SOLO"
-                                ? "border-amber-500 bg-amber-500/10 text-amber-200"
-                                : "border-slate-800 bg-slate-900 text-slate-400"
-                            }`}
-                          >
-                            <p className="font-bold">Rural Solo</p>
-                            <p className="text-[10px] opacity-75">1 chair, numpad</p>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditForm({ ...editForm, operatingMode: "MODERN_MULTI" })}
-                            className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
-                              editForm.operatingMode === "MODERN_MULTI"
-                                ? "border-blue-500 bg-blue-500/10 text-blue-200"
-                                : "border-slate-800 bg-slate-900 text-slate-400"
-                            }`}
-                          >
-                            <p className="font-bold">Multi-Station</p>
-                            <p className="text-[10px] opacity-75">Multi-barber</p>
-                          </button>
-                        </div>
-                      </div>
-
                       <div>
                         <label className="text-xs font-semibold text-slate-300 block mb-1.5">
                           Tenant Status Control

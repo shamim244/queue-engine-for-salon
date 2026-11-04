@@ -14,12 +14,10 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
 
     const rural = await repository.getSalonBySlug('ramesh-barber');
     expect(rural).not.toBeNull();
-    expect(rural?.operatingMode).toBe('RURAL_SOLO');
     expect(rural?.stylists.length).toBe(1);
 
     const modern = await repository.getSalonBySlug('aura-salon');
     expect(modern).not.toBeNull();
-    expect(modern?.operatingMode).toBe('MODERN_MULTI');
     expect(modern?.stylists.length).toBe(4);
   });
 
@@ -273,7 +271,6 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
       repository.createSalon({
         name: 'Ramesh Branch 2',
         phone: '9876543211',
-        operatingMode: 'RURAL_SOLO',
         organizationId: 'org-ramesh',
       })
     ).rejects.toThrow(/Branch quota limit/);
@@ -306,7 +303,6 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
     const newBranch = await repository.createSalon({
       name: 'Ramesh Express Branch 2',
       phone: '9876543212',
-      operatingMode: 'RURAL_SOLO',
       organizationId: 'org-ramesh',
     });
     expect(newBranch).toBeDefined();

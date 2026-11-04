@@ -56,7 +56,6 @@ async function runMigrations() {
         name VARCHAR(150) NOT NULL,
         slug VARCHAR(100) UNIQUE NOT NULL,
         phone VARCHAR(20) NOT NULL,
-        operating_mode ENUM('RURAL_SOLO', 'MODERN_MULTI') DEFAULT 'RURAL_SOLO',
         country_code VARCHAR(5) DEFAULT '+91',
         currency VARCHAR(10) DEFAULT 'INR',
         address VARCHAR(255) NULL,
@@ -187,6 +186,7 @@ async function runMigrations() {
   // Safe Column additions for existing installations
   const safeColumns = [
     `ALTER TABLE salons ADD COLUMN organization_id VARCHAR(36) NULL;`,
+    `ALTER TABLE salons MODIFY COLUMN operating_mode VARCHAR(50) NULL DEFAULT NULL;`,
     `ALTER TABLE services ADD COLUMN pricing_type ENUM('FIXED', 'STARTING_AT', 'FLEXIBLE_CHAIR') DEFAULT 'FIXED';`,
     `ALTER TABLE queue_tickets ADD COLUMN routing_preference ENUM('AUTO_FASTEST', 'SPECIFIC_STYLIST') DEFAULT 'AUTO_FASTEST';`,
     `ALTER TABLE queue_tickets ADD COLUMN customer_id VARCHAR(36) NULL;`,

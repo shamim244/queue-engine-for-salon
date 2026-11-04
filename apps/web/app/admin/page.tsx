@@ -66,8 +66,8 @@ export default function AdminOverviewPage() {
 
 
   const totalStylists = salons.reduce((acc, s) => acc + (s.stylists?.length || 0), 0);
-  const ruralCount = salons.filter((s) => s.operatingMode === "RURAL_SOLO").length;
-  const multiCount = salons.filter((s) => s.operatingMode === "MODERN_MULTI").length;
+  const singleChairCount = salons.filter((s) => (s.stylists?.length || 0) <= 1).length;
+  const multiChairCount = salons.filter((s) => (s.stylists?.length || 0) > 1).length;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -206,18 +206,18 @@ export default function AdminOverviewPage() {
 
         <Card className="bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border-slate-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Operating Models</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-400">Station Capacity</CardTitle>
             <SlidersHorizontal className="h-5 w-5 text-emerald-400" />
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-3 text-2xl font-black text-white">
-              <span className="text-amber-400">{ruralCount}</span>
+              <span className="text-amber-400">{singleChairCount}</span>
               <span className="text-slate-600 text-lg">/</span>
-              <span className="text-blue-400">{multiCount}</span>
+              <span className="text-blue-400">{multiChairCount}</span>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              <span className="text-amber-400 font-semibold">{ruralCount} Solo Rural</span> ·{" "}
-              <span className="text-blue-400 font-semibold">{multiCount} Multi-Station</span>
+              <span className="text-amber-400 font-semibold">{singleChairCount} Solo Station</span> ·{" "}
+              <span className="text-blue-400 font-semibold">{multiChairCount} Multi-Station</span>
             </p>
           </CardContent>
         </Card>
@@ -272,10 +272,10 @@ export default function AdminOverviewPage() {
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-white text-base">{salon.name}</h4>
                           <Badge
-                            variant={salon.operatingMode === "RURAL_SOLO" ? "warning" : "default"}
-                            className="text-[11px]"
+                            variant="outline"
+                            className="text-[11px] border-slate-700 bg-slate-800/60 text-slate-300"
                           >
-                            {salon.operatingMode === "RURAL_SOLO" ? "Rural Solo" : "Multi-Station"}
+                            {(salon.stylists?.length || 1) === 1 ? "1 Station (Solo)" : `${salon.stylists?.length || 1} Stations`}
                           </Badge>
                         </div>
                         <p className="text-xs text-slate-400 mt-1">

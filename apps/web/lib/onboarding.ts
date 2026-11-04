@@ -31,7 +31,7 @@ export interface OnboardingFormData {
   currency?: string;
   countryCode?: string;
   upiPaymentId?: string;
-  operatingMode: "RURAL_SOLO" | "MODERN_MULTI";
+  operatingMode?: string;
   organizationName?: string;
   organizationSlug?: string;
   tier?: "SOLO" | "PRO" | "ENTERPRISE";
@@ -63,18 +63,43 @@ export function slugify(input: string): string {
 }
 
 /**
- * Generates the Rural Solo Barber preset catalog and default single owner-stylist.
+ * Standard unified salon starter catalog and initial station.
  */
-export function getRuralSoloPreset(
+export function getStandardSalonPreset(
   customSalonName?: string,
   ownerName?: string
 ): {
-  operatingMode: "RURAL_SOLO";
   services: ServiceInput[];
   stylists: StylistInput[];
 } {
   return {
-    operatingMode: "RURAL_SOLO",
+    services: [
+      { name: "Haircut & Styling", basePrice: 150, estimatedDurationMinutes: 25, isAddOn: false, icon: "✂️" },
+      { name: "Beard Trim & Sculpt", basePrice: 80, estimatedDurationMinutes: 15, isAddOn: false, icon: "🧔" },
+      { name: "Head Massage / Champy", basePrice: 100, estimatedDurationMinutes: 15, isAddOn: true, icon: "💆" },
+      { name: "Hair Wash & Conditioning", basePrice: 120, estimatedDurationMinutes: 15, isAddOn: true, icon: "🧴" },
+    ],
+    stylists: [
+      {
+        name: ownerName?.trim() || (customSalonName ? `${customSalonName.trim()} Master` : "Main Station #1"),
+        avgDurationMinutes: 25,
+        pin: "1234",
+      },
+    ],
+  };
+}
+
+/**
+ * Single-Station Starter preset catalog and default single owner-stylist.
+ */
+export function getSingleStationPreset(
+  customSalonName?: string,
+  ownerName?: string
+): {
+  services: ServiceInput[];
+  stylists: StylistInput[];
+} {
+  return {
     services: [
       { name: "Haircut", basePrice: 70, estimatedDurationMinutes: 20, isAddOn: false, icon: "✂️" },
       { name: "Shave", basePrice: 50, estimatedDurationMinutes: 15, isAddOn: false, icon: "🪒" },
@@ -92,15 +117,13 @@ export function getRuralSoloPreset(
 }
 
 /**
- * Generates the Modern Multi-Station preset catalog and default initial station.
+ * Multi-Station Growth preset catalog and default initial stations.
  */
-export function getModernMultiPreset(customSalonName?: string, ownerName?: string): {
-  operatingMode: "MODERN_MULTI";
+export function getMultiStationPreset(customSalonName?: string, ownerName?: string): {
   services: ServiceInput[];
   stylists: StylistInput[];
 } {
   return {
-    operatingMode: "MODERN_MULTI",
     services: [
       { name: "Signature Cut", basePrice: 350, estimatedDurationMinutes: 30, isAddOn: false, icon: "✂️" },
       { name: "Beard Trim", basePrice: 150, estimatedDurationMinutes: 20, isAddOn: false, icon: "🧔" },
@@ -113,9 +136,18 @@ export function getModernMultiPreset(customSalonName?: string, ownerName?: strin
         avgDurationMinutes: 30,
         pin: "1001",
       },
+      {
+        name: "Stylist Station #2",
+        avgDurationMinutes: 25,
+        pin: "1002",
+      },
     ],
   };
 }
+
+// Backwards-compatible aliases
+export const getRuralSoloPreset = getSingleStationPreset;
+export const getModernMultiPreset = getMultiStationPreset;
 
 /**
  * Validates the full onboarding form payload before submission.
@@ -169,7 +201,7 @@ export function buildOnboardPayload(formData: OnboardingFormData): OnboardSalonP
     currency: formData.currency || "INR",
     countryCode: formData.countryCode || "+91",
     upiPaymentId: formData.upiPaymentId?.trim() || undefined,
-    operatingMode: formData.operatingMode || "RURAL_SOLO",
+    operatingMode: formData.operatingMode || undefined,
     organizationName: formData.organizationName?.trim() || undefined,
     organizationSlug: formData.organizationSlug?.trim() ? slugify(formData.organizationSlug) : undefined,
     tier: formData.tier || "SOLO",
