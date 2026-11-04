@@ -42,18 +42,18 @@ export interface QueueJob<T = any> {
 }
 ```
 
-- [ ] **Step 1: Write integration test for worker job queue**
+- [x] **Step 1: Write integration test for worker job queue**
 Create `apps/api/test/worker-queue.test.ts` verifying:
 - Enqueueing a job persists it to database / queue.
 - Job processor executes the registered handler.
 - Failed job automatically increments `attempts` and retries with backoff.
 - Exhausted retries mark job as `FAILED` with error log.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 Run: `bun test apps/api/test/worker-queue.test.ts`
 Expected: FAIL (worker queue not yet implemented).
 
-- [ ] **Step 3: Add `queue_jobs` table in `apps/api/src/db/mysql.ts`**
+- [x] **Step 3: Add `queue_jobs` table in `apps/api/src/db/mysql.ts`**
 Add migration for `queue_jobs`:
 - `id VARCHAR(36) PRIMARY KEY`
 - `salon_id VARCHAR(36) NULL`
@@ -68,17 +68,17 @@ Add migration for `queue_jobs`:
 - `updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
 - `INDEX idx_jobs_pending (status, scheduled_for)`
 
-- [ ] **Step 4: Implement `jobQueue` in `apps/api/src/worker/job-queue.ts`**
+- [x] **Step 4: Implement `jobQueue` in `apps/api/src/worker/job-queue.ts`**
 Implement enqueueing, handler registration, processing loop, and retry backoff logic.
 
-- [ ] **Step 5: Implement `notification.handler.ts`**
+- [x] **Step 5: Implement `notification.handler.ts`**
 Hook into `notificationService` to dispatch WhatsApp notifications asynchronously.
 
-- [ ] **Step 6: Run test to verify it passes**
+- [x] **Step 6: Run test to verify it passes**
 Run: `bun test apps/api/test/worker-queue.test.ts`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 ```bash
 git add apps/api/src/db/mysql.ts apps/api/src/worker/ apps/api/test/worker-queue.test.ts
 git commit -m "feat(worker): implement persistent background job queue pipeline"
@@ -106,24 +106,24 @@ export function selectNextTicketCandidate(
 ): QueueTicket | null;
 ```
 
-- [ ] **Step 1: Write unit tests for pure state machine and candidate routing**
+- [x] **Step 1: Write unit tests for pure state machine and candidate routing**
 Create `apps/api/test/queue-modular-domain.test.ts` verifying:
 - Valid transitions (`WAITING` -> `SUMMONED`, `SUMMONED` -> `IN_CHAIR`, etc.).
 - Invalid transitions (`COMPLETED` -> `WAITING`, `CANCELLED` -> `IN_CHAIR`) return `{ allowed: false }`.
 - Stylist routing prioritization: Preferred stylist tickets prioritized before falling back to Universal Fast Line.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 Run: `bun test apps/api/test/queue-modular-domain.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement `state-machine.ts` and `routing.ts`**
+- [x] **Step 3: Implement `state-machine.ts` and `routing.ts`**
 Pure TypeScript functions without database or HTTP coupling.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 Run: `bun test apps/api/test/queue-modular-domain.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add apps/api/src/engine/state-machine.ts apps/api/src/engine/routing.ts apps/api/test/queue-modular-domain.test.ts
 git commit -m "feat(engine): modularize queue state machine and routing domain logic"
@@ -141,14 +141,14 @@ git commit -m "feat(engine): modularize queue state machine and routing domain l
 - Use `validateTicketTransition` and `selectNextTicketCandidate` inside `checkIn`, `callNext`, `seat`, `finishService`, and `softBump`.
 - API responses complete in $<5\text{ms}$.
 
-- [ ] **Step 1: Update `queue-engine.ts`**
+- [x] **Step 1: Update `queue-engine.ts`**
 Integrate modular domain logic and asynchronous job enqueueing.
 
-- [ ] **Step 2: Run all queue tests to verify backward compatibility**
+- [x] **Step 2: Run all queue tests to verify backward compatibility**
 Run: `bun test apps/api/test/queue-engine.test.ts apps/api/test/consumer-staff-sync.test.ts apps/api/test/station-hold-callnext.test.ts`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 ```bash
 git add apps/api/src/engine/queue-engine.ts
 git commit -m "refactor(engine): wire modular domain and async notification worker"
@@ -167,17 +167,17 @@ git commit -m "refactor(engine): wire modular domain and async notification work
 - Closes stale `WAITING` or `SUMMONED` tickets older than cutoff hours to `NO_SHOW` / `EXPIRED_NO_SHOW`.
 - Broadcasts `QUEUE_UPDATED` event to connected clients.
 
-- [ ] **Step 1: Write test for midnight reset handler**
+- [x] **Step 1: Write test for midnight reset handler**
 Create `apps/api/test/midnight-reset-worker.test.ts` verifying that tickets older than the daily cutoff are automatically marked as `NO_SHOW` and active queue count drops to 0.
 
-- [ ] **Step 2: Implement `reset.handler.ts`**
+- [x] **Step 2: Implement `reset.handler.ts`**
 Add clean cancellation and reset logic.
 
-- [ ] **Step 3: Run test to verify it passes**
+- [x] **Step 3: Run test to verify it passes**
 Run: `bun test apps/api/test/midnight-reset-worker.test.ts`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 ```bash
 git add apps/api/src/worker/handlers/reset.handler.ts apps/api/test/midnight-reset-worker.test.ts
 git commit -m "feat(worker): implement midnight queue reset and stale ticket cleanup handler"
@@ -195,17 +195,17 @@ git commit -m "feat(worker): implement midnight queue reset and stale ticket cle
 - `GET /api/admin/workers/stats`: Returns worker throughput, active jobs, pending, completed, and failed counts.
 - `POST /api/admin/workers/retry-failed`: Re-enqueues all failed jobs for another processing attempt.
 
-- [ ] **Step 1: Add worker telemetry endpoints to `apps/api/src/routes/admin.routes.ts`**
+- [x] **Step 1: Add worker telemetry endpoints to `apps/api/src/routes/admin.routes.ts`**
 Expose worker queue health and retry controls.
 
-- [ ] **Step 2: Add test cases to `apps/api/test/admin-api.test.ts`**
+- [x] **Step 2: Add test cases to `apps/api/test/admin-api.test.ts`**
 Verify retrieval of worker telemetry and successful retry triggers.
 
-- [ ] **Step 3: Run test to verify it passes**
+- [x] **Step 3: Run test to verify it passes**
 Run: `bun test apps/api/test/admin-api.test.ts`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 ```bash
 git add apps/api/src/routes/admin.routes.ts apps/api/test/admin-api.test.ts
 git commit -m "feat(admin): expose background worker telemetry and retry endpoints"
@@ -215,13 +215,13 @@ git commit -m "feat(admin): expose background worker telemetry and retry endpoin
 
 ### Task 6: Full Verification & Complete Monorepo Test
 
-- [ ] **Step 1: Run complete test suite**
+- [x] **Step 1: Run complete test suite**
 Run: `bun run test`
 Expected: All 140+ tests pass cleanly.
 
-- [ ] **Step 2: Run production web build**
+- [x] **Step 2: Run production web build**
 Run: `bun run build:web`
 Expected: 25/25 routes compile cleanly.
 
-- [ ] **Step 3: Final commit & status check**
+- [x] **Step 3: Final commit & status check**
 Verify clean git tree.
