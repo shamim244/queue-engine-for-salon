@@ -10,6 +10,7 @@ import { authService } from './src/auth/auth-service';
 import { websocketHub } from './src/websocket/hub';
 import { jobQueue } from './src/worker/job-queue';
 import { registerNotificationHandler } from './src/worker/handlers/notification.handler';
+import { registerResetHandler } from './src/worker/handlers/reset.handler';
 import { salonRoutes } from './src/routes/salon.routes';
 import { queueRoutes } from './src/routes/queue.routes';
 import { authRoutes } from './src/routes/auth.routes';
@@ -26,6 +27,7 @@ await authService.seedDefaultUsers();
 
 // Initialize SaaS Background Worker Pipeline
 registerNotificationHandler();
+registerResetHandler();
 jobQueue.startWorker(2000);
 
 const publicDir = path.resolve(import.meta.dir, 'src/public');
