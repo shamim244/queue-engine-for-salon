@@ -23,25 +23,25 @@
 - Produces: `mapResponse` middleware in Elysia compressing JSON/text bodies $>1024$ bytes using native Bun `zlib.gzipSync()`.
 - Sets response headers: `Content-Encoding: gzip`, `Vary: Accept-Encoding`.
 
-- [ ] **Step 1: Write integration test for API response compression**
+- [x] **Step 1: Write integration test for API response compression**
 Create `apps/api/test/compression.test.ts` verifying that:
 - Requests without `Accept-Encoding: gzip` receive raw JSON.
 - Requests with `Accept-Encoding: gzip` for payloads $<1\text{KB}$ are not compressed.
 - Requests with `Accept-Encoding: gzip` for payloads $>1\text{KB}$ receive `Content-Encoding: gzip` and decompress to the exact original payload.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 Run: `bun test apps/api/test/compression.test.ts`
 Expected: FAIL (compression middleware not yet hooked up).
 
-- [ ] **Step 3: Implement compression middleware in `apps/api/index.ts`**
+- [x] **Step 3: Implement compression middleware in `apps/api/index.ts`**
 Hook into Elysia's `mapResponse`:
 Check `request.headers.get('accept-encoding')`. If `gzip` is accepted and body $>1024$ bytes, compress via `zlib.gzipSync` and return `new Response(compressed, { headers: { ...set.headers, 'content-encoding': 'gzip', 'vary': 'Accept-Encoding' } })`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 Run: `bun test apps/api/test/compression.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add apps/api/index.ts apps/api/test/compression.test.ts
 git commit -m "feat(api): add native Bun gzip response compression for payloads >1KB"
@@ -58,18 +58,18 @@ git commit -m "feat(api): add native Bun gzip response compression for payloads 
 - Produces: `compress: true`, `poweredByHeader: false`.
 - Produces: Long-term cache headers on `/_next/static/:path*` (`public, max-age=31536000, immutable`).
 
-- [ ] **Step 1: Update `apps/web/next.config.ts`**
+- [x] **Step 1: Update `apps/web/next.config.ts`**
 Add:
 - `compress: true`
 - `poweredByHeader: false`
 - Header rule for `/_next/static/:path*` with `Cache-Control: public, max-age=31536000, immutable`
 - Header rule for static images and SVGs with `Cache-Control: public, max-age=86400, stale-while-revalidate=604800`
 
-- [ ] **Step 2: Verify production build succeeds**
+- [x] **Step 2: Verify production build succeeds**
 Run: `bun run build:web`
 Expected: SUCCESS with 25/25 routes compiled.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 ```bash
 git add apps/web/next.config.ts
 git commit -m "perf(web): add immutable browser cache headers and bundle compression"
@@ -89,20 +89,20 @@ git commit -m "perf(web): add immutable browser cache headers and bundle compres
 - Component props: `{ startedTime: string | Date, estimatedDurationMinutes?: number, onFinish?: () => void, variant?: 'station' | 'customer' }`
 - Behavior: Ticks entirely in client device RAM using local clock. Zero server polling or timer messages. Computes elapsed `mm:ss`, percentage progress bar, and overtime warnings.
 
-- [ ] **Step 1: Write unit test for timer math**
+- [x] **Step 1: Write unit test for timer math**
 Create `apps/web/test/live-timer.test.ts` testing that given an anchor timestamp, it calculates elapsed minutes/seconds, remaining duration, and progress percentage correctly.
 
-- [ ] **Step 2: Implement `<LiveServiceTimer>` in `apps/web/components/live-service-timer.tsx`**
+- [x] **Step 2: Implement `<LiveServiceTimer>` in `apps/web/components/live-service-timer.tsx`**
 Uses `useEffect` with a 1-second interval in client RAM. Cleans up on unmount. Throttles to 10s if document is hidden (`document.hidden`) to save phone battery.
 
-- [ ] **Step 3: Integrate into Station & Customer Pages**
+- [x] **Step 3: Integrate into Station & Customer Pages**
 Replace hardcoded static time strings on `/s/[slug]/station` and `/s/[slug]` with `<LiveServiceTimer>`.
 
-- [ ] **Step 4: Run tests and verify**
+- [x] **Step 4: Run tests and verify**
 Run: `bun test apps/web/test/live-timer.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 ```bash
 git add apps/web/components/live-service-timer.tsx apps/web/app/s/[slug]/station/page.tsx apps/web/app/s/[slug]/page.tsx apps/web/test/live-timer.test.ts
 git commit -m "feat(client-compute): add client-side self-ticking service timer component"
@@ -124,13 +124,13 @@ git commit -m "feat(client-compute): add client-side self-ticking service timer 
   - `🟡 Reconnecting...` (amber pulse)
   - `⚪ Offline Cache` (gray)
 
-- [ ] **Step 1: Create `<ConnectionPill>` component**
+- [x] **Step 1: Create `<ConnectionPill>` component**
 Sleek, unobtrusive badge in top bar providing clear state without intrusive modal popups.
 
-- [ ] **Step 2: Wire `isConnected` from `useSalonSocket` into `<ConnectionPill>`**
+- [x] **Step 2: Wire `isConnected` from `useSalonSocket` into `<ConnectionPill>`**
 Display connection status on both Staff Station and Customer Door pages.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 ```bash
 git add apps/web/components/connection-pill.tsx apps/web/app/s/[slug]/station/page.tsx apps/web/app/s/[slug]/page.tsx
 git commit -m "feat(ux): add non-intrusive real-time connection status pill"
@@ -140,10 +140,10 @@ git commit -m "feat(ux): add non-intrusive real-time connection status pill"
 
 ### Task 5: Verification & Full Suite Check
 
-- [ ] **Step 1: Run complete test suite**
+- [x] **Step 1: Run complete test suite**
 Run: `bun test`
 Expected: All tests pass.
 
-- [ ] **Step 2: Run production web build**
+- [x] **Step 2: Run production web build**
 Run: `bun run build:web`
 Expected: 25/25 routes compile cleanly.
