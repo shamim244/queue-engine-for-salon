@@ -11,6 +11,9 @@ import type { QueueTicket, TicketSource, PaymentStatus } from './types';
 // Ensure standard background workers are registered
 registerNotificationHandler();
 
+// Per-salon recalculation serializer to prevent concurrent race conditions
+const recalculationQueues = new Map<string, Promise<QueueTicket[]>>();
+
 export const queueEngine = {
   // 1. Customer Self-Check-in via Door QR
   async checkIn(params: {
@@ -65,13 +68,18 @@ export const queueEngine = {
       positionInQueue: 1,
     };
 
-    await repository.createTicket(ticket);
+    try {
+      await repository.createTicket(ticket);
+    } catch (err: any) {
+      console.error('[QueueEngine] Failed to persist checkIn ticket to database:', err);
+      throw new Error(`Failed to create queue ticket: ${err.message || 'Database error'}`);
+    }
 
-    // Recalculate wait times
-    await this.recalculateQueue(salon.id);
+    // Recalculate wait times (serialized and batch-updated)
+    const activeTickets = await this.recalculateQueue(salon.id);
 
-    // Retrieve updated ticket with calculated wait time
-    const updatedTicket = (await repository.getTicketById(ticketId)) || ticket;
+    // Retrieve updated ticket with calculated wait time directly from activeTickets
+    const updatedTicket = activeTickets.find((t) => t.id === ticketId) || ticket;
 
     // Asynchronously dispatch WhatsApp confirmation via background worker
     jobQueue.enqueue(
@@ -89,7 +97,6 @@ export const queueEngine = {
       { salonId: salon.id }
     ).then(() => jobQueue.processNextJob().catch(() => {}));
 
-    const activeTickets = await repository.getActiveTickets(salon.id);
     websocketHub.broadcastToSalon(salon.id, {
       type: 'TICKET_CREATED',
       salonId: salon.id,
@@ -143,7 +150,7 @@ export const queueEngine = {
 
     if (!nextTicket) return null;
 
-    const salon = (await repository.getAllSalons()).find((s) => s.id === salonId);
+    const salon = await repository.getSalonById(salonId);
     const assignedStylistId = stylistId || nextTicket.stylistId || salon?.stylists[0]?.id;
     const stylist = salon?.stylists.find((s) => s.id === assignedStylistId) || salon?.stylists[0];
 
@@ -184,13 +191,13 @@ export const queueEngine = {
       ).then(() => jobQueue.processNextJob().catch(() => {}));
     }
 
-    await this.recalculateQueue(salonId);
+    const activeRemaining = await this.recalculateQueue(salonId);
 
     websocketHub.broadcastToSalon(salonId, {
       type: 'TICKET_SUMMONED',
       salonId,
       ticket: updated,
-      activeQueueCount: activeTickets.length,
+      activeQueueCount: activeRemaining.length,
       timestamp: new Date().toISOString(),
     });
 
@@ -209,9 +216,8 @@ export const queueEngine = {
 
     if (!updated) return null;
 
-    await this.recalculateQueue(ticket.salonId);
+    const activeTickets = await this.recalculateQueue(ticket.salonId);
 
-    const activeTickets = await repository.getActiveTickets(ticket.salonId);
     websocketHub.broadcastToSalon(ticket.salonId, {
       type: 'TICKET_SEATED',
       salonId: ticket.salonId,
@@ -242,9 +248,8 @@ export const queueEngine = {
 
     if (!updated) return null;
 
-    await this.recalculateQueue(ticket.salonId);
+    const activeTickets = await this.recalculateQueue(ticket.salonId);
 
-    const activeTickets = await repository.getActiveTickets(ticket.salonId);
     websocketHub.broadcastToSalon(ticket.salonId, {
       type: 'TICKET_COMPLETED',
       salonId: ticket.salonId,
@@ -264,7 +269,7 @@ export const queueEngine = {
     const updated = await repository.updateTicketStatus(ticketId, 'SOFT_BUMPED');
     if (!updated) return null;
 
-    const salon = (await repository.getAllSalons()).find((s) => s.id === ticket.salonId);
+    const salon = await repository.getSalonById(ticket.salonId);
     if (salon) {
       jobQueue.enqueue(
         'SEND_WHATSAPP',
@@ -281,9 +286,8 @@ export const queueEngine = {
       ).then(() => jobQueue.processNextJob().catch(() => {}));
     }
 
-    await this.recalculateQueue(ticket.salonId);
+    const activeTickets = await this.recalculateQueue(ticket.salonId);
 
-    const activeTickets = await repository.getActiveTickets(ticket.salonId);
     websocketHub.broadcastToSalon(ticket.salonId, {
       type: 'TICKET_SOFT_BUMPED',
       salonId: ticket.salonId,
@@ -314,7 +318,7 @@ export const queueEngine = {
     const ticket = await repository.getTicketById(ticketId);
     if (!ticket) return null;
 
-    const salon = (await repository.getAllSalons()).find((s) => s.id === ticket.salonId);
+    const salon = await repository.getSalonById(ticket.salonId);
     const assignedStylistId = stylistId || ticket.stylistId || salon?.stylists[0]?.id;
     const stylist = salon?.stylists.find((s) => s.id === assignedStylistId) || salon?.stylists[0];
 
@@ -337,7 +341,6 @@ export const queueEngine = {
     });
     if (!updated) return null;
 
-
     if (salon) {
       await notificationService.sendWhatsApp({
         salonId: salon.id,
@@ -351,9 +354,8 @@ export const queueEngine = {
       });
     }
 
-    await this.recalculateQueue(ticket.salonId);
+    const activeTickets = await this.recalculateQueue(ticket.salonId);
 
-    const activeTickets = await repository.getActiveTickets(ticket.salonId);
     websocketHub.broadcastToSalon(ticket.salonId, {
       type: 'TICKET_SUMMONED',
       salonId: ticket.salonId,
@@ -375,9 +377,8 @@ export const queueEngine = {
     });
     if (!updated) return null;
 
-    await this.recalculateQueue(ticket.salonId);
+    const activeTickets = await this.recalculateQueue(ticket.salonId);
 
-    const activeTickets = await repository.getActiveTickets(ticket.salonId);
     websocketHub.broadcastToSalon(ticket.salonId, {
       type: 'TICKET_CANCELLED',
       salonId: ticket.salonId,
@@ -389,21 +390,40 @@ export const queueEngine = {
     return updated;
   },
 
-  // 9. Recalculate dynamic wait times for all active tickets
-  async recalculateQueue(salonId: string) {
-    const salon = (await repository.getAllSalons()).find((s) => s.id === salonId);
-    if (!salon) return;
+  // 9. Recalculate dynamic wait times for all active tickets (serialized per salon)
+  async recalculateQueue(salonId: string): Promise<QueueTicket[]> {
+    const previous = recalculationQueues.get(salonId) || Promise.resolve([] as QueueTicket[]);
+    const current = previous
+      .catch(() => [] as QueueTicket[])
+      .then(async () => {
+        return this._executeRecalculateQueue(salonId);
+      });
+    recalculationQueues.set(salonId, current);
+    return current;
+  },
+
+  async _executeRecalculateQueue(salonId: string): Promise<QueueTicket[]> {
+    const salon = await repository.getSalonById(salonId);
+    if (!salon) return [];
 
     const activeTickets = await repository.getActiveTickets(salonId);
     const calculations = calculateWaitTimes(activeTickets, salon.stylists);
+
+    const updates: Array<{ id: string; estimatedWaitMinutes: number }> = [];
 
     for (const ticket of activeTickets) {
       const calc = calculations.get(ticket.id);
       if (calc) {
         ticket.estimatedWaitMinutes = calc.estimatedMinutes;
         ticket.positionInQueue = calc.position;
-        await repository.updateTicketWaitTime(ticket.id, calc.estimatedMinutes);
+        updates.push({ id: ticket.id, estimatedWaitMinutes: calc.estimatedMinutes });
       }
     }
+
+    if (updates.length > 0) {
+      await repository.updateTicketWaitTimesBatch(updates);
+    }
+
+    return activeTickets;
   },
 };

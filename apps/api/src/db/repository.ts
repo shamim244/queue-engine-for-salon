@@ -585,6 +585,10 @@ export const repository = {
     }
   },
 
+  async getSalonById(id: string, options?: { skipCache?: boolean }): Promise<Salon | null> {
+    return this.getSalonBySlug(id, options);
+  },
+
   async getSalonBySlug(slug: string, options?: { skipCache?: boolean }): Promise<Salon | null> {
     if (!options?.skipCache) {
       const cached = salonCache.get(slug);
@@ -911,8 +915,6 @@ export const repository = {
   },
 
   async createTicket(ticket: QueueTicket): Promise<QueueTicket> {
-    memoryStore.tickets.set(ticket.id, ticket);
-
     if (isMySqlConnected) {
       const db = getDb();
       await db.query(
@@ -940,6 +942,9 @@ export const repository = {
         ]
       );
     }
+
+    // Only commit to memory store after database write succeeds
+    memoryStore.tickets.set(ticket.id, ticket);
     return ticket;
   },
 
@@ -1078,16 +1083,6 @@ export const repository = {
     const ticket = await repository.getTicketById(ticketId);
     if (!ticket) return null;
 
-    ticket.status = status;
-    if (metadata?.stylistId !== undefined) ticket.stylistId = metadata.stylistId;
-    if (metadata?.summonedTime) ticket.summonedTime = metadata.summonedTime;
-    if (metadata?.startedTime) ticket.startedTime = metadata.startedTime;
-    if (metadata?.completedTime) ticket.completedTime = metadata.completedTime;
-    if (metadata?.paymentStatus) ticket.paymentStatus = metadata.paymentStatus;
-    if (metadata?.paymentAmount !== undefined) ticket.paymentAmount = metadata.paymentAmount;
-
-    memoryStore.tickets.set(ticketId, ticket);
-
     if (isMySqlConnected) {
       const db = getDb();
       await db.query(
@@ -1112,20 +1107,63 @@ export const repository = {
       );
     }
 
+    // Only update memory after database write succeeds
+    ticket.status = status;
+    if (metadata?.stylistId !== undefined) ticket.stylistId = metadata.stylistId;
+    if (metadata?.summonedTime) ticket.summonedTime = metadata.summonedTime;
+    if (metadata?.startedTime) ticket.startedTime = metadata.startedTime;
+    if (metadata?.completedTime) ticket.completedTime = metadata.completedTime;
+    if (metadata?.paymentStatus) ticket.paymentStatus = metadata.paymentStatus;
+    if (metadata?.paymentAmount !== undefined) ticket.paymentAmount = metadata.paymentAmount;
+
+    memoryStore.tickets.set(ticketId, ticket);
     return ticket;
   },
 
   async updateTicketWaitTime(ticketId: string, estimatedMinutes: number): Promise<void> {
-    const ticket = memoryStore.tickets.get(ticketId);
-    if (ticket) {
-      ticket.estimatedWaitMinutes = estimatedMinutes;
-    }
     if (isMySqlConnected) {
       const db = getDb();
       await db.query(
         'UPDATE queue_tickets SET estimated_wait_minutes = ? WHERE id = ?',
         [estimatedMinutes, ticketId]
       );
+    }
+    const ticket = memoryStore.tickets.get(ticketId);
+    if (ticket) {
+      ticket.estimatedWaitMinutes = estimatedMinutes;
+    }
+  },
+
+  async updateTicketWaitTimesBatch(
+    updates: Array<{ id: string; estimatedWaitMinutes: number }>
+  ): Promise<void> {
+    if (updates.length === 0) return;
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      const cases = updates.map(() => 'WHEN ? THEN ?').join(' ');
+      const placeholders = updates.map(() => '?').join(', ');
+      const params: any[] = [];
+      for (const u of updates) {
+        params.push(u.id, u.estimatedWaitMinutes);
+      }
+      for (const u of updates) {
+        params.push(u.id);
+      }
+
+      await db.query(
+        `UPDATE queue_tickets 
+         SET estimated_wait_minutes = CASE id ${cases} END
+         WHERE id IN (${placeholders})`,
+        params
+      );
+    }
+
+    for (const u of updates) {
+      const mem = memoryStore.tickets.get(u.id);
+      if (mem) {
+        mem.estimatedWaitMinutes = u.estimatedWaitMinutes;
+      }
     }
   },
 

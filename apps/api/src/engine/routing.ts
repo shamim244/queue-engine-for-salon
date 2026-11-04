@@ -24,20 +24,19 @@ export function selectNextTicketCandidate(
 
   const preferWaiting = !!options.preferWaiting;
 
+  // Explicit priority partitioning:
+  // When preferWaiting is true (e.g. after soft-bumping a no-show), prioritize WAITING tickets first.
+  // When preferWaiting is false (default chair call), prioritize SOFT_BUMPED (grace period clients) first.
   const pickFromPool = (pool: QueueTicket[]): QueueTicket | null => {
     if (pool.length === 0) return null;
-    if (preferWaiting) {
-      return (
-        pool.find((t) => t.status === 'WAITING') ||
-        pool.find((t) => t.status === 'SOFT_BUMPED') ||
-        null
-      );
-    }
-    return (
-      pool.find((t) => t.status === 'SOFT_BUMPED') ||
-      pool.find((t) => t.status === 'WAITING') ||
-      null
-    );
+    const waitingTickets = pool.filter((t) => t.status === 'WAITING');
+    const softBumpedTickets = pool.filter((t) => t.status === 'SOFT_BUMPED');
+
+    const orderedPool = preferWaiting
+      ? [...waitingTickets, ...softBumpedTickets]
+      : [...softBumpedTickets, ...waitingTickets];
+
+    return orderedPool[0] || null;
   };
 
   // Case 1: Stylist-specific station call
