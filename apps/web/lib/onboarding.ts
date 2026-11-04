@@ -34,7 +34,7 @@ export interface OnboardingFormData {
   operatingMode?: string;
   organizationName?: string;
   organizationSlug?: string;
-  tier?: "SOLO" | "PRO" | "ENTERPRISE";
+  tier?: "STARTER" | "PRO" | "ENTERPRISE" | "SOLO";
   ownerUser: OwnerUserInput;
   stylists: StylistInput[];
   services: ServiceInput[];
@@ -204,7 +204,7 @@ export function buildOnboardPayload(formData: OnboardingFormData): OnboardSalonP
     operatingMode: formData.operatingMode || undefined,
     organizationName: formData.organizationName?.trim() || undefined,
     organizationSlug: formData.organizationSlug?.trim() ? slugify(formData.organizationSlug) : undefined,
-    tier: formData.tier || "SOLO",
+    tier: formData.tier || "STARTER",
     ownerUser: {
       username: formData.ownerUser.username.trim().toLowerCase(),
       password: formData.ownerUser.password,

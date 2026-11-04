@@ -143,7 +143,7 @@ async function runMigrations() {
         id VARCHAR(36) PRIMARY KEY,
         name VARCHAR(150) NOT NULL,
         slug VARCHAR(100) UNIQUE NOT NULL,
-        tier ENUM('SOLO', 'PRO', 'ENTERPRISE') DEFAULT 'SOLO',
+        tier ENUM('STARTER', 'PRO', 'ENTERPRISE', 'SOLO') DEFAULT 'STARTER',
         owner_id VARCHAR(36) NULL,
         max_branches INT DEFAULT 1,
         max_stylists_per_branch INT DEFAULT 2,
@@ -185,6 +185,7 @@ async function runMigrations() {
 
   // Safe Column additions for existing installations
   const safeColumns = [
+    `ALTER TABLE organizations MODIFY COLUMN tier ENUM('STARTER', 'PRO', 'ENTERPRISE', 'SOLO') DEFAULT 'STARTER';`,
     `ALTER TABLE salons ADD COLUMN organization_id VARCHAR(36) NULL;`,
     `ALTER TABLE salons MODIFY COLUMN operating_mode VARCHAR(50) NULL DEFAULT NULL;`,
     `ALTER TABLE services ADD COLUMN pricing_type ENUM('FIXED', 'STARTING_AT', 'FLEXIBLE_CHAIR') DEFAULT 'FIXED';`,

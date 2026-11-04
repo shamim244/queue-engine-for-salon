@@ -57,28 +57,22 @@ describe("Home Page & Developer Launcher Routing", () => {
       // Brand & Hero
       expect(html).toContain("Engine Que");
       expect(html).toContain("Real-Time Queue Engine");
-      expect(html).toContain("Solo Barber");
-      expect(html).toContain("Modern Multi-Station");
 
       // Navigation actions
       expect(html).toContain('href="/login"');
       expect(html).toContain('href="/register"');
       expect(html).toContain('href="/dev"');
 
-      // Scalable architecture representation (1 chair to multi-chair)
-      expect(html).toContain("Single-Chair");
-      expect(html).toContain("Multi-Station");
-
-      // 6-Pillar Features
+      // 6-Pillar Features & Capabilities
       expect(html).toContain("QR");
       expect(html).toContain("WhatsApp");
       expect(html).toContain("PIN");
       expect(html).toContain("Departure Board");
 
-      // Transparent Pricing
-      expect(html).toContain("Solo Barber");
-      expect(html).toContain("Salon Pro");
-      expect(html).toContain("Enterprise");
+      // Transparent SaaS Pricing Plans
+      expect(html).toContain("Starter Plan");
+      expect(html).toContain("Pro Plan");
+      expect(html).toContain("Enterprise Plan");
 
       // Social Proof / Testimonials
       expect(html).toContain("Ramesh Kumar");

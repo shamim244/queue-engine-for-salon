@@ -70,7 +70,7 @@ function OnboardingWizardContent() {
     countryCode: "+91",
     upiPaymentId: "",
     organizationName: "",
-    tier: "SOLO",
+    tier: "STARTER",
     ownerUser: {
       username: "",
       password: "",
@@ -91,13 +91,12 @@ function OnboardingWizardContent() {
 
   // Track if slug has been manually edited by user
   const [isSlugManual, setIsSlugManual] = useState<boolean>(false);
-  const [selectedPresetType, setSelectedPresetType] = useState<"SINGLE" | "MULTI">("SINGLE");
 
   // Initialize query parameters if available
   useEffect(() => {
-    const initialMode = searchParams.get("mode");
-    if (initialMode === "MODERN_MULTI" || initialMode === "modern" || initialMode === "multi") {
-      applyPreset("MULTI");
+    const initialPlan = searchParams.get("plan")?.toUpperCase();
+    if (initialPlan === "PRO" || initialPlan === "ENTERPRISE" || initialPlan === "STARTER") {
+      setFormData((prev) => ({ ...prev, tier: initialPlan as any }));
     }
   }, [searchParams]);
 
@@ -128,26 +127,12 @@ function OnboardingWizardContent() {
     }
   };
 
-  // Apply Presets
-  const applyPreset = (presetType: "SINGLE" | "MULTI") => {
-    setSelectedPresetType(presetType);
-    if (presetType === "SINGLE") {
-      const preset = getSingleStationPreset(formData.name, formData.ownerUser.fullName);
-      setFormData((prev) => ({
-        ...prev,
-        tier: "SOLO",
-        stylists: preset.stylists,
-        services: preset.services,
-      }));
-    } else {
-      const preset = getMultiStationPreset(formData.name, formData.ownerUser.fullName);
-      setFormData((prev) => ({
-        ...prev,
-        tier: "PRO",
-        stylists: preset.stylists,
-        services: preset.services,
-      }));
-    }
+  // Apply Plan Selection
+  const applyPlan = (plan: "STARTER" | "PRO" | "ENTERPRISE") => {
+    setFormData((prev) => ({
+      ...prev,
+      tier: plan,
+    }));
   };
 
   // Step Validation Check before advancing
@@ -315,7 +300,7 @@ function OnboardingWizardContent() {
       countryCode: "+91",
       upiPaymentId: "",
       organizationName: "",
-      tier: "SOLO",
+      tier: "STARTER",
       ownerUser: {
         username: "",
         password: "",
@@ -333,7 +318,6 @@ function OnboardingWizardContent() {
         { name: "Head Massage", basePrice: 60, estimatedDurationMinutes: 15, isAddOn: true, icon: "💆" },
       ],
     });
-    setSelectedPresetType("SINGLE");
     setProvisionedSalon(null);
     setProvisionedOrg(null);
     setCurrentStep(1);
@@ -344,7 +328,7 @@ function OnboardingWizardContent() {
 
   const steps = [
     { id: 1, title: "Identity & Location", desc: "Basic details & slug" },
-    { id: 2, title: "Station Setup", desc: "Single vs Multi-Station" },
+    { id: 2, title: "Subscription Plan", desc: "Starter, Pro, or Enterprise" },
     { id: 3, title: "Owner Account", desc: "Admin credentials" },
     { id: 4, title: "Stylist Roster", desc: "Chairs & Station PINs" },
     { id: 5, title: "Service Catalog", desc: "Prices & Durations" },
@@ -612,18 +596,18 @@ function OnboardingWizardContent() {
               <Armchair className="h-4 w-4" />
               <span>Step 2 of 5</span>
             </div>
-            <CardTitle className="text-xl text-white">Select Starter Setup & Capacity</CardTitle>
+            <CardTitle className="text-xl text-white">Select SaaS Subscription Plan</CardTitle>
             <CardDescription className="text-slate-400">
-              Choose an initial capacity preset. You can always add or remove stations and services dynamically at any time.
+              Choose the subscription plan tier that defines the organization's location limits, stylist capacity, and features.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Option 1: Single-Station Starter */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Option 1: Starter Plan */}
               <div
-                onClick={() => applyPreset("SINGLE")}
+                onClick={() => applyPlan("STARTER")}
                 className={`p-6 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                  selectedPresetType === "SINGLE"
+                  formData.tier === "STARTER" || formData.tier === "SOLO"
                     ? "bg-blue-950/30 border-blue-500 ring-2 ring-blue-500/20 shadow-lg shadow-blue-500/10"
                     : "bg-slate-950/40 border-slate-800 hover:border-slate-700"
                 }`}
@@ -631,9 +615,9 @@ function OnboardingWizardContent() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <Badge variant="default" className="text-xs px-2 py-0.5">
-                      1 Station (Single Chair)
+                      Starter Plan
                     </Badge>
-                    {selectedPresetType === "SINGLE" && (
+                    {(formData.tier === "STARTER" || formData.tier === "SOLO") && (
                       <span className="h-5 w-5 rounded-full bg-blue-600 text-white flex items-center justify-center">
                         <Check className="h-3 w-3" />
                       </span>
@@ -641,47 +625,41 @@ function OnboardingWizardContent() {
                   </div>
                   <h3 className="text-lg font-bold text-white mb-1.5 flex items-center gap-2">
                     <Store className="h-5 w-5 text-amber-400" />
-                    Single-Station Starter
+                    Starter Plan
                   </h3>
+                  <div className="mb-3">
+                    <span className="text-2xl font-black text-white">₹499</span>
+                    <span className="text-xs text-slate-400 ml-1">/ month</span>
+                  </div>
                   <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                    Ideal for single-chair barbers and boutique studios. Streamlined setup, quick walk-in tickets, and 1-tap queue actions.
+                    For boutique barbershops and neighborhood salons starting with automated digital queuing.
                   </p>
 
                   <div className="space-y-2 pt-2 border-t border-slate-800/80">
                     <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                       Included Capabilities:
                     </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700/50">
-                        1 Master Stylist
-                      </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700/50">
-                        Quick Walk-in (+1)
-                      </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700/50">
-                        WhatsApp / SMS alerts
-                      </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700/50">
-                        Cash First + UPI QR
-                      </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700/50">
-                        Live Client Timers
-                      </span>
+                    <div className="flex flex-col gap-1.5 text-[11px] text-slate-300">
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> 1 Salon Location</span>
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Up to 3 Stylist Chairs</span>
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> WhatsApp & SMS Notifications</span>
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Dynamic NPCI UPI QR & Cash</span>
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Client-Side Live Service Timers</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-6 pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
-                  <span>Pre-seeds 4 starter services</span>
-                  <span className="font-semibold text-blue-400">Default: Solo Tier</span>
+                  <span>Standard Quota</span>
+                  <span className="font-semibold text-blue-400">Starter Tier</span>
                 </div>
               </div>
 
-              {/* Option 2: Multi-Station Growth */}
+              {/* Option 2: Pro Plan */}
               <div
-                onClick={() => applyPreset("MULTI")}
+                onClick={() => applyPlan("PRO")}
                 className={`p-6 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                  selectedPresetType === "MULTI"
+                  formData.tier === "PRO"
                     ? "bg-purple-950/30 border-purple-500 ring-2 ring-purple-500/20 shadow-lg shadow-purple-500/10"
                     : "bg-slate-950/40 border-slate-800 hover:border-slate-700"
                 }`}
@@ -689,49 +667,95 @@ function OnboardingWizardContent() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <Badge variant="purple" className="text-xs px-2 py-0.5">
-                      Multi-Station Setup
+                      Pro Plan · Popular
                     </Badge>
-                    {selectedPresetType === "MULTI" && (
+                    {formData.tier === "PRO" && (
                       <span className="h-5 w-5 rounded-full bg-purple-600 text-white flex items-center justify-center">
                         <Check className="h-3 w-3" />
                       </span>
                     )}
                   </div>
                   <h3 className="text-lg font-bold text-white mb-1.5 flex items-center gap-2">
-                    <Users className="h-5 w-5 text-indigo-400" />
-                    Multi-Station Setup
+                    <Sparkles className="h-5 w-5 text-indigo-400" />
+                    Pro Plan
                   </h3>
+                  <div className="mb-3">
+                    <span className="text-2xl font-black text-white">₹1,499</span>
+                    <span className="text-xs text-slate-400 ml-1">/ month</span>
+                  </div>
                   <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                    Designed for multi-chair salons, parlors, and grooming lounges. Provides per-station PIN access, split queue routing, and TV departure boards.
+                    For high-volume multi-station salons, grooming studios, and growing regional multi-branch chains.
                   </p>
 
                   <div className="space-y-2 pt-2 border-t border-slate-800/80">
                     <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                       Included Capabilities:
                     </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700/50">
-                        Multi-Stylist Rosters
-                      </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700/50">
-                        Station 4-Digit PINs
-                      </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700/50">
-                        Lobby TV Display (/tv)
-                      </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700/50">
-                        Chair Interface (/station)
-                      </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700/50">
-                        Split Service Up-sells
-                      </span>
+                    <div className="flex flex-col gap-1.5 text-[11px] text-slate-300">
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Up to 5 Salon Locations</span>
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Up to 10 Stylists per Location</span>
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Lobby Departure Board TV (/tv)</span>
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Station 4-Digit Quick PIN Switching</span>
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Split Queue Routing & Upsells</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-6 pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
-                  <span>Pre-seeds multi-station services & chairs</span>
-                  <span className="font-semibold text-purple-400">Default: Pro Tier</span>
+                  <span>Expanded Capacity</span>
+                  <span className="font-semibold text-purple-400">Pro Tier</span>
+                </div>
+              </div>
+
+              {/* Option 3: Enterprise Plan */}
+              <div
+                onClick={() => applyPlan("ENTERPRISE")}
+                className={`p-6 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
+                  formData.tier === "ENTERPRISE"
+                    ? "bg-amber-950/30 border-amber-500 ring-2 ring-amber-500/20 shadow-lg shadow-amber-500/10"
+                    : "bg-slate-950/40 border-slate-800 hover:border-slate-700"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <Badge variant="warning" className="text-xs px-2 py-0.5">
+                      Enterprise Plan
+                    </Badge>
+                    {formData.tier === "ENTERPRISE" && (
+                      <span className="h-5 w-5 rounded-full bg-amber-600 text-white flex items-center justify-center">
+                        <Check className="h-3 w-3" />
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-1.5 flex items-center gap-2">
+                    <Users className="h-5 w-5 text-amber-400" />
+                    Enterprise Plan
+                  </h3>
+                  <div className="mb-3">
+                    <span className="text-2xl font-black text-white">₹4,999</span>
+                    <span className="text-xs text-slate-400 ml-1">/ month</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed mb-4">
+                    For enterprise franchises, luxury salon networks, and statewide operators requiring custom scale.
+                  </p>
+
+                  <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                    <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                      Included Capabilities:
+                    </p>
+                    <div className="flex flex-col gap-1.5 text-[11px] text-slate-300">
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Unlimited Locations & Chairs</span>
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Dedicated Telemetry & Cloud HQ</span>
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Custom SMS / WhatsApp Gateway</span>
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Priority 24/7 SLA & Account Mgr</span>
+                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> White-label Custom Domain</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
+                  <span>Unlimited Scale</span>
+                  <span className="font-semibold text-amber-400">Enterprise Tier</span>
                 </div>
               </div>
             </div>

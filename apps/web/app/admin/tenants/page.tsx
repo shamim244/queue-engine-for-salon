@@ -47,7 +47,7 @@ export default function AdminTenantsPage() {
   const [salons, setSalons] = useState<Salon[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [stationFilter, setStationFilter] = useState<"ALL" | "SINGLE" | "MULTI">("ALL");
+  const [planFilter, setPlanFilter] = useState<"ALL" | "STARTER" | "PRO" | "ENTERPRISE">("ALL");
 
   // New Salon Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -230,12 +230,15 @@ export default function AdminTenantsPage() {
     }
   };
 
-  // Filter salons by station capacity
+  // Filter salons by SaaS subscription plan
   const filteredData = useMemo(() => {
-    if (stationFilter === "ALL") return salons;
-    if (stationFilter === "SINGLE") return salons.filter((s) => (s.stylists?.length || 0) <= 1);
-    return salons.filter((s) => (s.stylists?.length || 0) > 1);
-  }, [salons, stationFilter]);
+    if (planFilter === "ALL") return salons;
+    return salons.filter((s) => {
+      const tier = (s as any).tier || (s.organizationId === "org-aura" ? "PRO" : "STARTER");
+      if (planFilter === "STARTER") return tier === "STARTER" || tier === "SOLO";
+      return tier === planFilter;
+    });
+  }, [salons, planFilter]);
 
   const columns = useMemo<ColumnDef<Salon>[]>(
     () => [
@@ -257,6 +260,24 @@ export default function AdminTenantsPage() {
         },
       },
       {
+        header: "SaaS Plan",
+        id: "plan",
+        cell: ({ row }) => {
+          const salon = row.original;
+          const tier = (salon as any).tier || (salon.organizationId === "org-aura" ? "PRO" : "STARTER");
+          const isPro = tier === "PRO";
+          const isEnt = tier === "ENTERPRISE";
+          return (
+            <Badge
+              variant={isEnt ? "warning" : isPro ? "purple" : "default"}
+              className="font-bold text-xs"
+            >
+              {isEnt ? "Enterprise" : isPro ? "Pro Plan" : "Starter Plan"}
+            </Badge>
+          );
+        },
+      },
+      {
         header: "Stations & Capacity",
         id: "stations",
         cell: ({ row }) => {
@@ -264,7 +285,7 @@ export default function AdminTenantsPage() {
           const count = salon.stylists?.length || 1;
           return (
             <Badge variant="outline" className="font-semibold text-xs border-slate-700 bg-slate-800/80 text-slate-300">
-              {count === 1 ? "1 Station (Solo)" : `${count} Stations`}
+              {`${count} ${count === 1 ? 'Station' : 'Stations'}`}
             </Badge>
           );
         },
@@ -461,18 +482,18 @@ export default function AdminTenantsPage() {
         </div>
 
         <div className="flex items-center gap-2 self-stretch sm:self-auto">
-          <span className="text-xs text-slate-400 font-medium">Capacity:</span>
-          {(["ALL", "SINGLE", "MULTI"] as const).map((filter) => (
+          <span className="text-xs text-slate-400 font-medium">SaaS Plan:</span>
+          {(["ALL", "STARTER", "PRO", "ENTERPRISE"] as const).map((filter) => (
             <button
               key={filter}
-              onClick={() => setStationFilter(filter)}
+              onClick={() => setPlanFilter(filter)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                stationFilter === filter
+                planFilter === filter
                   ? "bg-blue-600 text-white shadow-sm"
                   : "bg-slate-800 text-slate-400 hover:text-white"
               }`}
             >
-              {filter === "ALL" ? "All Salons" : filter === "SINGLE" ? "1 Station (Solo)" : "Multi-Station (2+ Chairs)"}
+              {filter === "ALL" ? "All Plans" : filter === "STARTER" ? "Starter Plan" : filter === "PRO" ? "Pro Plan" : "Enterprise"}
             </button>
           ))}
         </div>

@@ -28,13 +28,14 @@ import {
   FileText,
   BadgePercent,
   Play,
+  Smartphone,
+  Scissors,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function MarketingHomePage() {
-  const [activeSetup, setActiveSetup] = useState<"SINGLE" | "MULTI">("SINGLE");
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
   return (
@@ -284,170 +285,132 @@ export default function MarketingHomePage() {
         </div>
       </section>
 
-      {/* 3. Dual Architecture Showcase (Interactive Mode Switcher) */}
-      <section id="architecture" className="py-20 bg-slate-900/40 border-y border-slate-800/80">
+      {/* 3. Complete Salon Operating Capabilities */}
+      <section id="capabilities" className="py-20 bg-slate-900/40 border-y border-slate-800/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-14">
             <Badge variant="purple" className="mb-3 px-3 py-1 text-xs">
-              Tailored For Every Salon Scale
+              Unified Platform Capabilities
             </Badge>
             <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-              One Engine. Two Revolutionary Operating Modes.
+              Everything Your Salon Needs in One Unified Engine
             </h2>
             <p className="text-sm sm:text-base text-slate-400 mt-3">
-              Whether you are an independent village barber running a single chair or a modern 10-chair salon chain, Engine Que adapts seamlessly to your floor reality.
+              Engine Que unifies front-of-house customer check-ins with in-chair salon station operations on a single, lightning-fast architecture.
             </p>
-
-            {/* Setup Toggle Pills */}
-            <div className="mt-8 inline-flex p-1.5 rounded-2xl bg-slate-900 border border-slate-700/80">
-              <button
-                onClick={() => setActiveSetup("SINGLE")}
-                className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
-                  activeSetup === "SINGLE"
-                    ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-black"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                <Store className="h-4 w-4" />
-                Single-Chair Studio
-              </button>
-              <button
-                onClick={() => setActiveSetup("MULTI")}
-                className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
-                  activeSetup === "MULTI"
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 font-black"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                <Building2 className="h-4 w-4" />
-                Multi-Station Salon
-              </button>
-            </div>
           </div>
 
-          {/* Mode Card Grid */}
+          {/* Capabilities Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-            {/* Mode A: Single-Chair Studio Card */}
-            <div
-              className={`p-6 sm:p-8 rounded-3xl border transition-all duration-300 flex flex-col justify-between ${
-                activeSetup === "SINGLE"
-                  ? "bg-gradient-to-br from-amber-950/20 via-slate-900 to-slate-900 border-amber-500/50 shadow-xl shadow-amber-500/10 ring-1 ring-amber-500/20"
-                  : "bg-slate-900/50 border-slate-800 opacity-70 hover:opacity-100"
-              }`}
-            >
+            {/* Capability A: Customer Flow */}
+            <div className="p-6 sm:p-8 rounded-3xl border border-slate-800 bg-slate-900/60 hover:border-slate-700 transition-all duration-300 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <Badge variant="warning" className="text-xs px-2.5 py-0.5">
-                    Setup: 1 Station
+                  <Badge variant="default" className="text-xs px-2.5 py-0.5">
+                    Customer Experience
                   </Badge>
-                  <span className="text-xs font-mono text-amber-400">1 Chair / Fast Walk-In</span>
+                  <span className="text-xs font-mono text-blue-400">Zero App Download</span>
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 flex items-center gap-2">
-                  <Store className="h-6 w-6 text-amber-400" />
-                  Rural Solo-Barber Edition
+                  <Smartphone className="h-6 w-6 text-blue-400" />
+                  Self-Service Mobile Journey
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-6">
-                  Engineered specifically for single-chair community barbers, village setups, and small shops. Minimal setup, zero staff overhead, and instant walk-in queue actions.
+                  Customers scan your salon door QR code, pick their grooming services, and receive a live pocket ticket with real-time countdowns.
                 </p>
 
                 <div className="space-y-3 pt-4 border-t border-slate-800">
                   <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
                     <p className="text-xs sm:text-sm text-slate-300">
-                      <strong>1-Tap Quick Add:</strong> Add non-smartphone or elderly customers with 1 click without requiring phone numbers.
+                      <strong>1-Scan QR Door Check-In:</strong> Generates instant queue ticket in &lt;1 second without account passwords or app store friction.
                     </p>
                   </div>
                   <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
                     <p className="text-xs sm:text-sm text-slate-300">
-                      <strong>Flexible Cash Pricing ₹[editable]:</strong> Customize the bill on chair on-the-fly (e.g. ₹80 haircut &rarr; ₹100 with head champy).
+                      <strong>WhatsApp Arrival Alerts:</strong> Automatic notification when their chair is ready, so customers can grab tea or run errands nearby.
                     </p>
                   </div>
                   <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
                     <p className="text-xs sm:text-sm text-slate-300">
-                      <strong>Ultra-Light 2G/3G Resilience:</strong> Sub-25KB bundle loads instantly even on weak rural mobile data connections.
+                      <strong>Dynamic NPCI UPI QR:</strong> Generates exact-amount payment QR codes on client screens for seamless 1-tap UPI payments.
                     </p>
                   </div>
                   <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
                     <p className="text-xs sm:text-sm text-slate-300">
-                      <strong>Vernacular Audio Calls:</strong> Speech synthesis announces ticket numbers in Hindi/English over mobile speaker.
+                      <strong>Live Elapsed Timers:</strong> Smooth, in-memory countdown clocks running entirely on client device hardware.
                     </p>
                   </div>
                 </div>
               </div>
 
               <div className="mt-8 pt-6 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                <Link href="/s/ramesh-barber" className="text-xs font-semibold text-amber-400 hover:text-amber-300 flex items-center gap-1">
+                <Link href="/s/ramesh-barber" className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1">
                   <span>Open Door QR Demo &rarr;</span>
                 </Link>
                 <Link href="/register">
-                  <Button size="sm" variant="outline" className="text-xs border-amber-500/40 hover:bg-amber-500/10 text-amber-300">
-                    Register Salon
+                  <Button size="sm" variant="outline" className="text-xs border-slate-700 hover:bg-slate-800 text-slate-200">
+                    Get Started Free
                   </Button>
                 </Link>
               </div>
             </div>
 
-            {/* Mode B: Modern Multi-Station Card */}
-            <div
-              className={`p-6 sm:p-8 rounded-3xl border transition-all duration-300 flex flex-col justify-between ${
-                activeSetup === "MULTI"
-                  ? "bg-gradient-to-br from-blue-950/20 via-slate-900 to-slate-900 border-blue-500/50 shadow-xl shadow-blue-500/10 ring-1 ring-blue-500/20"
-                  : "bg-slate-900/50 border-slate-800 opacity-70 hover:opacity-100"
-              }`}
-            >
+            {/* Capability B: Floor & Station Operations */}
+            <div className="p-6 sm:p-8 rounded-3xl border border-slate-800 bg-slate-900/60 hover:border-slate-700 transition-all duration-300 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <Badge variant="default" className="text-xs px-2.5 py-0.5">
-                    Setup: Multi-Station
+                  <Badge variant="purple" className="text-xs px-2.5 py-0.5">
+                    Floor &amp; Station Operations
                   </Badge>
-                  <span className="text-xs font-mono text-blue-400">Multi-Chair / Touch Tablets</span>
+                  <span className="text-xs font-mono text-purple-400">Mirror &amp; Tablet Ready</span>
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 flex items-center gap-2">
-                  <Building2 className="h-6 w-6 text-blue-400" />
-                  Modern Multi-Station Enterprise
+                  <Scissors className="h-6 w-6 text-purple-400" />
+                  Stylist &amp; Station Management
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-6">
-                  Engineered for busy urban salons, wellness chains, and multi-stylist stations. Balances queue load across chairs with departure TV displays and tablet PIN switching.
+                  Equip each station with a mirror tablet or smartphone interface to call next clients, record custom service prices, and coordinate chairs.
                 </p>
 
                 <div className="space-y-3 pt-4 border-t border-slate-800">
                   <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
                     <p className="text-xs sm:text-sm text-slate-300">
-                      <strong>Lobby Departure Board TV:</strong> Airport departure screen with privacy phone masking keeps waiting lounges serene.
+                      <strong>Touch Station Desk:</strong> 1-tap call-next, seated, finish, and soft-bump actions designed for wet barber hands.
                     </p>
                   </div>
                   <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
                     <p className="text-xs sm:text-sm text-slate-300">
-                      <strong>4-Digit Rapid PIN Unlock:</strong> Stylists switch chairs in &lt;200ms on shared mirror tablets without account signouts.
+                      <strong>4-Digit Rapid PIN Unlock:</strong> Stylists switch chairs in &lt;200ms on shared mirror tablets without logging out.
                     </p>
                   </div>
                   <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
                     <p className="text-xs sm:text-sm text-slate-300">
-                      <strong>Dynamic Speed Calibration:</strong> 15m–60m speed sliders automatically recalculate all downstream queue wait times.
+                      <strong>Lobby Departure Board TV:</strong> Airport departure screen keeps waiting lounges calm while masking customer phones.
                     </p>
                   </div>
                   <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
                     <p className="text-xs sm:text-sm text-slate-300">
-                      <strong>Franchise Quotas &amp; UPI:</strong> Super admin centralized command hub for managing multiple branches and subscription limits.
+                      <strong>1-Tap Walk-in Quick Add:</strong> Add non-smartphone or elderly walk-in clients directly from the chair.
                     </p>
                   </div>
                 </div>
               </div>
 
               <div className="mt-8 pt-6 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                <Link href="/s/aura-salon/tv" className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1">
-                  <span>Open Lobby TV Board Demo &rarr;</span>
+                <Link href="/s/ramesh-barber/station" className="text-xs font-semibold text-purple-400 hover:text-purple-300 flex items-center gap-1">
+                  <span>Open Station Desk Demo &rarr;</span>
                 </Link>
                 <Link href="/register">
                   <Button size="sm" className="text-xs bg-blue-600 hover:bg-blue-500 text-white">
-                    Register Multi-Station Salon
+                    Start Salon Trial
                   </Button>
                 </Link>
               </div>
@@ -626,38 +589,42 @@ export default function MarketingHomePage() {
         </div>
       </section>
 
-      {/* 6. Transparent Pricing Tiers */}
+      {/* 6. Transparent SaaS Subscription Plans */}
       <section id="pricing" className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <Badge variant="purple" className="mb-3 px-3 py-1 text-xs">
-              Simple, Predictable Pricing
+              Simple, Predictable Plans
             </Badge>
             <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Grow from Free Solo to Nationwide Chain
+              SaaS Plans That Scale With Your Salon
             </h2>
             <p className="text-sm sm:text-base text-slate-400 mt-3">
-              No hidden fees. Free forever tier for solo community barbers.
+              One unified platform. Pick the subscription plan tailored to your salon capacity and branch footprint.
             </p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Solo Barber */}
+            {/* Plan 1: Starter Plan */}
             <div className="p-8 rounded-3xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between">
               <div>
-                <Badge variant="warning" className="text-xs mb-3">Solo Barber</Badge>
-                <h3 className="text-xl font-bold text-white">Rural Community Edition</h3>
-                <p className="text-xs text-slate-400 mt-1">For village barbers &amp; solo stylists</p>
+                <Badge variant="default" className="text-xs mb-3">Starter Plan</Badge>
+                <h3 className="text-xl font-bold text-white">Starter Edition</h3>
+                <p className="text-xs text-slate-400 mt-1">For single-location boutique studios &amp; barbers</p>
                 
                 <div className="my-6">
-                  <span className="text-4xl font-black text-white">₹0</span>
-                  <span className="text-xs text-slate-400 ml-1.5 font-medium">/ Free Forever</span>
+                  <span className="text-4xl font-black text-white">₹499</span>
+                  <span className="text-xs text-slate-400 ml-1.5 font-medium">/ month</span>
                 </div>
 
                 <ul className="space-y-3 text-xs sm:text-sm text-slate-300 pt-4 border-t border-slate-800">
                   <li className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>1 Cutting Chair / Stylist</span>
+                    <span>1 Salon Location</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                    <span>Up to 3 Stylist Chairs</span>
                   </li>
                   <li className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
@@ -665,15 +632,15 @@ export default function MarketingHomePage() {
                   </li>
                   <li className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>Flexible Cash Pricing ₹[editable]</span>
+                    <span>WhatsApp Arrival Alerts</span>
                   </li>
                   <li className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>1-Tap Add for Non-Smartphone Clients</span>
+                    <span>Dynamic NPCI UPI QR &amp; Cash</span>
                   </li>
                   <li className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>Hindi / Vernacular Voice Callouts</span>
+                    <span>Client-Side Live Service Timers</span>
                   </li>
                 </ul>
               </div>
@@ -681,36 +648,36 @@ export default function MarketingHomePage() {
               <div className="mt-8">
                 <Link href="/register">
                   <Button variant="outline" className="w-full border-slate-700 hover:bg-slate-800 text-slate-200">
-                    Start Free Solo
+                    Start 14-Day Free Trial
                   </Button>
                 </Link>
               </div>
             </div>
 
-            {/* Salon Pro */}
+            {/* Plan 2: Pro Plan */}
             <div className="p-8 rounded-3xl bg-gradient-to-b from-blue-950/40 via-slate-900 to-slate-900 border-2 border-blue-500/80 shadow-2xl shadow-blue-500/10 flex flex-col justify-between relative">
               <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-blue-600 text-white text-[11px] font-bold tracking-wide uppercase shadow-md">
                 Most Popular
               </span>
 
               <div>
-                <Badge variant="default" className="text-xs mb-3">Salon Pro</Badge>
-                <h3 className="text-xl font-bold text-white">Modern Multi-Station</h3>
-                <p className="text-xs text-slate-400 mt-1">For high-turnover salons &amp; parlors</p>
+                <Badge variant="purple" className="text-xs mb-3">Pro Plan</Badge>
+                <h3 className="text-xl font-bold text-white">Pro Edition</h3>
+                <p className="text-xs text-slate-400 mt-1">For high-turnover salons, parlors &amp; spas</p>
                 
                 <div className="my-6">
-                  <span className="text-4xl font-black text-white">₹999</span>
+                  <span className="text-4xl font-black text-white">₹1,499</span>
                   <span className="text-xs text-slate-400 ml-1.5 font-medium">/ month</span>
                 </div>
 
                 <ul className="space-y-3 text-xs sm:text-sm text-slate-300 pt-4 border-t border-slate-800">
                   <li className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>Up to 5 Chairs &amp; Stylists</span>
+                    <span>Up to 5 Salon Locations</span>
                   </li>
                   <li className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>Automated WhatsApp Cloud API Dispatch</span>
+                    <span>Up to 10 Stylists per Location</span>
                   </li>
                   <li className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
@@ -722,7 +689,7 @@ export default function MarketingHomePage() {
                   </li>
                   <li className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>Dynamic Speed Calibration Sliders</span>
+                    <span>Split Service Up-sells &amp; Speed Sliders</span>
                   </li>
                 </ul>
               </div>
@@ -736,22 +703,22 @@ export default function MarketingHomePage() {
               </div>
             </div>
 
-            {/* Enterprise Chain */}
+            {/* Plan 3: Enterprise Plan */}
             <div className="p-8 rounded-3xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between">
               <div>
-                <Badge variant="purple" className="text-xs mb-3">Enterprise</Badge>
-                <h3 className="text-xl font-bold text-white">Salon Chain &amp; Franchise</h3>
-                <p className="text-xs text-slate-400 mt-1">For multi-branch regional brands</p>
+                <Badge variant="warning" className="text-xs mb-3">Enterprise Plan</Badge>
+                <h3 className="text-xl font-bold text-white">Enterprise Edition</h3>
+                <p className="text-xs text-slate-400 mt-1">For multi-branch regional brands &amp; franchises</p>
                 
                 <div className="my-6">
-                  <span className="text-4xl font-black text-white">₹2,999</span>
+                  <span className="text-4xl font-black text-white">₹4,999</span>
                   <span className="text-xs text-slate-400 ml-1.5 font-medium">/ month</span>
                 </div>
 
                 <ul className="space-y-3 text-xs sm:text-sm text-slate-300 pt-4 border-t border-slate-800">
                   <li className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>Up to 25 Branches &amp; Unlimited Chairs</span>
+                    <span>Unlimited Locations &amp; Stylist Chairs</span>
                   </li>
                   <li className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
@@ -767,7 +734,7 @@ export default function MarketingHomePage() {
                   </li>
                   <li className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>Dedicated SLA &amp; Telemetry Monitoring</span>
+                    <span>Dedicated SLA &amp; 24/7 Account Manager</span>
                   </li>
                 </ul>
               </div>

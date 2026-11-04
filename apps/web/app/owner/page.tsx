@@ -295,7 +295,7 @@ function OwnerDashboardContent() {
               {salon?.name || "Salon Command Hub"}
             </h1>
             <Badge variant="outline" className="text-xs border-slate-700 bg-slate-800 text-slate-300">
-              {(salon?.stylists?.length || 1) === 1 ? "1 Station (Solo)" : `${salon?.stylists?.length || 1} Stations`}
+              {`${salon?.stylists?.length || 1} ${(salon?.stylists?.length || 1) === 1 ? "Station" : "Stations"}`}
             </Badge>
           </div>
           <p className="text-slate-400 text-sm mt-1">

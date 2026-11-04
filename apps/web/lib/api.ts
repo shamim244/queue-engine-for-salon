@@ -85,7 +85,7 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
-  tier: "SOLO" | "PRO" | "ENTERPRISE";
+  tier: "STARTER" | "PRO" | "ENTERPRISE" | "SOLO";
   maxBranches: number;
   maxStylistsPerBranch: number;
   allowCustomSmsGateway: boolean;
@@ -221,7 +221,7 @@ export interface OnboardSalonPayload {
   upiPaymentId?: string;
   organizationName?: string;
   organizationSlug?: string;
-  tier?: "SOLO" | "PRO" | "ENTERPRISE";
+  tier?: "STARTER" | "PRO" | "ENTERPRISE" | "SOLO";
   ownerUser?: {
     username: string;
     password: string;
@@ -497,7 +497,7 @@ export const api = {
         branches: Salon[];
       }>(`/api/salons/organizations/${id}`),
 
-    updateTier: (orgId: string, tier: "SOLO" | "PRO" | "ENTERPRISE") =>
+    updateTier: (orgId: string, tier: "STARTER" | "PRO" | "ENTERPRISE" | "SOLO") =>
       request<{ success: boolean; organization: Organization }>(
         `/api/salons/organizations/${orgId}/tier`,
         {

@@ -66,8 +66,8 @@ export default function AdminOverviewPage() {
 
 
   const totalStylists = salons.reduce((acc, s) => acc + (s.stylists?.length || 0), 0);
-  const singleChairCount = salons.filter((s) => (s.stylists?.length || 0) <= 1).length;
-  const multiChairCount = salons.filter((s) => (s.stylists?.length || 0) > 1).length;
+  const starterPlanCount = salons.filter((s) => (s as any).tier !== "PRO" && (s as any).tier !== "ENTERPRISE" && s.organizationId !== "org-aura").length;
+  const proPlanCount = salons.filter((s) => (s as any).tier === "PRO" || s.organizationId === "org-aura").length;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -206,18 +206,18 @@ export default function AdminOverviewPage() {
 
         <Card className="bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border-slate-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Station Capacity</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-400">Subscription Plans</CardTitle>
             <SlidersHorizontal className="h-5 w-5 text-emerald-400" />
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-3 text-2xl font-black text-white">
-              <span className="text-amber-400">{singleChairCount}</span>
+              <span className="text-blue-400">{starterPlanCount}</span>
               <span className="text-slate-600 text-lg">/</span>
-              <span className="text-blue-400">{multiChairCount}</span>
+              <span className="text-purple-400">{proPlanCount}</span>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              <span className="text-amber-400 font-semibold">{singleChairCount} Solo Station</span> ·{" "}
-              <span className="text-blue-400 font-semibold">{multiChairCount} Multi-Station</span>
+              <span className="text-blue-400 font-semibold">{starterPlanCount} Starter</span> ·{" "}
+              <span className="text-purple-400 font-semibold">{proPlanCount} Pro Plan</span>
             </p>
           </CardContent>
         </Card>
@@ -275,7 +275,7 @@ export default function AdminOverviewPage() {
                             variant="outline"
                             className="text-[11px] border-slate-700 bg-slate-800/60 text-slate-300"
                           >
-                            {(salon.stylists?.length || 1) === 1 ? "1 Station (Solo)" : `${salon.stylists?.length || 1} Stations`}
+                            {`${salon.stylists?.length || 1} ${(salon.stylists?.length || 1) === 1 ? "Station" : "Stations"}`}
                           </Badge>
                         </div>
                         <p className="text-xs text-slate-400 mt-1">

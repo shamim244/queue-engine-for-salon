@@ -110,7 +110,7 @@ export default function AdminBillingPage() {
     fetchOrgs();
   }, []);
 
-  const handleUpdateTier = async (orgId: string, nextTier: "SOLO" | "PRO" | "ENTERPRISE") => {
+  const handleUpdateTier = async (orgId: string, nextTier: "STARTER" | "PRO" | "ENTERPRISE" | "SOLO") => {
     setUpdatingOrgId(orgId);
     try {
       await api.salons.updateTier(orgId, nextTier);
@@ -123,9 +123,9 @@ export default function AdminBillingPage() {
     }
   };
 
-  const tierPrices = { SOLO: 499, PRO: 1499, ENTERPRISE: 4999 };
+  const tierPrices: Record<string, number> = { STARTER: 499, SOLO: 499, PRO: 1499, ENTERPRISE: 4999 };
   const totalMRR = organizations.reduce((acc, o) => acc + (tierPrices[o.tier] || 499), 0);
-  const soloCount = organizations.filter((o) => o.tier === "SOLO").length;
+  const starterCount = organizations.filter((o) => o.tier === "STARTER" || o.tier === "SOLO").length;
   const proCount = organizations.filter((o) => o.tier === "PRO").length;
   const enterpriseCount = organizations.filter((o) => o.tier === "ENTERPRISE").length;
 
@@ -141,22 +141,22 @@ export default function AdminBillingPage() {
 
   const tiers = [
     {
-      id: "SOLO",
-      name: "Rural Solo Tier",
+      id: "STARTER",
+      name: "Starter Plan",
       price: "₹499 / mo",
       branches: "1 Branch",
-      stylists: "1 Chair / Stylist",
+      stylists: "Up to 3 Chairs / Stylist",
       features: ["Door QR Poster", "Simple 4-Digit Chair UI", "Basic SMS Alerts", "Standard Queue Algorithm"],
       badge: "secondary",
     },
     {
       id: "PRO",
-      name: "Modern Multi Pro",
+      name: "Pro Plan",
       price: "₹1,499 / mo",
-      branches: "Up to 3 Branches",
-      stylists: "Up to 5 Chairs / Branch",
+      branches: "Up to 5 Branches",
+      stylists: "Up to 10 Chairs / Branch",
       features: [
-        "Everything in Solo",
+        "Everything in Starter",
         "Public Lobby TV Departure Board",
         "Real-time WhatsApp Alerts",
         "Speed Calibration Sliders",
@@ -167,7 +167,7 @@ export default function AdminBillingPage() {
     },
     {
       id: "ENTERPRISE",
-      name: "Enterprise Multi-Chain",
+      name: "Enterprise Plan",
       price: "₹4,999 / mo",
       branches: "Unlimited Branches (25+)",
       stylists: "Unlimited Chairs (30+)",
@@ -258,7 +258,7 @@ export default function AdminBillingPage() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-slate-400">
-              {soloCount} Solo · {proCount} Pro · {enterpriseCount} Enterprise
+              {starterCount} Starter · {proCount} Pro · {enterpriseCount} Enterprise
             </p>
           </CardContent>
         </Card>
@@ -392,21 +392,24 @@ export default function AdminBillingPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {(["SOLO", "PRO", "ENTERPRISE"] as const).map((t) => (
-                      <Button
-                        key={t}
-                        size="sm"
-                        variant={org.tier === t ? "default" : "outline"}
-                        className={`text-xs h-8 ${
-                          org.tier === t ? "pointer-events-none opacity-80" : "border-slate-700 hover:border-slate-500"
-                        }`}
-                        onClick={() => handleUpdateTier(org.id, t)}
-                        disabled={isUpdating}
-                      >
-                        {org.tier === t && <Check className="h-3.5 w-3.5 mr-1" />}
-                        {t}
-                      </Button>
-                    ))}
+                    {(["STARTER", "PRO", "ENTERPRISE"] as const).map((t) => {
+                      const isCurrent = org.tier === t || (t === "STARTER" && org.tier === "SOLO");
+                      return (
+                        <Button
+                          key={t}
+                          size="sm"
+                          variant={isCurrent ? "default" : "outline"}
+                          className={`text-xs h-8 ${
+                            isCurrent ? "pointer-events-none opacity-80" : "border-slate-700 hover:border-slate-500"
+                          }`}
+                          onClick={() => handleUpdateTier(org.id, t)}
+                          disabled={isUpdating}
+                        >
+                          {isCurrent && <Check className="h-3.5 w-3.5 mr-1" />}
+                          {t}
+                        </Button>
+                      );
+                    })}
                   </div>
                 </div>
               );

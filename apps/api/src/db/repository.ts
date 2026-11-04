@@ -472,10 +472,11 @@ export const repository = {
 
     const tier = params.tier || 'SOLO';
     const limits = {
+      STARTER: { maxBranches: 1, maxStylistsPerBranch: 1 },
       SOLO: { maxBranches: 1, maxStylistsPerBranch: 1 },
-      PRO: { maxBranches: 5, maxStylistsPerBranch: 8 },
-      ENTERPRISE: { maxBranches: 50, maxStylistsPerBranch: 25 },
-    }[tier];
+      PRO: { maxBranches: 3, maxStylistsPerBranch: 10 },
+      ENTERPRISE: { maxBranches: 999, maxStylistsPerBranch: 999 },
+    }[tier] || { maxBranches: 1, maxStylistsPerBranch: 1 };
 
     const org: Organization = {
       id: 'org-' + Math.random().toString(36).substring(2, 9),
@@ -510,10 +511,11 @@ export const repository = {
 
   async updateOrganizationTier(orgId: string, tier: SubscriptionTier): Promise<Organization | null> {
     const limits = {
+      STARTER: { maxBranches: 1, maxStylistsPerBranch: 1 },
       SOLO: { maxBranches: 1, maxStylistsPerBranch: 1 },
       PRO: { maxBranches: 3, maxStylistsPerBranch: 10 },
       ENTERPRISE: { maxBranches: 999, maxStylistsPerBranch: 999 },
-    }[tier];
+    }[tier] || { maxBranches: 1, maxStylistsPerBranch: 1 };
 
     const org = await this.getOrganizationById(orgId);
     if (!org) return null;
@@ -1292,7 +1294,7 @@ export const repository = {
           name: s.name,
           slug: s.slug,
           organizationId: s.organizationId,
-          tier: org?.tier || 'SOLO',
+          tier: org?.tier || 'STARTER',
           operatingMode: s.operatingMode,
           phone: s.phone,
           stylistCount: s.stylists.length,
@@ -1423,7 +1425,7 @@ export const repository = {
         org = await this.createOrganization({
           name: payload.organizationName,
           slug: orgSlug,
-          tier: payload.tier || 'SOLO',
+          tier: payload.tier || 'STARTER',
         });
       }
     }

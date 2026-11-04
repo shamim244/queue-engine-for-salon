@@ -65,12 +65,12 @@ function OwnerBillingContent() {
 
   const tiers = [
     {
-      id: "SOLO",
-      name: "Rural Solo Tier",
+      id: "STARTER",
+      name: "Starter Plan",
       price: "₹499",
       billing: "/ month",
       branchLimit: "1 Branch",
-      stylistLimit: "1 Stylist",
+      stylistLimit: "Up to 3 Stylists",
       features: [
         "Door QR Poster Generator",
         "Simple 4-Digit Mirror Touch PIN",
@@ -80,14 +80,14 @@ function OwnerBillingContent() {
     },
     {
       id: "PRO",
-      name: "Modern Multi Pro",
+      name: "Pro Plan",
       price: "₹1,499",
       billing: "/ month",
       popular: true,
-      branchLimit: "Up to 3 Branches",
-      stylistLimit: "Up to 5 Chairs / Branch",
+      branchLimit: "Up to 5 Branches",
+      stylistLimit: "Up to 10 Chairs / Branch",
       features: [
-        "Everything in Solo",
+        "Everything in Starter",
         "Public Smart TV Departure Board",
         "Stylist Speed Calibration (15m–60m)",
         "2-Second Rapid Chair Swap",
@@ -96,7 +96,7 @@ function OwnerBillingContent() {
     },
     {
       id: "ENTERPRISE",
-      name: "Multi-Chain Enterprise",
+      name: "Enterprise Plan",
       price: "₹4,999",
       billing: "/ month",
       branchLimit: "Unlimited Branches",
@@ -174,7 +174,7 @@ function OwnerBillingContent() {
       {/* Subscription Tier Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {tiers.map((t) => {
-          const isCurrent = currentTier === t.id;
+          const isCurrent = currentTier === t.id || (t.id === "STARTER" && currentTier === "SOLO");
           return (
             <Card
               key={t.id}
