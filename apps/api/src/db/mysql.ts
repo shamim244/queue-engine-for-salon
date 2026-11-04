@@ -161,6 +161,22 @@ async function runMigrations() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_session_token (token),
         INDEX idx_session_user (user_id)
+    ) ENGINE=InnoDB;`,
+
+    `CREATE TABLE IF NOT EXISTS queue_jobs (
+        id VARCHAR(36) PRIMARY KEY,
+        salon_id VARCHAR(36) NULL,
+        type VARCHAR(50) NOT NULL,
+        payload JSON NOT NULL,
+        status ENUM('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED') DEFAULT 'PENDING',
+        attempts INT DEFAULT 0,
+        max_attempts INT DEFAULT 3,
+        last_error TEXT NULL,
+        scheduled_for TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_job_status_sched (status, scheduled_for),
+        INDEX idx_job_salon (salon_id)
     ) ENGINE=InnoDB;`
   ];
 
