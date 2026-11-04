@@ -45,7 +45,8 @@ export interface Stylist {
   phone?: string;
   pin?: string;
   userId?: string;
-  isAvailable: boolean;
+  isAvailable?: boolean;
+  isActive?: boolean;
   isOwner?: boolean;
   currentTicketId?: string | null;
   avgDurationMinutes?: number;
@@ -632,6 +633,15 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ ticketId }),
       }),
+
+    holdAndCallNext: (data: { salonId: string; currentTicketId: string; stylistId?: string }) =>
+      request<{ success: boolean; bumpedTicket: Ticket; nextTicket: Ticket | null }>(
+        "/api/queue/hold-and-call-next",
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        }
+      ),
 
     summon: (ticketId: string, stylistId?: string) =>
       request<{ success: boolean; ticket: Ticket }>("/api/queue/summon", {

@@ -114,20 +114,67 @@ export const queueEngine = {
   },
 
   // 3. Barber 1-Tap [CALL NEXT]
-  async callNext(salonId: string, stylistId?: string): Promise<QueueTicket | null> {
-    const activeTickets = await repository.getActiveTickets(salonId);
+  async callNext(
+    salonId: string,
+    stylistId?: string,
+    options?: { excludeTicketId?: string; preferWaiting?: boolean } | string
+  ): Promise<QueueTicket | null> {
+    const excludeTicketId = typeof options === 'string' ? options : options?.excludeTicketId;
+    const preferWaiting = typeof options === 'object' ? options?.preferWaiting : false;
+
+    const rawActive = await repository.getActiveTickets(salonId);
+    const activeTickets = excludeTicketId ? rawActive.filter((t) => t.id !== excludeTicketId) : rawActive;
     
-    // Priority: 1. SOFT_BUMPED clients returning, 2. WAITING clients in chronological order
-    const nextTicket = activeTickets.find((t) => t.status === 'SOFT_BUMPED') ||
-                       activeTickets.find((t) => t.status === 'WAITING');
+    let nextTicket: QueueTicket | undefined;
+
+    if (stylistId) {
+      if (preferWaiting) {
+        // When holding a client, prioritize uncalled clients who are actively WAITING
+        nextTicket =
+          activeTickets.find((t) => t.status === 'WAITING' && t.stylistId === stylistId) ||
+          activeTickets.find((t) => t.status === 'WAITING' && (!t.stylistId || t.stylistId === null)) ||
+          activeTickets.find((t) => t.status === 'SOFT_BUMPED' && t.stylistId === stylistId) ||
+          activeTickets.find((t) => t.status === 'SOFT_BUMPED' && (!t.stylistId || t.stylistId === null));
+      } else {
+        // Priority when chair is free: 1. SOFT_BUMPED clients returning, 2. WAITING clients
+        nextTicket =
+          activeTickets.find((t) => t.status === 'SOFT_BUMPED' && t.stylistId === stylistId) ||
+          activeTickets.find((t) => t.status === 'SOFT_BUMPED' && (!t.stylistId || t.stylistId === null)) ||
+          activeTickets.find((t) => t.status === 'WAITING' && t.stylistId === stylistId) ||
+          activeTickets.find((t) => t.status === 'WAITING' && (!t.stylistId || t.stylistId === null));
+      }
+    } else {
+      if (preferWaiting) {
+        nextTicket =
+          activeTickets.find((t) => t.status === 'WAITING') ||
+          activeTickets.find((t) => t.status === 'SOFT_BUMPED');
+      } else {
+        nextTicket =
+          activeTickets.find((t) => t.status === 'SOFT_BUMPED') ||
+          activeTickets.find((t) => t.status === 'WAITING');
+      }
+    }
 
     if (!nextTicket) return null;
 
     const salon = (await repository.getAllSalons()).find((s) => s.id === salonId);
-    const stylist = salon?.stylists.find((s) => s.id === stylistId) || salon?.stylists[0];
+    const assignedStylistId = stylistId || nextTicket.stylistId || salon?.stylists[0]?.id;
+    const stylist = salon?.stylists.find((s) => s.id === assignedStylistId) || salon?.stylists[0];
 
+    // If chair already had another SUMMONED ticket, gracefully soft-bump it to avoid stranded states
+    const currentlySummoned = rawActive.filter(
+      (t) =>
+        (t.status === 'SUMMONED' || t.status === 'CALLED') &&
+        t.id !== nextTicket!.id &&
+        (!stylist?.id || !t.stylistId || t.stylistId === stylist.id)
+    );
+    for (const prev of currentlySummoned) {
+      await repository.updateTicketStatus(prev.id, 'SOFT_BUMPED');
+    }
+
+    const finalStylistId = stylistId || nextTicket.stylistId || stylist?.id;
     const updated = await repository.updateTicketStatus(nextTicket.id, 'SUMMONED', {
-      stylistId: stylist?.id,
+      stylistId: finalStylistId,
       summonedTime: new Date().toISOString(),
     });
 
@@ -254,20 +301,50 @@ export const queueEngine = {
     return updated;
   },
 
+  // 6.1 Atomic Hold spot (soft-bump) & call next client
+  async holdAndCallNext(params: {
+    salonId: string;
+    currentTicketId: string;
+    stylistId?: string;
+  }): Promise<{ bumpedTicket: QueueTicket | null; nextTicket: QueueTicket | null }> {
+    const bumpedTicket = await this.softBump(params.currentTicketId);
+    const nextTicket = await this.callNext(params.salonId, params.stylistId, {
+      excludeTicketId: params.currentTicketId,
+      preferWaiting: true,
+    });
+    return { bumpedTicket, nextTicket };
+  },
+
   // 7. Summon specific ticket directly (Front Desk / Owner trigger)
   async summonTicket(ticketId: string, stylistId?: string): Promise<QueueTicket | null> {
     const ticket = await repository.getTicketById(ticketId);
     if (!ticket) return null;
 
+    const salon = (await repository.getAllSalons()).find((s) => s.id === ticket.salonId);
+    const assignedStylistId = stylistId || ticket.stylistId || salon?.stylists[0]?.id;
+    const stylist = salon?.stylists.find((s) => s.id === assignedStylistId) || salon?.stylists[0];
+
+    // Gracefully soft-bump any other ticket currently summoned for this chair/salon
+    const active = await repository.getActiveTickets(ticket.salonId);
+    const previouslySummoned = active.filter(
+      (t) =>
+        (t.status === 'SUMMONED' || t.status === 'CALLED') &&
+        t.id !== ticketId &&
+        (!stylist?.id || !t.stylistId || t.stylistId === stylist.id)
+    );
+    for (const prev of previouslySummoned) {
+      await repository.updateTicketStatus(prev.id, 'SOFT_BUMPED');
+    }
+
+    const finalStylistId = stylistId || ticket.stylistId || stylist?.id;
     const updated = await repository.updateTicketStatus(ticketId, 'SUMMONED', {
-      stylistId: stylistId || ticket.stylistId || undefined,
+      stylistId: finalStylistId,
       summonedTime: new Date().toISOString(),
     });
     if (!updated) return null;
 
-    const salon = (await repository.getAllSalons()).find((s) => s.id === ticket.salonId);
+
     if (salon) {
-      const stylist = salon.stylists.find((st) => st.id === (stylistId || ticket.stylistId));
       await notificationService.sendWhatsApp({
         salonId: salon.id,
         salonName: salon.name,
@@ -331,6 +408,7 @@ export const queueEngine = {
       if (calc) {
         ticket.estimatedWaitMinutes = calc.estimatedMinutes;
         ticket.positionInQueue = calc.position;
+        await repository.updateTicketWaitTime(ticket.id, calc.estimatedMinutes);
       }
     }
   },

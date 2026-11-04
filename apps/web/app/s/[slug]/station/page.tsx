@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { formatCurrency, maskPhone } from "@/lib/utils";
+import { formatCurrency, maskPhone, generateUpiUri } from "@/lib/utils";
+import QRCode from "qrcode";
 import {
   Armchair,
   Volume2,
@@ -53,6 +54,13 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const [summonedTicket, setSummonedTicket] = useState<Ticket | null>(null);
   const [editableBill, setEditableBill] = useState<number>(150);
   const [processingAction, setProcessingAction] = useState(false);
+
+  // In-Chair Timer & Checkout Modal State
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState<"UPI" | "CASH">("UPI");
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
+  const [generatingQr, setGeneratingQr] = useState(false);
 
   // In-App Toast Alert State
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
@@ -141,6 +149,54 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     console.log("[Station UI] WebSocket event:", event.type);
     fetchStationData();
   });
+
+  // Live Timer for Client in Chair
+  useEffect(() => {
+    if (!currentlyServing) {
+      setElapsedSeconds(0);
+      return;
+    }
+    const startTime = (currentlyServing as any).startedTime || (currentlyServing as any).seatedAt || currentlyServing.createdAt;
+    const startMs = startTime ? new Date(startTime).getTime() : Date.now();
+
+    const updateTimer = () => {
+      const diffSecs = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+      setElapsedSeconds(diffSecs);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [currentlyServing]);
+
+  const formatElapsed = (totalSecs: number) => {
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // Dynamic Amount UPI QR Code Generation
+  useEffect(() => {
+    if (!isCheckoutOpen || checkoutPaymentMethod !== "UPI" || !currentlyServing) return;
+
+    const upiId = salon?.upiPaymentId || (salon?.phone ? `${salon.phone.replace(/[^0-9]/g, "")}@upi` : "salon@upi");
+    const payeeName = salon?.name || "Salon";
+    const amount = Number(editableBill || 0);
+    const note = `Ticket #${currentlyServing.ticketNumber}`;
+
+    const upiUri = generateUpiUri({ upiId, payeeName, amount, note });
+    setGeneratingQr(true);
+    QRCode.toDataURL(upiUri, { width: 260, margin: 1 })
+      .then((url) => {
+        setQrCodeDataUrl(url);
+      })
+      .catch((err) => {
+        console.error("Failed to generate UPI QR code:", err);
+      })
+      .finally(() => {
+        setGeneratingQr(false);
+      });
+  }, [isCheckoutOpen, checkoutPaymentMethod, editableBill, currentlyServing, salon]);
 
   // Handle PIN Numpad Touch Input
   const handlePinDigit = (digit: string) => {
@@ -252,6 +308,55 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     }
   };
 
+  // [HOLD SPOT & CALL NEXT (CHAIR VS WAIT)]
+  const handleHoldAndCallNext = async () => {
+    if (!summonedTicket || !salon) return;
+    setProcessingAction(true);
+    try {
+      const resp = await api.queue.holdAndCallNext({
+        salonId: salon.id,
+        currentTicketId: summonedTicket.id,
+        stylistId: activeStylist?.id,
+      });
+      if (resp.nextTicket) {
+        setSummonedTicket(resp.nextTicket);
+        const announcement = `Ticket Number ${resp.nextTicket.ticketNumber}, ${resp.nextTicket.customerName}, please step to chair!`;
+        speakAnnouncement(announcement);
+        showToast(
+          `Ticket #${summonedTicket.ticketNumber} on hold. Summoned #${resp.nextTicket.ticketNumber} (${resp.nextTicket.customerName})`,
+          "info"
+        );
+      } else {
+        setSummonedTicket(null);
+        showToast(`Ticket #${summonedTicket.ticketNumber} held. No further waiting clients.`, "info");
+      }
+      fetchStationData();
+    } catch (err) {
+      showToast("Error holding ticket: " + (err as Error).message, "error");
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  // [1-TAP CALL TO CHAIR ON WAITING LIST]
+  const handleSummonSpecific = async (ticket: Ticket) => {
+    setProcessingAction(true);
+    try {
+      const resp = await api.queue.summon(ticket.id, activeStylist?.id);
+      if (resp.ticket) {
+        setSummonedTicket(resp.ticket);
+        const announcement = `Ticket Number ${resp.ticket.ticketNumber}, ${resp.ticket.customerName}, please step to chair!`;
+        speakAnnouncement(announcement);
+        showToast(`Summoned Ticket #${resp.ticket.ticketNumber} (${resp.ticket.customerName})!`, "success");
+        fetchStationData();
+      }
+    } catch (err) {
+      showToast("Error summoning ticket: " + (err as Error).message, "error");
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
   // [FINISH SERVICE & CHECKOUT]
   const handleFinishCheckout = async (paymentStatus: "CASH_PAID" | "ONLINE_PAID") => {
     if (!currentlyServing) return;
@@ -260,6 +365,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       await api.queue.finish(currentlyServing.id, paymentStatus, editableBill);
       showToast(`Completed Ticket #${currentlyServing.ticketNumber} (${paymentStatus === "CASH_PAID" ? "Cash" : "UPI"})!`, "success");
       setCurrentlyServing(null);
+      setIsCheckoutOpen(false);
       fetchStationData();
     } catch (err) {
       showToast("Error checking out: " + (err as Error).message, "error");
@@ -608,7 +714,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                 </div>
               </div>
 
-              {/* Action Buttons: Seat in Chair vs 3m Soft Bump */}
+              {/* Action Buttons: In Chair vs WAIT Hold & Call Next */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <Button
                   size="lg"
@@ -617,24 +723,24 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                   className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg h-14 rounded-xl gap-2 shadow-lg shadow-emerald-600/20"
                 >
                   <UserCheck className="h-6 w-6" />
-                  <span>💺 Seat In Chair</span>
+                  <span>💺 In Chair (Customer Arrived)</span>
                 </Button>
 
                 <Button
                   size="lg"
                   variant="outline"
-                  onClick={handleSoftBump}
+                  onClick={handleHoldAndCallNext}
                   disabled={processingAction}
                   className="border-amber-500/60 text-amber-300 hover:bg-amber-500/10 font-bold h-14 rounded-xl gap-2"
                 >
                   <Clock className="h-5 w-5 text-amber-400" />
-                  <span>⏳ 3m Hold (Tea Break)</span>
+                  <span>⏳ WAIT (Not Here - Hold & Call Next)</span>
                 </Button>
               </div>
             </Card>
           )}
 
-          {/* 3. CURRENTLY SERVING BOX (Live Editable Bill & 1-Tap Checkout) */}
+          {/* 3. CURRENTLY SERVING BOX (In-Chair Workspace) */}
           {currentlyServing && (
             <Card className="border-2 border-emerald-500/80 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/20 p-6 sm:p-8 space-y-6 shadow-2xl">
               <div className="flex items-center justify-between pb-4 border-b border-emerald-500/30">
@@ -644,9 +750,10 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                     CURRENTLY IN CHAIR
                   </Badge>
                 </div>
-                <span className="text-xs text-slate-400">
-                  Seated at {new Date(currentlyServing.seatedAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+                <div className="flex items-center gap-2 text-xs font-mono text-emerald-300 font-bold bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
+                  <Clock className="h-3.5 w-3.5 text-emerald-400 animate-spin" />
+                  <span>Elapsed: {formatElapsed(elapsedSeconds)}</span>
+                </div>
               </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -662,48 +769,29 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                   </div>
                 </div>
 
-                {/* LIVE EDITABLE BILL AMOUNT: ₹[editable] */}
-                <div className="p-4 rounded-2xl bg-slate-950 border border-emerald-500/40 text-right min-w-[200px]">
-                  <label className="text-xs text-emerald-400 font-bold uppercase tracking-wider block mb-1">
-                    Live Editable Bill
-                  </label>
-                  <div className="flex items-center justify-end gap-1.5">
-                    <span className="text-2xl font-black text-emerald-400">₹</span>
-                    <input
-                      type="number"
-                      min={0}
-                      step={10}
-                      value={editableBill}
-                      onChange={(e) => setEditableBill(Number(e.target.value))}
-                      className="w-28 text-2xl font-black text-right bg-transparent text-white border-b-2 border-emerald-400 focus:outline-none"
-                    />
-                  </div>
-                  <span className="text-[10px] text-slate-500 block mt-1">
-                    Editable before checkout
+                <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-right min-w-[200px]">
+                  <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold block mb-1">
+                    Selected Service
                   </span>
+                  <p className="text-base font-bold text-white">
+                    {currentlyServing.serviceName || "Haircut Service"}
+                  </p>
+                  <p className="text-xs font-semibold text-emerald-400 mt-1">
+                    {formatCurrency(currentlyServing.totalPrice || editableBill || 150)}
+                  </p>
                 </div>
               </div>
 
-              {/* 1-TAP CHECKOUT BUTTONS: CASH vs UPI */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-800">
+              {/* Single prominent button: Complete Service -> Proceed to Payment */}
+              <div className="pt-4 border-t border-slate-800">
                 <Button
                   size="xl"
-                  onClick={() => handleFinishCheckout("CASH_PAID")}
+                  onClick={() => setIsCheckoutOpen(true)}
                   disabled={processingAction}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl h-16 rounded-2xl gap-3 shadow-xl shadow-emerald-600/20"
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl h-16 rounded-2xl gap-3 shadow-xl shadow-emerald-600/20 transition-all active:scale-98"
                 >
-                  <Banknote className="h-7 w-7" />
-                  <span>💵 ₹{editableBill} Paid (Cash) & Done</span>
-                </Button>
-
-                <Button
-                  size="xl"
-                  onClick={() => handleFinishCheckout("ONLINE_PAID")}
-                  disabled={processingAction}
-                  className="bg-blue-600 hover:bg-blue-500 text-white font-black text-xl h-16 rounded-2xl gap-3 shadow-xl shadow-blue-600/20"
-                >
-                  <Smartphone className="h-7 w-7" />
-                  <span>📱 Online UPI Paid</span>
+                  <CheckCircle2 className="h-7 w-7" />
+                  <span>✅ Complete Service &rarr; Proceed to Payment</span>
                 </Button>
               </div>
             </Card>
@@ -746,12 +834,17 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                         <div>
                           <p className="font-bold text-white text-sm">{t.customerName}</p>
                           <p className="text-[11px] text-slate-400">
-                            Est. wait: <span className="text-blue-400">{t.estimatedWaitMinutes}m</span>
+                            Est. wait:{" "}
+                            <span className="text-blue-400">
+                              {t.estimatedWaitMinutes > 0
+                                ? t.estimatedWaitMinutes
+                                : (idx > 0 ? Math.max(5, idx * 15) : 3)}m
+                            </span>
                           </p>
                         </div>
                       </div>
 
-                      <div className="text-right">
+                      <div className="flex items-center gap-2 text-right">
                         <Badge
                           variant={
                             t.status === "CALLED" || t.status === "SUMMONED"
@@ -772,6 +865,18 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                             ? "3m HOLD"
                             : `Pos #${idx + 1}`}
                         </Badge>
+
+                        {(t.status === "WAITING" || t.status === "SOFT_BUMPED") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSummonSpecific(t)}
+                            disabled={processingAction || !!currentlyServing}
+                            className="h-7 px-2.5 text-[11px] border-amber-500/40 text-amber-300 hover:bg-amber-500/10 font-bold"
+                          >
+                            Call to Chair
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -850,6 +955,176 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
             </Button>
           </DialogFooter>
         </form>
+      </Dialog>
+
+      {/* Checkout Modal with Dynamic Amount UPI QR Code & Cash option */}
+      <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
+        <DialogClose onClose={() => setIsCheckoutOpen(false)} />
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-xl font-black">
+            <span>💳 Service Checkout</span>
+            {currentlyServing && (
+              <Badge variant="warning" className="text-xs">
+                Ticket #{currentlyServing.ticketNumber}
+              </Badge>
+            )}
+          </DialogTitle>
+          <DialogDescription>
+            Confirm final bill amount and payment method to free chair for next client.
+          </DialogDescription>
+        </DialogHeader>
+
+        {currentlyServing && (
+          <div className="space-y-4 my-3">
+            {/* Customer & Service Summary */}
+            <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">
+              <div>
+                <p className="font-bold text-white text-sm">{currentlyServing.customerName}</p>
+                <p className="text-slate-400 mt-0.5">{currentlyServing.serviceName || "Haircut Service"}</p>
+              </div>
+              <div className="text-right">
+                <span className="text-slate-400 block text-[11px]">Chair Duration</span>
+                <span className="font-mono font-bold text-emerald-400 text-sm">
+                  {formatElapsed(elapsedSeconds)}
+                </span>
+              </div>
+            </div>
+
+            {/* Editable Bill Input */}
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1 uppercase tracking-wider">
+                Final Bill Amount (₹)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-2.5 text-lg font-black text-emerald-400">₹</span>
+                <Input
+                  type="number"
+                  min={0}
+                  step={10}
+                  value={editableBill}
+                  onChange={(e) => setEditableBill(Number(e.target.value))}
+                  className="pl-8 text-xl font-black text-white"
+                />
+              </div>
+              <span className="text-[10px] text-slate-500 mt-1 block">
+                Adjust for custom cuts, beard trims, or add-ons before taking payment.
+              </span>
+            </div>
+
+            {/* Payment Method Selector Tabs */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setCheckoutPaymentMethod("UPI")}
+                className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold text-xs transition-all ${
+                  checkoutPaymentMethod === "UPI"
+                    ? "border-blue-500 bg-blue-500/15 text-white ring-1 ring-blue-500"
+                    : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white"
+                }`}
+              >
+                <Smartphone className="h-4 w-4 text-blue-400" />
+                <span>Online UPI QR</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCheckoutPaymentMethod("CASH")}
+                className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold text-xs transition-all ${
+                  checkoutPaymentMethod === "CASH"
+                    ? "border-emerald-500 bg-emerald-500/15 text-white ring-1 ring-emerald-500"
+                    : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white"
+                }`}
+              >
+                <Banknote className="h-4 w-4 text-emerald-400" />
+                <span>Cash Payment</span>
+              </button>
+            </div>
+
+            {/* TAB 1: DYNAMIC UPI QR CODE */}
+            {checkoutPaymentMethod === "UPI" && (
+              <div className="p-4 rounded-2xl bg-white text-slate-950 text-center space-y-3 shadow-xl">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-black tracking-widest text-slate-500 uppercase block">
+                    NPCI Dynamic UPI QR
+                  </span>
+                  <div className="text-2xl font-black text-slate-950">
+                    Scan & Pay ₹{editableBill}
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    GPay · PhonePe · Paytm · BHIM
+                  </p>
+                </div>
+
+                <div className="flex justify-center p-2 bg-white rounded-xl">
+                  {qrCodeDataUrl ? (
+                    <img
+                      src={qrCodeDataUrl}
+                      alt="UPI Payment QR Code"
+                      className="w-48 h-48 object-contain rounded-lg border border-slate-200 shadow-inner"
+                    />
+                  ) : (
+                    <div className="w-48 h-48 flex items-center justify-center bg-slate-100 rounded-lg text-slate-400 text-xs">
+                      {generatingQr ? "Generating QR..." : "QR Unavailable"}
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-[10px] text-slate-600 font-mono border-t border-slate-200 pt-2">
+                  <span>Payee: {salon?.name || "Salon"}</span>
+                  <span className="block text-slate-500 truncate">
+                    UPI ID: {salon?.upiPaymentId || (salon?.phone ? `${salon.phone.replace(/[^0-9]/g, "")}@upi` : "salon@upi")}
+                  </span>
+                </div>
+
+                <Button
+                  size="lg"
+                  onClick={() => handleFinishCheckout("ONLINE_PAID")}
+                  disabled={processingAction}
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black text-sm h-12 rounded-xl gap-2 shadow-lg shadow-blue-600/30"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>✅ Payment Received (Confirm & Free Chair)</span>
+                </Button>
+              </div>
+            )}
+
+            {/* TAB 2: CASH PAYMENT */}
+            {checkoutPaymentMethod === "CASH" && (
+              <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-4">
+                <div className="h-14 w-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                  <Banknote className="h-7 w-7" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-slate-400 block uppercase font-bold">Cash Collection</span>
+                  <div className="text-3xl font-black text-white">₹{editableBill}</div>
+                  <p className="text-xs text-slate-400">Collect physical currency notes from customer.</p>
+                </div>
+
+                <Button
+                  size="lg"
+                  onClick={() => handleFinishCheckout("CASH_PAID")}
+                  disabled={processingAction}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm h-12 rounded-xl gap-2 shadow-lg shadow-emerald-600/20"
+                >
+                  <Banknote className="h-4 w-4" />
+                  <span>💵 Confirm ₹{editableBill} Cash Received & Free Chair</span>
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsCheckoutOpen(false)}
+            className="text-xs text-slate-400 hover:text-white"
+          >
+            Back to Active Service
+          </Button>
+        </DialogFooter>
       </Dialog>
     </div>
   );

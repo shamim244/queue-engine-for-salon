@@ -448,7 +448,9 @@ function CustomerAccountContent() {
                   <div className="text-right">
                     <span className="text-xs text-slate-400 block">Est. Wait</span>
                     <span className="text-2xl font-black text-blue-400">
-                      ~{activeTicket.estimatedWaitMinutes || 0}m
+                      ~{activeTicket.estimatedWaitMinutes > 0
+                        ? activeTicket.estimatedWaitMinutes
+                        : (activeTicket.positionInQueue > 1 ? Math.max(5, (activeTicket.positionInQueue - 1) * 15) : 5)}m
                     </span>
                   </div>
                 </div>

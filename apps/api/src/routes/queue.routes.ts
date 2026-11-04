@@ -185,6 +185,37 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
     })
   })
 
+  // 8.05 Hold Spot & Call Next Ticket (Atomic)
+  .post('/hold-and-call-next', async ({ body, headers, cookie: { engine_session }, set }) => {
+    try {
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && auth.role === 'CUSTOMER') {
+          set.status = 403;
+          return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
+        }
+      }
+      const { salonId, currentTicketId, stylistId } = body as {
+        salonId: string;
+        currentTicketId: string;
+        stylistId?: string;
+      };
+      const result = await queueEngine.holdAndCallNext({ salonId, currentTicketId, stylistId });
+      return { success: true, ...result };
+    } catch (err: any) {
+      console.error('[queueRoutes:hold-and-call-next] Error:', err);
+      set.status = 500;
+      return { success: false, message: err.message || 'Internal Server Error' };
+    }
+  }, {
+    body: t.Object({
+      salonId: t.String(),
+      currentTicketId: t.String(),
+      stylistId: t.Optional(t.String()),
+    })
+  })
+
   // 8.1 Summon Specific Ticket (Front Desk 1-Tap)
   .post('/summon', async ({ body, headers, cookie: { engine_session }, set }) => {
     try {
@@ -304,9 +335,20 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
       };
     });
 
-    const active = enrichedTickets.find((t) =>
+    let active = enrichedTickets.find((t) =>
       ['WAITING', 'SUMMONED', 'IN_CHAIR', 'SOFT_BUMPED'].includes(t.status)
     ) || null;
+
+    if (active) {
+      const activeSalonTickets = await repository.getActiveTickets(active.salonId);
+      const waitingList = activeSalonTickets.filter((t) =>
+        ['WAITING', 'SUMMONED', 'SOFT_BUMPED'].includes(t.status)
+      );
+      const idx = waitingList.findIndex((t) => t.id === active!.id);
+      if (idx >= 0) {
+        active.positionInQueue = idx + 1;
+      }
+    }
 
     const history = enrichedTickets.filter((t) =>
       ['COMPLETED', 'CANCELLED'].includes(t.status)

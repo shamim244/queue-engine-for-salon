@@ -120,7 +120,35 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
     expect(reSummoned?.status).toBe('SUMMONED');
   });
 
+  it('should soft-bump previously summoned ticket when another ticket is directly summoned to the chair', async () => {
+    const t1 = await queueEngine.checkIn({
+      salonSlug: 'ramesh-barber',
+      customerName: 'Client Early',
+      customerPhone: '9870000001',
+      serviceId: 'srv-r-1',
+    });
+    const t2 = await queueEngine.checkIn({
+      salonSlug: 'ramesh-barber',
+      customerName: 'Client Later',
+      customerPhone: '9870000002',
+      serviceId: 'srv-r-1',
+    });
+
+    const salon = await repository.getSalonBySlug('ramesh-barber');
+    // Summon t1
+    await queueEngine.callNext(salon!.id);
+    expect((await repository.getTicketById(t1.id))?.status).toBe('SUMMONED');
+
+    // Directly summon t2 (e.g. from station waiting list 1-tap "Call to Chair")
+    await queueEngine.summonTicket(t2.id);
+
+    // t2 must be SUMMONED, and t1 must be cleanly moved to SOFT_BUMPED
+    expect((await repository.getTicketById(t2.id))?.status).toBe('SUMMONED');
+    expect((await repository.getTicketById(t1.id))?.status).toBe('SOFT_BUMPED');
+  });
+
   it('should authenticate Super Admin, Owner, and Staff with bcrypt', async () => {
+
     await authService.seedDefaultUsers();
 
     // 1. Super Admin login

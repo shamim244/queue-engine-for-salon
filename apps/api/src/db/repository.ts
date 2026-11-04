@@ -94,7 +94,16 @@ const memoryStore = {
   } as MaintenanceMode,
 };
 
+// Salon catalog in-memory TTL cache (60 seconds)
+interface SalonCacheEntry {
+  salon: Salon;
+  cachedAt: number;
+}
+const salonCache = new Map<string, SalonCacheEntry>();
+const CACHE_TTL_MS = 60000;
+
 export function seedDemoData() {
+  salonCache.clear();
   memoryStore.tickets.clear();
   memoryStore.ticketSequence.clear();
   memoryStore.salons.clear();
@@ -559,17 +568,44 @@ export const repository = {
   },
 
   // Salons
-  async getSalonBySlug(slug: string): Promise<Salon | null> {
+  invalidateSalonCache(salonIdOrSlug?: string): void {
+    if (!salonIdOrSlug) {
+      salonCache.clear();
+      return;
+    }
+    const entry = salonCache.get(salonIdOrSlug);
+    if (entry) {
+      salonCache.delete(entry.salon.slug);
+      salonCache.delete(entry.salon.id);
+    } else {
+      salonCache.delete(salonIdOrSlug);
+      for (const [key, val] of salonCache.entries()) {
+        if (val.salon.id === salonIdOrSlug || val.salon.slug === salonIdOrSlug) {
+          salonCache.delete(key);
+        }
+      }
+    }
+  },
+
+  async getSalonBySlug(slug: string, options?: { skipCache?: boolean }): Promise<Salon | null> {
+    if (!options?.skipCache) {
+      const cached = salonCache.get(slug);
+      if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
+        return JSON.parse(JSON.stringify(cached.salon));
+      }
+    }
+
+    let salon: Salon | null = null;
     if (isMySqlConnected) {
       const db = getDb();
-      const [rows]: any = await db.query('SELECT * FROM salons WHERE slug = ? LIMIT 1', [slug]);
+      const [rows]: any = await db.query('SELECT * FROM salons WHERE slug = ? OR id = ? LIMIT 1', [slug, slug]);
       if (rows.length === 0) return null;
       const salonRow = rows[0];
 
       const [stylistRows]: any = await db.query('SELECT * FROM stylists WHERE salon_id = ? AND is_active = TRUE', [salonRow.id]);
       const [serviceRows]: any = await db.query('SELECT * FROM services WHERE salon_id = ?', [salonRow.id]);
 
-      return {
+      salon = {
         id: salonRow.id,
         organizationId: salonRow.organization_id || null,
         name: salonRow.name,
@@ -601,8 +637,17 @@ export const repository = {
           icon: r.icon,
         })),
       };
+    } else {
+      salon = memoryStore.salons.get(slug) || null;
     }
-    return memoryStore.salons.get(slug) || null;
+
+    if (salon) {
+      const cloned = JSON.parse(JSON.stringify(salon));
+      salonCache.set(salon.slug, { salon: cloned, cachedAt: Date.now() });
+      salonCache.set(salon.id, { salon: cloned, cachedAt: Date.now() });
+      return JSON.parse(JSON.stringify(salon));
+    }
+    return null;
   },
 
   async getAllSalons(): Promise<Salon[]> {
@@ -739,6 +784,8 @@ export const repository = {
       }
     }
 
+    this.invalidateSalonCache(newSalon.id);
+    this.invalidateSalonCache(newSalon.slug);
     return newSalon;
   },
 
@@ -774,6 +821,7 @@ export const repository = {
         [stylist.id, stylist.salonId, stylist.name, stylist.phone, stylist.isActive, stylist.historicalAvgDurationMinutes]
       );
     }
+    this.invalidateSalonCache(salonId);
     return stylist;
   },
 
@@ -787,6 +835,7 @@ export const repository = {
         s.operatingMode = mode;
       }
     }
+    this.invalidateSalonCache(salonId);
   },
 
   async updateSalon(salonId: string, updates: {
@@ -820,6 +869,8 @@ export const repository = {
         [salon.name, salon.phone, salon.address || null, salon.upiPaymentId || null, salon.operatingMode, salon.id]
       );
     }
+    this.invalidateSalonCache(salon.id);
+    this.invalidateSalonCache(salon.slug);
     return salon;
   },
 
@@ -838,6 +889,8 @@ export const repository = {
       await db.query('DELETE FROM stylists WHERE salon_id = ?', [salon.id]);
       await db.query('DELETE FROM salons WHERE id = ?', [salon.id]);
     }
+    this.invalidateSalonCache(salon.id);
+    this.invalidateSalonCache(salon.slug);
     return true;
   },
 
@@ -1062,6 +1115,20 @@ export const repository = {
     return ticket;
   },
 
+  async updateTicketWaitTime(ticketId: string, estimatedMinutes: number): Promise<void> {
+    const ticket = memoryStore.tickets.get(ticketId);
+    if (ticket) {
+      ticket.estimatedWaitMinutes = estimatedMinutes;
+    }
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query(
+        'UPDATE queue_tickets SET estimated_wait_minutes = ? WHERE id = ?',
+        [estimatedMinutes, ticketId]
+      );
+    }
+  },
+
   async updateStylistPreference(
     stylistId: string,
     updates: { customAvgDurationMinutes?: number; isActive?: boolean }
@@ -1089,6 +1156,11 @@ export const repository = {
       if (updates.isActive !== undefined) {
         stylist.isActive = updates.isActive;
       }
+      if (stylist.salonId) {
+        this.invalidateSalonCache(stylist.salonId);
+      }
+    } else {
+      this.invalidateSalonCache();
     }
     return true;
   },
@@ -1119,10 +1191,14 @@ export const repository = {
         ]
       );
     }
+    this.invalidateSalonCache(service.salonId);
     return service;
   },
 
   async deleteService(serviceId: string): Promise<boolean> {
+    const srv = memoryStore.services.get(serviceId);
+    const targetSalonId = srv?.salonId;
+
     memoryStore.services.delete(serviceId);
     for (const salon of memoryStore.salons.values()) {
       salon.services = salon.services.filter((s) => s.id !== serviceId);
@@ -1131,6 +1207,12 @@ export const repository = {
     if (isMySqlConnected) {
       const db = getDb();
       await db.query('DELETE FROM services WHERE id = ?', [serviceId]);
+    }
+
+    if (targetSalonId) {
+      this.invalidateSalonCache(targetSalonId);
+    } else {
+      this.invalidateSalonCache();
     }
     return true;
   },

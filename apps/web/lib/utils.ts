@@ -21,3 +21,18 @@ export function maskPhone(phone: string): string {
   const end = cleaned.slice(-2);
   return `${cleaned.slice(0, 5)} *** ${end}`;
 }
+
+export function generateUpiUri(params: {
+  upiId: string;
+  payeeName: string;
+  amount: number;
+  note?: string;
+}): string {
+  const { upiId, payeeName, amount, note = "Salon Service" } = params;
+  const cleanUpiId = (upiId || "").trim();
+  const cleanPayee = (payeeName || "").trim();
+  const formattedAmount = Number(amount || 0).toFixed(2);
+  const cleanNote = (note || "Salon Service").trim();
+
+  return `upi://pay?pa=${encodeURIComponent(cleanUpiId)}&pn=${encodeURIComponent(cleanPayee)}&am=${formattedAmount}&cu=INR&tn=${encodeURIComponent(cleanNote)}`;
+}

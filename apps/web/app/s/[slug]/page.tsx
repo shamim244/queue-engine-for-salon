@@ -27,6 +27,7 @@ import {
   ExternalLink,
   Trash2,
   Volume2,
+  Zap,
 } from "lucide-react";
 
 export default function CustomerDoorPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -84,6 +85,11 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
       const salonRes = await api.salons.get(slug);
       if (salonRes.salon) {
         setSalon(salonRes.salon);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem(`salon_cache_${slug}`, JSON.stringify(salonRes.salon));
+          } catch {}
+        }
         if (!selectedServiceId && salonRes.salon.services?.length > 0) {
           setSelectedServiceId(salonRes.salon.services[0].id);
         }
@@ -120,6 +126,20 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
   };
 
   useEffect(() => {
+    // SWR Pre-warming from localStorage for <10ms instant render
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem(`salon_cache_${slug}`);
+        if (cached) {
+          const parsed = JSON.parse(cached) as Salon;
+          setSalon(parsed);
+          if (parsed.services?.length > 0) {
+            setSelectedServiceId(parsed.services[0].id);
+          }
+          setLoading(false);
+        }
+      } catch {}
+    }
     fetchSalonAndQueue();
   }, [slug]);
 
@@ -201,6 +221,11 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
     ? waitingSequence.findIndex((t) => t.id === myTicket.id)
     : -1;
   const peopleAhead = myIndex > 0 ? myIndex : 0;
+  const displayWait = myTicket
+    ? (myTicket.estimatedWaitMinutes > 0
+        ? myTicket.estimatedWaitMinutes
+        : (peopleAhead > 0 ? Math.max(5, peopleAhead * 15) : 3))
+    : 0;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between">
@@ -367,24 +392,76 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
                     </div>
                   </div>
 
-                  {/* Stylist Selection (Optional) */}
+                  {/* Stylist Selection: Universal Fast Line vs Preferred Barber */}
                   {salon?.stylists && salon.stylists.length > 1 && (
-                    <div>
-                      <label className="text-xs font-bold text-slate-300 block mb-1.5">
-                        Stylist Preference
-                      </label>
-                      <select
-                        className="flex h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
-                        value={selectedStylistId || ""}
-                        onChange={(e) => setSelectedStylistId(e.target.value || null)}
-                      >
-                        <option value="">⚡ Fastest Available Barber</option>
-                        {salon.stylists.map((st) => (
-                          <option key={st.id} value={st.id}>
-                            {st.name} ({st.avgDurationMinutes || 25}m avg pace)
-                          </option>
-                        ))}
-                      </select>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-300">
+                          Barber & Chair Preference
+                        </label>
+                        <span className="text-[11px] text-amber-400 font-medium">
+                          {selectedStylistId === null ? "Fast Line" : "Direct Barber"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2">
+                        {/* Option 1: Universal Fast Line */}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStylistId(null)}
+                          className={`p-3 rounded-xl border text-left transition-all ${
+                            selectedStylistId === null
+                              ? "border-amber-500 bg-amber-500/15 text-white shadow-md shadow-amber-500/10 ring-1 ring-amber-500"
+                              : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white hover:border-slate-700"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-amber-400 flex items-center gap-1.5">
+                              <Zap className="h-4 w-4" />
+                              Universal Fast Line
+                            </span>
+                            <Badge variant="warning" className="text-[10px] px-2 py-0">
+                              ⚡ Fastest Available Chair
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-slate-300 mt-1">
+                            Jump in whichever chair opens first. Minimal wait guaranteed!
+                          </p>
+                        </button>
+
+                        {/* Option 2..N: Preferred Barbers */}
+                        {salon.stylists.length > 1 && (
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            {salon.stylists.map((st) => {
+                              const isSelected = selectedStylistId === st.id;
+                              return (
+                                <button
+                                  key={st.id}
+                                  type="button"
+                                  onClick={() => setSelectedStylistId(st.id)}
+                                  className={`p-2.5 rounded-xl border text-left transition-all ${
+                                    isSelected
+                                      ? "border-amber-500 bg-amber-500/15 text-white shadow-md shadow-amber-500/10 ring-1 ring-amber-500"
+                                      : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white hover:border-slate-700"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-xs text-white truncate">
+                                      ✂️ {st.name}
+                                    </span>
+                                    <Badge variant="secondary" className="text-[9px] px-1 py-0">
+                                      {st.isAvailable !== false && st.isActive !== false ? "Active" : "Away"}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-[10px] text-slate-400 mt-1">
+                                    ~{st.avgDurationMinutes || 25}m pace
+                                  </p>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -475,7 +552,7 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
                 <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
                   <span className="text-[11px] text-slate-400 block">Est. Wait Time</span>
                   <span className="text-2xl font-black text-blue-400">
-                    ~{myTicket.estimatedWaitMinutes}m
+                    ~{displayWait}m
                   </span>
                 </div>
               </div>
@@ -595,7 +672,9 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
 
                           <div className="text-right">
                             <span className="text-blue-400 font-semibold font-mono">
-                              ~{t.estimatedWaitMinutes}m
+                              ~{t.estimatedWaitMinutes > 0
+                                ? t.estimatedWaitMinutes
+                                : (idx > 0 ? Math.max(5, idx * 15) : 3)}m
                             </span>
                             <p className="text-[10px] text-slate-500">Pos #{idx + 1}</p>
                           </div>
