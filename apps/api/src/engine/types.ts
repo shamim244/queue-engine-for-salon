@@ -113,6 +113,16 @@ export interface Salon {
   currency: string;
   address?: string;
   upiPaymentId?: string; // Direct UPI QR for Indian / rural salons
+  tagline?: string;
+  about?: string;
+  email?: string;
+  whatsappPhone?: string;
+  googleMapsUrl?: string;
+  instagramHandle?: string;
+  operatingHours?: string;
+  amenities?: string[];
+  announcement?: string;
+  announcementActive?: boolean;
   services: ServiceDefinition[];
   stylists: Stylist[];
   createdAt: Date;

@@ -74,6 +74,7 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
     {
       title: "GROWTH & MARKETING",
       items: [
+        { label: "Storefront & Landing", href: `/owner/storefront?salon=${currentSlug}`, icon: Store },
         { label: "Coupon Codes", href: `/owner/coupons?salon=${currentSlug}`, icon: TicketPercent },
         { label: "Refer & Loyalty", href: `/owner/referrals?salon=${currentSlug}`, icon: Gift },
       ],

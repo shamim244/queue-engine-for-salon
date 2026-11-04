@@ -154,6 +154,23 @@ export function seedDemoData() {
     currency: 'INR',
     address: 'Near Main Market, Central Point',
     upiPaymentId: 'rameshbarber@upi',
+    tagline: 'Authentic Traditional Barbering, Hot Towel Shaves & Grooming Excellence',
+    about: 'Serving the central community with master craftsmanship, hygienic tools, and unmatched traditional hospitality. Whether you need a sharp executive cut, clean razor shave, or a relaxing champi, we ensure you leave refreshed without endless waiting.',
+    email: 'contact@rameshbarber.com',
+    whatsappPhone: '+91 98765 43210',
+    googleMapsUrl: 'https://maps.google.com/?q=Main+Market+Central+Point',
+    instagramHandle: '@rameshbarber',
+    operatingHours: 'Mon - Sat: 8:00 AM – 9:00 PM | Sun: 8:00 AM – 2:00 PM',
+    amenities: [
+      'Air Conditioned',
+      'High-Speed Wi-Fi',
+      'Complimentary Chai',
+      'UPI & Cards Accepted',
+      '100% Sanitized Tools',
+      'Kids & Family Friendly'
+    ],
+    announcement: '🎉 Festive Special: Get a complimentary head massage with every Hair Cut + Shave Combo this week!',
+    announcementActive: true,
     createdAt: new Date(),
     stylists: [],
     services: [],
@@ -187,6 +204,23 @@ export function seedDemoData() {
     countryCode: '+91',
     currency: 'INR',
     address: 'Plot 42, High Street Galleria, 2nd Floor',
+    tagline: 'Luxury Aesthetics, Master Colorists & Therapeutic Grooming',
+    about: 'Aura is a premier unisex beauty sanctuary providing bespoke styling, international color artistry, and therapeutic scalp spas in an ultra-luxurious ambiance.',
+    email: 'concierge@aurasalon.com',
+    whatsappPhone: '+91 99887 76655',
+    googleMapsUrl: 'https://maps.google.com/?q=High+Street+Galleria+Aura+Salon',
+    instagramHandle: '@aurasalonandspa',
+    operatingHours: 'Daily: 9:00 AM – 10:00 PM',
+    amenities: [
+      'Valet Parking',
+      'High-Speed Wi-Fi',
+      'Artisan Coffee & Tea',
+      'Cards & Apple Pay',
+      'Private VIP Suites',
+      'Sanitized Workstations'
+    ],
+    announcement: '✨ Now accepting online reservations and live walk-in queue for the festive season!',
+    announcementActive: true,
     createdAt: new Date(),
     stylists: [],
     services: [],
@@ -618,6 +652,16 @@ export const repository = {
         currency: salonRow.currency,
         address: salonRow.address,
         upiPaymentId: salonRow.upi_payment_id,
+        tagline: salonRow.tagline || undefined,
+        about: salonRow.about || undefined,
+        email: salonRow.email || undefined,
+        whatsappPhone: salonRow.whatsapp_phone || undefined,
+        googleMapsUrl: salonRow.google_maps_url || undefined,
+        instagramHandle: salonRow.instagram_handle || undefined,
+        operatingHours: salonRow.operating_hours || undefined,
+        amenities: typeof salonRow.amenities === 'string' ? JSON.parse(salonRow.amenities) : (salonRow.amenities || undefined),
+        announcement: salonRow.announcement || undefined,
+        announcementActive: Boolean(salonRow.announcement_active),
         createdAt: salonRow.created_at,
         stylists: stylistRows.map((r: any) => ({
           id: r.id,
@@ -847,6 +891,16 @@ export const repository = {
     phone?: string;
     address?: string;
     upiPaymentId?: string;
+    tagline?: string;
+    about?: string;
+    email?: string;
+    whatsappPhone?: string;
+    googleMapsUrl?: string;
+    instagramHandle?: string;
+    operatingHours?: string;
+    amenities?: string[];
+    announcement?: string;
+    announcementActive?: boolean;
     operatingMode?: string;
     currency?: string;
     status?: 'ACTIVE' | 'SUSPENDED' | 'MAINTENANCE';
@@ -859,6 +913,16 @@ export const repository = {
     if (updates.phone !== undefined) salon.phone = updates.phone.trim();
     if (updates.address !== undefined) salon.address = updates.address.trim();
     if (updates.upiPaymentId !== undefined) salon.upiPaymentId = updates.upiPaymentId.trim();
+    if (updates.tagline !== undefined) salon.tagline = updates.tagline.trim();
+    if (updates.about !== undefined) salon.about = updates.about.trim();
+    if (updates.email !== undefined) salon.email = updates.email.trim();
+    if (updates.whatsappPhone !== undefined) salon.whatsappPhone = updates.whatsappPhone.trim();
+    if (updates.googleMapsUrl !== undefined) salon.googleMapsUrl = updates.googleMapsUrl.trim();
+    if (updates.instagramHandle !== undefined) salon.instagramHandle = updates.instagramHandle.trim();
+    if (updates.operatingHours !== undefined) salon.operatingHours = updates.operatingHours.trim();
+    if (updates.amenities !== undefined) salon.amenities = updates.amenities;
+    if (updates.announcement !== undefined) salon.announcement = updates.announcement.trim();
+    if (updates.announcementActive !== undefined) salon.announcementActive = Boolean(updates.announcementActive);
     if (updates.operatingMode !== undefined) salon.operatingMode = updates.operatingMode;
     if (updates.currency !== undefined) salon.currency = updates.currency.trim();
     if (updates.status !== undefined) (salon as any).status = updates.status;
@@ -869,8 +933,29 @@ export const repository = {
     if (isMySqlConnected) {
       const db = getDb();
       await db.query(
-        'UPDATE salons SET name = ?, phone = ?, address = ?, upi_payment_id = ?, operating_mode = ? WHERE id = ?',
-        [salon.name, salon.phone, salon.address || null, salon.upiPaymentId || null, salon.operatingMode || 'STANDARD', salon.id]
+        `UPDATE salons 
+         SET name = ?, phone = ?, address = ?, upi_payment_id = ?, operating_mode = ?,
+             tagline = ?, about = ?, email = ?, whatsapp_phone = ?, google_maps_url = ?,
+             instagram_handle = ?, operating_hours = ?, amenities = ?, announcement = ?, announcement_active = ?
+         WHERE id = ?`,
+        [
+          salon.name,
+          salon.phone,
+          salon.address || null,
+          salon.upiPaymentId || null,
+          salon.operatingMode || 'STANDARD',
+          salon.tagline || null,
+          salon.about || null,
+          salon.email || null,
+          salon.whatsappPhone || null,
+          salon.googleMapsUrl || null,
+          salon.instagramHandle || null,
+          salon.operatingHours || null,
+          salon.amenities ? JSON.stringify(salon.amenities) : null,
+          salon.announcement || null,
+          salon.announcementActive ? 1 : 0,
+          salon.id,
+        ]
       );
     }
     this.invalidateSalonCache(salon.id);

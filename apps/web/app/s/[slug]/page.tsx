@@ -39,6 +39,16 @@ import {
   Check,
   Navigation,
   AlertCircle,
+  Megaphone,
+  Menu,
+  X,
+  MessageCircle,
+  Mail,
+  Instagram,
+  QrCode,
+  Wifi,
+  Wind,
+  Copy,
 } from "lucide-react";
 
 export default function CustomerDoorPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -48,6 +58,11 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
   const [salon, setSalon] = useState<Salon | null>(null);
   const [activeTickets, setActiveTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Mobile navigation drawer toggle
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // Announcement dismiss state
+  const [dismissAnnouncement, setDismissAnnouncement] = useState(false);
 
   // My Ticket (if checked in on this device)
   const [myTicket, setMyTicket] = useState<Ticket | null>(null);
@@ -236,6 +251,13 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
     setIsCheckinOpen(true);
   };
 
+  const copyToClipboard = (text: string, label: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      showToast(`${label} copied to clipboard!`, "success");
+    }
+  };
+
   const selectedService = salon?.services?.find((s) => s.id === selectedServiceId);
   const chairsServing = activeTickets.filter((t) => t.status === "IN_SERVICE" || t.status === "IN_CHAIR");
   const waitingSequence = activeTickets.filter(
@@ -267,58 +289,163 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
     return salon.services;
   }, [salon?.services, serviceCategory]);
 
+  const navMenuItems = [
+    { label: "Home", href: "#hero" },
+    { label: "Live Queue", href: "#queue" },
+    { label: "Services", href: "#services" },
+    { label: "Stylists", href: "#team" },
+    { label: "About Us", href: "#about" },
+    { label: "Contact & Hours", href: "#contact" },
+  ];
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950">
-      {/* 1. TOP NAVBAR / BRAND HEADER */}
-      <header className="border-b border-slate-800/80 bg-slate-900/80 backdrop-blur sticky top-0 z-40 px-4 sm:px-8 py-3.5">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/20">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950 scroll-smooth">
+      {/* 0. DYNAMIC TOP ANNOUNCEMENT BANNER */}
+      {salon?.announcementActive && salon?.announcement && !dismissAnnouncement && (
+        <div className="bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-slate-950 py-2.5 px-4 font-semibold text-xs sm:text-sm border-b border-amber-400 shadow-md transition-all">
+          <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 truncate">
+              <span className="p-1 rounded-full bg-slate-950/20 text-slate-950 shrink-0">
+                <Megaphone className="h-4 w-4" />
+              </span>
+              <Badge variant="outline" className="border-slate-950/30 text-[10px] uppercase font-black bg-slate-950/10 shrink-0">
+                Notice
+              </Badge>
+              <span className="truncate">{salon.announcement}</span>
+            </div>
+            <button
+              onClick={() => setDismissAnnouncement(true)}
+              className="text-slate-950/70 hover:text-slate-950 p-1 rounded transition-colors shrink-0 font-bold"
+              aria-label="Dismiss Notice"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 1. TOP NAVBAR / BRAND HEADER & NAVIGATION MENU */}
+      <header className="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-8 py-3 transition-all shadow-lg shadow-black/40">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+          {/* Logo & Salon Identity */}
+          <Link href="#hero" className="flex items-center gap-3 group">
+            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform">
               <Scissors className="h-5 w-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-extrabold text-base sm:text-lg text-white leading-tight">
+                <h1 className="font-extrabold text-base sm:text-lg text-white leading-tight group-hover:text-amber-400 transition-colors">
                   {salon?.name || "Salon Digital Storefront"}
                 </h1>
-                <Badge variant="outline" className="hidden sm:inline-flex text-[10px] border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
-                  Verified Partner
+                <Badge variant="outline" className="hidden lg:inline-flex text-[10px] border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
+                  Verified
                 </Badge>
               </div>
               <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                <span>Digital Storefront &amp; Live Queue</span>
-                <span className="text-slate-600">•</span>
-                <span className="text-emerald-400 font-medium">Open Today</span>
+                <span>{salon?.tagline || "Digital Storefront & Live Queue"}</span>
+                <span className="text-slate-600 hidden sm:inline">•</span>
+                <span className="text-emerald-400 font-medium hidden sm:inline">Open Today</span>
               </p>
             </div>
-          </div>
+          </Link>
 
-          <div className="flex items-center gap-2.5">
+          {/* Desktop Navigation Links */}
+          <nav className="hidden md:flex items-center gap-1 bg-slate-950/50 p-1 rounded-2xl border border-slate-800/80 text-xs font-semibold">
+            {navMenuItems.map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="px-3 py-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors"
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+
+          {/* Quick Actions & Connection Status */}
+          <div className="flex items-center gap-2">
             <ConnectionPill isConnected={isConnected} status={status} reconnectAttempts={reconnectAttempts} />
+
             <Link
               href={`/s/${slug}/tv`}
               target="_blank"
-              className="text-xs text-slate-300 hover:text-white flex items-center gap-1.5 font-medium bg-slate-800/80 hover:bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-700/80 transition-colors"
+              className="text-xs text-slate-300 hover:text-white hidden sm:flex items-center gap-1.5 font-medium bg-slate-800/80 hover:bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-700/80 transition-colors"
             >
               <ExternalLink className="h-3.5 w-3.5 text-blue-400" />
-              <span className="hidden sm:inline">Lobby TV</span>
+              <span>Lobby TV</span>
             </Link>
 
             {user ? (
-              <Link href="/me" className="text-xs font-semibold text-amber-400 hover:text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/30">
-                My Profile
+              <Link
+                href="/me"
+                className="text-xs font-semibold text-amber-400 hover:text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/30 transition-colors"
+              >
+                My Account
               </Link>
             ) : (
-              <Link href="/login" className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-700">
+              <Link
+                href="/login"
+                className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-700 transition-colors"
+              >
                 Sign In
               </Link>
             )}
+
+            {/* Mobile Hamburger Menu Toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl"
+              aria-label="Toggle navigation menu"
+            >
+              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
           </div>
         </div>
+
+        {/* Mobile Dropdown Navigation Menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden pt-3 pb-2 border-t border-slate-800/80 mt-3 space-y-2 animate-in slide-in-from-top-2">
+            <div className="grid grid-cols-2 gap-1.5 text-xs font-medium">
+              {navMenuItems.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="px-3 py-2 rounded-xl bg-slate-950/60 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800/60 transition-colors"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
+
+            <div className="pt-2 flex items-center gap-2 border-t border-slate-800/60">
+              <Button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsCheckinOpen(true);
+                }}
+                className="flex-1 h-9 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-xl"
+              >
+                ⚡ Join Live Queue
+              </Button>
+              <Link
+                href={`/s/${slug}/tv`}
+                target="_blank"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-slate-300 flex items-center gap-1 font-semibold"
+              >
+                <ExternalLink className="h-3.5 w-3.5 text-blue-400" />
+                <span>TV</span>
+              </Link>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* 2. MAIN STOREFRONT CONTENT */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-10">
         {/* Toast Alert Banner */}
         {toast && (
           <div
@@ -346,62 +473,91 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
         )}
 
         {/* 3. HERO / STOREFRONT BANNER WITH PERSONALIZED WELCOME */}
-        <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/20 p-6 sm:p-10 shadow-2xl">
+        <section
+          id="hero"
+          className="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/20 p-6 sm:p-10 shadow-2xl scroll-mt-24"
+        >
           <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-3 max-w-xl">
-              <div className="flex items-center gap-2">
+            <div className="space-y-3.5 max-w-xl">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="warning" className="text-xs px-3 py-0.5">
                   ⭐ 4.9 RATED SALON
                 </Badge>
-                <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   Accepting Walk-ins
                 </span>
+                <span className="text-xs text-blue-400 font-medium bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full">
+                  🚀 No-Wait Engine
+                </span>
               </div>
 
-              <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight">
                 {salon?.name || "Professional Salon & Grooming"}
               </h2>
 
+              <p className="text-base sm:text-lg text-amber-300/90 font-medium">
+                {salon?.tagline || "Precision Barbering, Beard Architecture & Luxury Spa Services"}
+              </p>
+
               {/* Personalized Customer Greeting */}
               {user ? (
-                <p className="text-sm sm:text-base text-amber-200 font-medium">
-                  👋 Welcome back, <strong className="text-white">{user.fullName || user.username}</strong>! Skip the wait and claim your chair.
+                <p className="text-xs sm:text-sm text-slate-300">
+                  👋 Welcome back, <strong className="text-white">{user.fullName || user.username}</strong>! Skip the wait and reserve your spot in today's live queue.
                 </p>
               ) : (
-                <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-                  Experience seamless queue-free grooming. Join the line from anywhere, grab a tea nearby, and step into the chair right when called!
+                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+                  Join the queue directly from your phone, relax at a nearby cafe, and walk in right as your barber chair opens up!
                 </p>
               )}
 
               {/* Salon Quick Info Chips */}
-              <div className="flex flex-wrap items-center gap-3 pt-1 text-xs text-slate-400">
-                <span className="flex items-center gap-1.5 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-slate-800">
-                  <MapPin className="h-3.5 w-3.5 text-amber-400" />
-                  {salon?.address || "Main Street Central Studio"}
-                </span>
+              <div className="flex flex-wrap items-center gap-2.5 pt-2 text-xs text-slate-400">
+                {salon?.address && (
+                  <span className="flex items-center gap-1.5 bg-slate-950/70 px-3 py-1.5 rounded-xl border border-slate-800">
+                    <MapPin className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                    <span className="truncate max-w-[220px]">{salon.address}</span>
+                  </span>
+                )}
 
                 {salon?.phone && (
                   <a
                     href={`tel:${salon.phone}`}
-                    className="flex items-center gap-1.5 bg-slate-950/60 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-800 text-slate-300 hover:text-white transition-colors"
+                    className="flex items-center gap-1.5 bg-slate-950/70 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-800 text-slate-300 hover:text-white transition-colors"
                   >
-                    <Phone className="h-3.5 w-3.5 text-emerald-400" />
-                    {salon.phone}
+                    <Phone className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                    <span>{salon.phone}</span>
                   </a>
                 )}
 
-                <span className="flex items-center gap-1.5 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-slate-800">
-                  <Clock className="h-3.5 w-3.5 text-blue-400" />
-                  8:00 AM – 9:00 PM
+                <span className="flex items-center gap-1.5 bg-slate-950/70 px-3 py-1.5 rounded-xl border border-slate-800">
+                  <Clock className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                  <span>{salon?.operatingHours?.split("|")[0] || "8:00 AM – 9:00 PM"}</span>
                 </span>
+              </div>
+
+              {/* Quick Jump Action Links */}
+              <div className="flex items-center gap-3 pt-2">
+                <a
+                  href="#services"
+                  className="text-xs font-semibold text-slate-300 hover:text-white underline underline-offset-4 decoration-amber-500/50 hover:decoration-amber-400 transition-colors"
+                >
+                  View Service Menu &amp; Prices ↓
+                </a>
+                <span className="text-slate-600">•</span>
+                <a
+                  href="#about"
+                  className="text-xs font-semibold text-slate-300 hover:text-white underline underline-offset-4 decoration-slate-600 hover:decoration-slate-400 transition-colors"
+                >
+                  About Our Studio &amp; Amenities ↓
+                </a>
               </div>
             </div>
 
             {/* Real-time Wait & Action Card */}
-            <div className="p-5 sm:p-6 rounded-2xl bg-slate-950/80 border border-slate-800 shadow-xl space-y-4 md:min-w-[280px]">
+            <div className="p-5 sm:p-6 rounded-2xl bg-slate-950/80 border border-slate-800 shadow-xl space-y-4 md:min-w-[300px]">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                   Live Queue Wait Time
@@ -411,18 +567,18 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
                     ~{totalWaitMinutes}m
                   </span>
                   <span className="text-xs text-slate-400">
-                    ({waitingSequence.length} ahead)
+                    ({waitingSequence.length} waiting)
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-800/80">
                 <div>
-                  <span className="text-[10px] text-slate-500 uppercase block">Active Chairs</span>
+                  <span className="text-[10px] text-slate-500 uppercase block font-medium">Active Chairs</span>
                   <span className="font-bold text-white">{salon?.stylists?.length || 1} Stylists</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500 uppercase block">In Service</span>
+                  <span className="text-[10px] text-slate-500 uppercase block font-medium">In Service</span>
                   <span className="font-bold text-emerald-400">{chairsServing.length} Chairs</span>
                 </div>
               </div>
@@ -436,7 +592,7 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
               </Button>
             </div>
           </div>
-        </div>
+        </section>
 
         {/* 4. ACTIVE TICKET STICKY CARD (WHEN CHECKED IN ON THIS DEVICE) */}
         {myTicket && (
@@ -556,8 +712,126 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
           </Card>
         )}
 
-        {/* 5. SERVICES & PRICING MENU SECTION */}
-        <section className="space-y-4">
+        {/* 5. LIVE QUEUE DEPARTURE BOARD (POCKET TV VIEW) */}
+        <section id="queue" className="space-y-4 scroll-mt-24">
+          <Card className="border-slate-800 bg-slate-900/60 shadow-xl">
+            <CardHeader className="pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <CardTitle className="text-lg font-bold flex items-center gap-2 text-white">
+                  <Users className="h-5 w-5 text-blue-400" />
+                  <span>Live Queue Flow &amp; Chair Floor</span>
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs border-slate-700 text-slate-300">
+                    {activeTickets.length} Registered Today
+                  </Badge>
+                  <Link
+                    href={`/s/${slug}/tv`}
+                    target="_blank"
+                    className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium bg-blue-500/10 px-2.5 py-1 rounded-lg border border-blue-500/20"
+                  >
+                    <span>Lobby TV View</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </div>
+              </div>
+              <CardDescription className="text-xs text-slate-400">
+                Transparent live board updated in real time via WebSockets. No guesswork, no crowded waits.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-5">
+              {/* Currently Serving in Chairs */}
+              <div className="space-y-2.5">
+                <span className="text-[11px] uppercase tracking-wider font-bold text-emerald-400 flex items-center gap-1.5">
+                  <Armchair className="h-4 w-4" />
+                  Currently In Service ({chairsServing.length})
+                </span>
+
+                {chairsServing.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {chairsServing.map((t) => (
+                      <div
+                        key={t.id}
+                        className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="font-bold text-emerald-400 font-mono text-sm">
+                            #{t.ticketNumber}
+                          </span>
+                          <div>
+                            <span className="font-semibold text-white block">{t.customerName}</span>
+                            <span className="text-[10px] text-slate-400">{t.serviceName || "Haircut"}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <LiveServiceTimer
+                            startedTime={(t as any).startedTime || (t as any).seatedAt || t.createdAt}
+                            variant="badge"
+                          />
+                          <Badge variant="success" className="text-[10px]">
+                            In Chair
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 text-center text-xs text-slate-400">
+                    <p>All chairs are currently open and sanitized for the next walk-in client!</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Waiting Line */}
+              <div className="space-y-2.5 pt-2">
+                <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1.5">
+                  <Clock className="h-4 w-4 text-blue-400" />
+                  Next in Line ({waitingSequence.length})
+                </span>
+
+                {waitingSequence.length > 0 ? (
+                  <div className="divide-y divide-slate-800/80 bg-slate-950/60 rounded-xl border border-slate-800/80 px-4">
+                    {waitingSequence.slice(0, 6).map((t, idx) => {
+                      const isMe = myTicket?.id === t.id;
+                      return (
+                        <div
+                          key={t.id}
+                          className={`py-3 flex items-center justify-between text-xs ${
+                            isMe ? "text-amber-300 font-bold" : "text-slate-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono font-bold text-slate-400">
+                              #{t.ticketNumber}
+                            </span>
+                            <span>
+                              {t.customerName} {isMe && "(YOU 👈)"}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="text-blue-400 font-mono">
+                              ~{t.estimatedWaitMinutes > 0 ? t.estimatedWaitMinutes : Math.max(5, (idx + 1) * 15)}m
+                            </span>
+                            <span className="text-[10px] text-slate-500">Queue #{idx + 1}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 text-center text-xs text-slate-400">
+                    <p>Zero wait right now! Join now to be served immediately.</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* 6. SERVICES & PRICING MENU SECTION */}
+        <section id="services" className="space-y-5 scroll-mt-24">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h3 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
@@ -565,7 +839,7 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
                 <span>Service Menu &amp; Transparent Pricing</span>
               </h3>
               <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                Select any haircut, beard, or spa service to join today's queue.
+                Every service includes consultation, sterile equipment, and precision finishing.
               </p>
             </div>
 
@@ -582,7 +856,7 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
                   onClick={() => setServiceCategory(cat.id)}
                   className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
                     serviceCategory === cat.id
-                      ? "bg-amber-500 text-slate-950 font-bold"
+                      ? "bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20"
                       : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
                   }`}
                 >
@@ -596,18 +870,20 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
             {filteredServices.map((srv) => (
               <Card
                 key={srv.id}
-                className="bg-slate-900/60 border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between"
+                className="bg-slate-900/60 border-slate-800 hover:border-amber-500/40 transition-all flex flex-col justify-between hover:shadow-lg group"
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-2xl">{srv.icon || "✂️"}</span>
+                    <span className="text-2xl group-hover:scale-110 transition-transform">{srv.icon || "✂️"}</span>
                     <Badge variant={srv.isAddOn ? "purple" : "secondary"} className="text-[10px]">
                       {srv.isAddOn ? "Add-On" : `${srv.estimatedDurationMinutes} mins`}
                     </Badge>
                   </div>
-                  <CardTitle className="text-base text-white mt-2 font-bold">{srv.name}</CardTitle>
+                  <CardTitle className="text-base text-white mt-2 font-bold group-hover:text-amber-400 transition-colors">
+                    {srv.name}
+                  </CardTitle>
                   <CardDescription className="text-xs text-slate-400">
-                    Professional salon finish with hot towel clean up.
+                    Professional salon finish with hot towel clean up and style guidance.
                   </CardDescription>
                 </CardHeader>
 
@@ -635,16 +911,16 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
           </div>
         </section>
 
-        {/* 6. ACTIVE STYLISTS & CHAIR FLOOR */}
+        {/* 7. ACTIVE STYLISTS & CHAIR FLOOR */}
         {salon?.stylists && salon.stylists.length > 0 && (
-          <section className="space-y-4 pt-2">
+          <section id="team" className="space-y-4 pt-2 scroll-mt-24">
             <div>
               <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
                 <Armchair className="h-5 w-5 text-blue-400" />
-                <span>Active Chairs &amp; Stylists on Floor</span>
+                <span>Our Master Stylists &amp; Barbers</span>
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Our team is actively servicing appointments and walk-in clients.
+                Hand-picked grooming specialists dedicated to craft and cleanliness.
               </p>
             </div>
 
@@ -654,7 +930,7 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
                 return (
                   <div
                     key={st.id}
-                    className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-center gap-3.5"
+                    className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-center gap-3.5 hover:border-slate-700 transition-colors"
                   >
                     <div className="h-10 w-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-black text-amber-400 shrink-0">
                       #{idx + 1}
@@ -678,149 +954,249 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
           </section>
         )}
 
-        {/* 7. LIVE QUEUE DEPARTURE BOARD (POCKET TV VIEW) */}
-        <section className="space-y-4 pt-2">
-          <Card className="border-slate-800 bg-slate-900/60 shadow-xl">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-bold flex items-center gap-2 text-white">
-                  <Users className="h-4 w-4 text-blue-400" />
-                  <span>Live Queue Flow &amp; Active Turn</span>
-                </CardTitle>
-                <Badge variant="outline" className="text-xs border-slate-700 text-slate-300">
-                  {activeTickets.length} Total Registered
-                </Badge>
+        {/* 8. RICH ABOUT US & CRAFT STORY SECTION */}
+        <section id="about" className="space-y-6 pt-4 scroll-mt-24">
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6 sm:p-8 space-y-6">
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+              <div className="space-y-3 max-w-2xl">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs border-amber-500/40 text-amber-400 bg-amber-500/10">
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    Our Story &amp; Craft
+                  </Badge>
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-black text-white">
+                  About {salon?.name || "Our Salon"}
+                </h3>
+                <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
+                  {salon?.about ||
+                    "Welcome to our modern grooming studio! We bring together old-school barber craft and contemporary styling techniques in an elevated, welcoming space. Whether you need a quick professional taper, classic hot-towel shave, or complete hair styling, our dedicated artists deliver precision perfection every single time."}
+                </p>
               </div>
-              <CardDescription className="text-xs text-slate-400">
-                Transparent live board updated in real time via WebSockets.
-              </CardDescription>
-            </CardHeader>
 
-            <CardContent className="space-y-4">
-              {/* Currently Serving in Chairs */}
-              {chairsServing.length > 0 ? (
-                <div className="space-y-2">
-                  <span className="text-[11px] uppercase tracking-wider font-bold text-emerald-400 flex items-center gap-1.5">
-                    <Armchair className="h-3.5 w-3.5" />
-                    Currently In Chair
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {chairsServing.map((t) => (
-                      <div
-                        key={t.id}
-                        className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between text-xs"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className="font-bold text-emerald-400 font-mono text-sm">
-                            #{t.ticketNumber}
-                          </span>
-                          <div>
-                            <span className="font-semibold text-white block">{t.customerName}</span>
-                            <span className="text-[10px] text-slate-400">{t.serviceName || "Haircut"}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <LiveServiceTimer
-                            startedTime={(t as any).startedTime || (t as any).seatedAt || t.createdAt}
-                            variant="badge"
-                          />
-                          <Badge variant="success" className="text-[10px]">
-                            In Chair
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
+              {/* Three Trust Pillars */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-1 gap-3 shrink-0 md:w-64">
+                <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
+                    <ShieldCheck className="h-4 w-4" />
+                    <span>UV Sterilization</span>
                   </div>
+                  <p className="text-[11px] text-slate-400">
+                    Blades, scissors &amp; combs sterilized before every client.
+                  </p>
                 </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
+                    <Zap className="h-4 w-4" />
+                    <span>Zero In-Shop Wait</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Queue from your phone; relax until summoned to the chair.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-bold text-blue-400">
+                    <Star className="h-4 w-4" />
+                    <span>Master Stylists</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Certified barbers passionate about contemporary grooming.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Salon Amenities Showcase */}
+            <div className="pt-4 border-t border-slate-800/80">
+              <span className="text-xs uppercase tracking-wider font-bold text-slate-400 block mb-3">
+                Studio Amenities &amp; Guest Comforts
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {(salon?.amenities && salon.amenities.length > 0
+                  ? salon.amenities
+                  : [
+                      "Air Conditioned",
+                      "High-Speed Wi-Fi",
+                      "Complimentary Chai",
+                      "100% Sanitized Tools",
+                      "UPI & Cards Accepted",
+                      "Comfortable Waiting Lounge",
+                    ]
+                ).map((amenity, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 font-medium"
+                  >
+                    <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                    <span>{amenity}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 9. RICH CONTACT, LOCATION & OPERATING HOURS SECTION */}
+        <section id="contact" className="space-y-6 pt-4 scroll-mt-24">
+          <div>
+            <h3 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-amber-400" />
+              <span>Contact Us, Hours &amp; Location</span>
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+              Drop by for a fresh cut or reach out directly with any special requests.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* 1. Operating Hours Card */}
+            <Card className="bg-slate-900/60 border-slate-800 p-5 space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                  <Clock className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-base">Operating Hours</h4>
+                  <p className="text-xs text-slate-400 mt-0.5">Always welcoming walk-ins during open hours</p>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs text-slate-300 leading-relaxed font-mono">
+                  {salon?.operatingHours || "Mon - Sat: 8:00 AM – 9:00 PM\nSunday: 8:00 AM – 2:00 PM"}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-emerald-400 font-semibold pt-2 border-t border-slate-800/80">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Open for Appointments &amp; Walk-ins</span>
+              </div>
+            </Card>
+
+            {/* 2. Address & Google Maps Navigation */}
+            <Card className="bg-slate-900/60 border-slate-800 p-5 space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                  <MapPin className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-base">Salon Location</h4>
+                  <p className="text-xs text-slate-400 mt-0.5">Easy parking and central connectivity</p>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/70 p-3 rounded-xl border border-slate-800/80">
+                  {salon?.address || "Main Street Central Studio, Opp City Plaza"}
+                </p>
+              </div>
+
+              {salon?.googleMapsUrl ? (
+                <a
+                  href={salon.googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 text-xs font-bold py-2.5 px-4 rounded-xl border border-slate-700 transition-colors"
+                >
+                  <Navigation className="h-4 w-4" />
+                  <span>Open in Google Maps</span>
+                  <ExternalLink className="h-3 w-3 opacity-70" />
+                </a>
               ) : (
-                <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 text-center text-xs text-slate-400">
-                  <p>All chairs are currently open and sanitized for the next walk-in client!</p>
+                <div className="text-[11px] text-slate-500 text-center">
+                  Landmark directions available on phone
                 </div>
               )}
+            </Card>
 
-              {/* Waiting Line */}
-              {waitingSequence.length > 0 && (
-                <div className="space-y-2 pt-2">
-                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5 text-blue-400" />
-                    Next in Line ({waitingSequence.length})
+            {/* 3. Direct Contact & Chat */}
+            <Card className="bg-slate-900/60 border-slate-800 p-5 space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                  <Phone className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-base">Direct Contact</h4>
+                  <p className="text-xs text-slate-400 mt-0.5">Call or WhatsApp our reception desk</p>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  {salon?.phone && (
+                    <a
+                      href={`tel:${salon.phone}`}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 text-slate-300 hover:text-white transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Phone className="h-3.5 w-3.5 text-emerald-400" />
+                        <span>{salon.phone}</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase">Call</span>
+                    </a>
+                  )}
+
+                  {salon?.whatsappPhone && (
+                    <a
+                      href={`https://wa.me/${salon.whatsappPhone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                        `Hi ${salon.name || "Salon"}, I have a question about queue availability!`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/30 hover:border-emerald-500 text-emerald-300 hover:text-white transition-colors"
+                    >
+                      <span className="flex items-center gap-2 font-semibold">
+                        <MessageCircle className="h-3.5 w-3.5 text-emerald-400" />
+                        <span>WhatsApp Chat</span>
+                      </span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+
+                  {salon?.email && (
+                    <a
+                      href={`mailto:${salon.email}`}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 text-slate-300 hover:text-white transition-colors truncate"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <Mail className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                        <span className="truncate">{salon.email}</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase shrink-0">Mail</span>
+                    </a>
+                  )}
+
+                  {salon?.instagramHandle && (
+                    <a
+                      href={`https://instagram.com/${salon.instagramHandle.replace("@", "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 text-purple-300 hover:text-purple-200 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Instagram className="h-3.5 w-3.5 text-purple-400" />
+                        <span>{salon.instagramHandle.startsWith("@") ? salon.instagramHandle : `@${salon.instagramHandle}`}</span>
+                      </span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {salon?.upiPaymentId && (
+                <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <QrCode className="h-3.5 w-3.5 text-amber-400" />
+                    <span>UPI: <strong className="text-white">{salon.upiPaymentId}</strong></span>
                   </span>
-
-                  <div className="divide-y divide-slate-800/80 bg-slate-950/60 rounded-xl border border-slate-800/80 px-3">
-                    {waitingSequence.slice(0, 5).map((t, idx) => {
-                      const isMe = myTicket?.id === t.id;
-                      return (
-                        <div
-                          key={t.id}
-                          className={`py-2.5 flex items-center justify-between text-xs ${
-                            isMe ? "text-amber-300 font-bold" : "text-slate-300"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="font-mono font-bold text-slate-400">
-                              #{t.ticketNumber}
-                            </span>
-                            <span>
-                              {t.customerName} {isMe && "(YOU 👈)"}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-3">
-                            <span className="text-blue-400 font-mono">
-                              ~{t.estimatedWaitMinutes > 0 ? t.estimatedWaitMinutes : Math.max(5, (idx + 1) * 15)}m
-                            </span>
-                            <span className="text-[10px] text-slate-500">Pos #{idx + 1}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(salon.upiPaymentId!, "UPI ID")}
+                    className="p-1 hover:text-white text-slate-500 transition-colors"
+                    title="Copy UPI ID"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* 8. SALON AMENITIES & REASSURANCES */}
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-start gap-3">
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
-              <Zap className="h-5 w-5" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-white">Zero App Download</h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Instant door check-in runs right in your phone's browser with zero installs.
-              </p>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-start gap-3">
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0">
-              <BellRing className="h-5 w-5" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-white">WhatsApp Summon Alerts</h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                We notify you on WhatsApp when you are next in line so you never wait inside.
-              </p>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-start gap-3">
-            <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 shrink-0">
-              <Coffee className="h-5 w-5" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-white">Chai-Friendly Waiting</h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Grab a tea or shop nearby—your queue position is securely reserved.
-              </p>
-            </div>
+            </Card>
           </div>
         </section>
 
-        {/* 9. CHECK-IN MODAL DIALOG */}
+        {/* 10. CHECK-IN MODAL DIALOG */}
         <Dialog open={isCheckinOpen} onOpenChange={setIsCheckinOpen}>
           <DialogClose onClose={() => setIsCheckinOpen(false)} />
           <div className="space-y-4">
@@ -978,7 +1354,7 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
           </div>
         </Dialog>
 
-        {/* 10. MODAL: CONFIRM CANCEL QUEUE SPOT */}
+        {/* 11. MODAL: CONFIRM CANCEL QUEUE SPOT */}
         <Dialog open={isCancelConfirmOpen} onOpenChange={setIsCancelConfirmOpen}>
           <DialogClose onClose={() => setIsCancelConfirmOpen(false)} />
           <div>
@@ -1015,10 +1391,106 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
         </Dialog>
       </main>
 
-      {/* 11. FOOTER BRANDING */}
-      <footer className="p-6 text-center text-xs text-slate-500 border-t border-slate-800/60 max-w-5xl mx-auto w-full space-y-1">
-        <p className="font-semibold text-slate-400">{salon?.name || "Salon"} · Digital Storefront &amp; Real-Time Queue Engine</p>
-        <p className="text-[11px] text-slate-600">Built with Bun v1.4, Next.js 15, and WebSocket Core</p>
+      {/* 12. ENHANCED FOOTER WITH NAVIGATION & STOREFRONT LINKS */}
+      <footer className="border-t border-slate-800/80 bg-slate-950/90 py-10 px-4 sm:px-8 mt-12 text-xs text-slate-400">
+        <div className="max-w-5xl mx-auto space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            {/* Column 1: Salon Identity */}
+            <div className="space-y-3 md:col-span-1">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+                  <Scissors className="h-4 w-4" />
+                </div>
+                <span className="font-extrabold text-white text-sm">{salon?.name || "Salon"}</span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                {salon?.tagline || "Digital storefront & live wait management for modern grooming studios."}
+              </p>
+              {salon?.phone && (
+                <p className="text-xs text-slate-300 flex items-center gap-1.5">
+                  <Phone className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>{salon.phone}</span>
+                </p>
+              )}
+            </div>
+
+            {/* Column 2: Navigation Links */}
+            <div className="space-y-2.5">
+              <span className="text-[11px] uppercase tracking-wider font-bold text-white block">
+                Quick Navigation
+              </span>
+              <ul className="space-y-1.5 text-xs">
+                <li><a href="#hero" className="hover:text-amber-400 transition-colors">Home Top</a></li>
+                <li><a href="#queue" className="hover:text-amber-400 transition-colors">Live Queue Board</a></li>
+                <li><a href="#services" className="hover:text-amber-400 transition-colors">Services &amp; Pricing</a></li>
+                <li><a href="#team" className="hover:text-amber-400 transition-colors">Stylists &amp; Chairs</a></li>
+                <li><a href="#about" className="hover:text-amber-400 transition-colors">About Our Craft</a></li>
+                <li><a href="#contact" className="hover:text-amber-400 transition-colors">Hours &amp; Location</a></li>
+              </ul>
+            </div>
+
+            {/* Column 3: Live Queue Experience */}
+            <div className="space-y-2.5">
+              <span className="text-[11px] uppercase tracking-wider font-bold text-white block">
+                Live Displays &amp; Portal
+              </span>
+              <ul className="space-y-1.5 text-xs">
+                <li>
+                  <Link href={`/s/${slug}/tv`} target="_blank" className="hover:text-amber-400 transition-colors flex items-center gap-1">
+                    <span>Lobby TV View</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setIsCheckinOpen(true)}
+                    className="hover:text-amber-400 transition-colors text-left"
+                  >
+                    Check In Online Now
+                  </button>
+                </li>
+                <li>
+                  <Link href="/me" className="hover:text-amber-400 transition-colors">
+                    Customer History &amp; Profile
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* Column 4: Salon Owner Administration */}
+            <div className="space-y-2.5">
+              <span className="text-[11px] uppercase tracking-wider font-bold text-white block">
+                Owner Management
+              </span>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Manage salon hours, services, announcements, and queue from the owner portal.
+              </p>
+              <div className="pt-1 flex flex-col gap-1.5">
+                <Link
+                  href="/owner/storefront"
+                  className="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-semibold"
+                >
+                  <Store className="h-3.5 w-3.5" />
+                  <span>Customize Storefront</span>
+                </Link>
+                <Link
+                  href="/owner"
+                  className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  <span>Owner Dashboard</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400">
+            <p>© {new Date().getFullYear()} {salon?.name || "Salon"}. All rights reserved.</p>
+            <p className="text-slate-400">
+              Powered by Queue Engine Enterprise · Built with Next.js 15 &amp; Bun
+            </p>
+          </div>
+        </div>
       </footer>
     </div>
   );
