@@ -5,6 +5,8 @@ import { api, Salon, Ticket } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, maskPhone } from "@/lib/utils";
+import { LiveServiceTimer } from "@/components/live-service-timer";
+import { ConnectionPill } from "@/components/connection-pill";
 import {
   Scissors,
   Armchair,
@@ -63,7 +65,7 @@ export default function SalonLobbyTvPage({ params }: { params: Promise<{ slug: s
   }, [slug]);
 
   // Real-time WebSocket connection
-  useSalonSocket(salon?.id, (event) => {
+  const { isConnected } = useSalonSocket(salon?.id, (event) => {
     console.log("[Lobby TV Board] Socket event:", event.type);
     fetchQueueData();
   });
@@ -90,14 +92,10 @@ export default function SalonLobbyTvPage({ params }: { params: Promise<{ slug: s
             <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight uppercase">
               {salon?.name || "Salon Waiting Lounge"}
             </h1>
-            <p className="text-sm font-semibold text-slate-400 flex items-center gap-2 mt-0.5">
-              <span>AIRPORT DEPARTURE QUEUE BOARD</span>
-              <span>•</span>
-              <span className="text-emerald-400 flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                LIVE SYNCHRONIZED
-              </span>
-            </p>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="text-xs uppercase tracking-wider font-semibold text-slate-400">AIRPORT DEPARTURE QUEUE BOARD</span>
+              <ConnectionPill isConnected={isConnected} />
+            </div>
           </div>
         </div>
 
@@ -161,15 +159,23 @@ export default function SalonLobbyTvPage({ params }: { params: Promise<{ slug: s
                         ? "📢 SUMMONED TO CHAIR"
                         : "💺 IN SERVICE"}
                     </span>
-                    <Badge
-                      variant={
-                        t.status === "CALLED" || t.status === "SUMMONED" ? "warning" : "success"
-                      }
-                    >
-                      {t.status === "CALLED" || t.status === "SUMMONED"
-                        ? "STEP TO CHAIR"
-                        : "IN PROGRESS"}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      {(t.status === "IN_SERVICE" || t.status === "IN_CHAIR") && (
+                        <LiveServiceTimer
+                          startedTime={(t as any).startedTime || (t as any).seatedAt || t.createdAt}
+                          variant="badge"
+                        />
+                      )}
+                      <Badge
+                        variant={
+                          t.status === "CALLED" || t.status === "SUMMONED" ? "warning" : "success"
+                        }
+                      >
+                        {t.status === "CALLED" || t.status === "SUMMONED"
+                          ? "STEP TO CHAIR"
+                          : "IN PROGRESS"}
+                      </Badge>
+                    </div>
                   </div>
 
 
