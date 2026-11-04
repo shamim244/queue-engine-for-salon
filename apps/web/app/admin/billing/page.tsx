@@ -31,7 +31,7 @@ interface BillingTransaction {
   id: string;
   invoiceNo: string;
   orgName: string;
-  tier: "SOLO" | "PRO" | "ENTERPRISE";
+  tier: "STARTER" | "PRO" | "ENTERPRISE";
   amount: number;
   date: string;
   status: "PAID" | "PENDING" | "PROCESSING";
@@ -53,7 +53,7 @@ const sampleTransactions: BillingTransaction[] = [
     id: "tx-102",
     invoiceNo: "EQ-INV-2026-1102",
     orgName: "Ramesh Traditional Barber",
-    tier: "SOLO",
+    tier: "STARTER",
     amount: 499,
     date: "Nov 01, 2026",
     status: "PAID",
@@ -110,7 +110,7 @@ export default function AdminBillingPage() {
     fetchOrgs();
   }, []);
 
-  const handleUpdateTier = async (orgId: string, nextTier: "STARTER" | "PRO" | "ENTERPRISE" | "SOLO") => {
+  const handleUpdateTier = async (orgId: string, nextTier: "STARTER" | "PRO" | "ENTERPRISE") => {
     setUpdatingOrgId(orgId);
     try {
       await api.salons.updateTier(orgId, nextTier);
@@ -123,9 +123,9 @@ export default function AdminBillingPage() {
     }
   };
 
-  const tierPrices: Record<string, number> = { STARTER: 499, SOLO: 499, PRO: 1499, ENTERPRISE: 4999 };
+  const tierPrices: Record<string, number> = { STARTER: 499, PRO: 1499, ENTERPRISE: 4999 };
   const totalMRR = organizations.reduce((acc, o) => acc + (tierPrices[o.tier] || 499), 0);
-  const starterCount = organizations.filter((o) => o.tier === "STARTER" || o.tier === "SOLO").length;
+  const starterCount = organizations.filter((o) => o.tier === "STARTER").length;
   const proCount = organizations.filter((o) => o.tier === "PRO").length;
   const enterpriseCount = organizations.filter((o) => o.tier === "ENTERPRISE").length;
 
@@ -393,7 +393,7 @@ export default function AdminBillingPage() {
 
                   <div className="flex items-center gap-2">
                     {(["STARTER", "PRO", "ENTERPRISE"] as const).map((t) => {
-                      const isCurrent = org.tier === t || (t === "STARTER" && org.tier === "SOLO");
+                      const isCurrent = org.tier === t;
                       return (
                         <Button
                           key={t}
@@ -452,7 +452,7 @@ export default function AdminBillingPage() {
             </div>
 
             <div className="flex items-center gap-1.5">
-              {(["ALL", "SOLO", "PRO", "ENTERPRISE"] as const).map((f) => (
+              {(["ALL", "STARTER", "PRO", "ENTERPRISE"] as const).map((f) => (
                 <button
                   key={f}
                   type="button"

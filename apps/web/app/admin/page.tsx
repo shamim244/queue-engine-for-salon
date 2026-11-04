@@ -199,7 +199,7 @@ export default function AdminOverviewPage() {
           <CardContent>
             <div className="text-3xl font-black text-white">{loading ? "..." : (stats?.totalStylists ?? totalStylists)}</div>
             <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-              Across all rural & multi-station chairs
+              Across all active platform chairs
             </p>
           </CardContent>
         </Card>

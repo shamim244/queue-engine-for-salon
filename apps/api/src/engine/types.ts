@@ -1,6 +1,6 @@
 export type SalonOperatingMode = string;
 
-export type SubscriptionTier = 'STARTER' | 'PRO' | 'ENTERPRISE' | 'SOLO';
+export type SubscriptionTier = 'STARTER' | 'PRO' | 'ENTERPRISE';
 
 export type UserRole = 'SUPER_ADMIN' | 'SALON_OWNER' | 'BRANCH_MANAGER' | 'STAFF' | 'CUSTOMER';
 

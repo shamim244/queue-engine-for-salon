@@ -108,8 +108,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       setActiveTickets(tickets);
 
       // Detect currently serving or summoned ticket for this stylist/chair
-      // In solo mode, ticket might not have stylistId assigned yet. In multi-station mode, enforce strict chair isolation.
-      const isSolo = !salonRes.salon?.stylists || salonRes.salon.stylists.length <= 1;
+      const isSingleChair = !salonRes.salon?.stylists || salonRes.salon.stylists.length <= 1;
 
       const inService =
         tickets.find(
@@ -117,7 +116,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
             (t.status === "IN_SERVICE" || t.status === "IN_CHAIR") &&
             (!activeStylist || !t.stylistId || t.stylistId === activeStylist.id)
         ) ||
-        (isSolo ? tickets.find((t) => t.status === "IN_SERVICE" || t.status === "IN_CHAIR") : null);
+        (isSingleChair ? tickets.find((t) => t.status === "IN_SERVICE" || t.status === "IN_CHAIR") : null);
 
       const called =
         tickets.find(
@@ -125,7 +124,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
             (t.status === "CALLED" || t.status === "SUMMONED") &&
             (!activeStylist || !t.stylistId || t.stylistId === activeStylist.id)
         ) ||
-        (isSolo ? tickets.find((t) => t.status === "CALLED" || t.status === "SUMMONED") : null);
+        (isSingleChair ? tickets.find((t) => t.status === "CALLED" || t.status === "SUMMONED") : null);
 
       setCurrentlyServing(inService || null);
       setSummonedTicket(called || null);
@@ -411,8 +410,6 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     setPinError("");
   };
 
-  const isSolo = !salon?.stylists || salon.stylists.length <= 1;
-
   // LOCKED STATE: Touch-Optimized 4-Digit Quick PIN Keypad
   if (isLocked) {
     return (
@@ -558,7 +555,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                 {activeStylist?.name || "Barber Station"}
               </span>
               <Badge variant="outline" className="text-[10px] border-slate-700 bg-slate-800 text-slate-300">
-                {isSolo ? "Solo Station" : (activeStylist?.name || "Chair #1")}
+                {activeStylist?.name || "Station #1"}
               </Badge>
             </div>
             <p className="text-xs text-slate-400">{salon?.name || "Salon Station"}</p>

@@ -132,9 +132,10 @@ export const adminRoutes = new Elysia({ prefix: '/api/admin' })
         organizationSlug: t.Optional(t.String()),
         tier: t.Optional(
           t.Union([
-            t.Literal('SOLO'),
+            t.Literal('STARTER'),
             t.Literal('PRO'),
             t.Literal('ENTERPRISE'),
+            t.Literal('SOLO'),
           ])
         ),
         ownerUser: t.Optional(

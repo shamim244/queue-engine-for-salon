@@ -480,7 +480,7 @@
       if (!orgId) return;
 
       const currentTier = currentOrg?.tier || 'PRO';
-      const targetTier = currentTier === 'SOLO' ? 'PRO' : currentTier === 'PRO' ? 'ENTERPRISE' : 'SOLO';
+      const targetTier = currentTier === 'STARTER' ? 'PRO' : currentTier === 'PRO' ? 'ENTERPRISE' : 'STARTER';
 
       if (!confirm(`Upgrade organization tier from ${currentTier} to ${targetTier}?`)) return;
 

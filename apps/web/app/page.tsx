@@ -128,7 +128,7 @@ export default function MarketingHomePage() {
 
           {/* Main Headline */}
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.15] max-w-4xl mx-auto">
-            The <span className="bg-gradient-to-r from-blue-400 via-indigo-300 to-cyan-300 bg-clip-text text-transparent">Real-Time Queue Engine</span> for Modern Salons &amp; Solo Barbers
+            The <span className="bg-gradient-to-r from-blue-400 via-indigo-300 to-cyan-300 bg-clip-text text-transparent">Real-Time Queue Engine</span> for Modern Salons &amp; Barbershops
           </h1>
 
           {/* Subtitle */}
@@ -523,7 +523,7 @@ export default function MarketingHomePage() {
                 </div>
                 <h4 className="text-lg font-bold text-white mb-2">Centralized Franchise Control</h4>
                 <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-                  Super Admin HQ manages multi-tenant quotas, subscription tier gating (SOLO, PRO, ENTERPRISE), emergency kill-switch lockdown, and platform analytics.
+                  Super Admin HQ manages multi-tenant quotas, subscription tier gating (STARTER, PRO, ENTERPRISE), emergency kill-switch lockdown, and platform analytics.
                 </p>
               </div>
               <div className="mt-5 pt-3 border-t border-slate-800 text-xs font-medium text-cyan-400 flex items-center gap-1">
@@ -781,7 +781,7 @@ export default function MarketingHomePage() {
                   <h5 className="font-bold text-white text-sm">Ramesh Kumar</h5>
                   <p className="text-xs text-slate-400">Owner, Ramesh Traditional Barber, Jaipur</p>
                 </div>
-                <Badge variant="warning" className="text-[10px]">Solo Rural Barber</Badge>
+                <Badge variant="warning" className="text-[10px]">Starter Plan</Badge>
               </div>
             </div>
 
@@ -802,7 +802,7 @@ export default function MarketingHomePage() {
                   <h5 className="font-bold text-white text-sm">Vikram Sethi</h5>
                   <p className="text-xs text-slate-400">Managing Director, Aura Luxury Salon, Mumbai</p>
                 </div>
-                <Badge variant="default" className="text-[10px]">Modern Multi-Station</Badge>
+                <Badge variant="default" className="text-[10px]">Pro Plan</Badge>
               </div>
             </div>
           </div>

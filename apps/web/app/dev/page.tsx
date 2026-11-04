@@ -26,7 +26,7 @@ export default function DevLauncherPage() {
       role: "Platform Operator",
       badge: "Global Oversight",
       badgeColor: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-      description: "Manage all tenant salons, toggle rural vs modern modes, adjust subscription tiers, configure platform settings, and onboard new salons.",
+      description: "Manage all tenant salons, manage subscription plans, configure platform settings, and onboard new salons.",
       href: "/admin",
       icon: ShieldCheck,
       color: "from-purple-500 to-indigo-600",
@@ -37,7 +37,7 @@ export default function DevLauncherPage() {
       role: "Salon Owner / Manager",
       badge: "Multi-Branch",
       badgeColor: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-      description: "Multi-branch switcher, staff rosters, 4-digit mirror PIN assignment, emergency kill-switch, and rural flexible pricing.",
+      description: "Branch overview, staff rosters, 4-digit mirror PIN assignment, emergency kill-switch, and flexible pricing.",
       href: "/owner",
       icon: Crown,
       color: "from-amber-500 to-orange-600",
@@ -154,7 +154,7 @@ export default function DevLauncherPage() {
             </span>
           </div>
           <p className="text-sm sm:text-base text-slate-400 max-w-2xl">
-            Enterprise high-concurrency queue engine and multi-panel operational suite for rural solo-barbers and modern multi-station salons.
+            Enterprise high-concurrency queue engine and multi-panel operational suite for salons, barbershops, and multi-branch franchises.
           </p>
         </div>
 

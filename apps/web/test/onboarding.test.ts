@@ -307,7 +307,7 @@ describe("Tenant Onboarding Wizard Logic & Validation", () => {
 
       // Step indicators
       expect(html).toContain("Identity &amp; Location");
-      expect(html).toContain("Architecture Model");
+      expect(html).toContain("Subscription Plan");
       expect(html).toContain("Owner Account");
       expect(html).toContain("Stylist Roster");
       expect(html).toContain("Service Catalog");
@@ -317,7 +317,7 @@ describe("Tenant Onboarding Wizard Logic & Validation", () => {
       expect(html).toContain("Tenant Slug");
       expect(html).toContain("Contact Phone");
       expect(html).toContain("Currency");
-      expect(html).toContain("Continue to Architecture Model");
+      expect(html).toContain("Continue to Subscription Plan");
     });
   });
 });

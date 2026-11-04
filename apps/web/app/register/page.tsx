@@ -635,7 +635,7 @@ function RegisterContent() {
                   )}
                 </Button>
                 <p className="text-center text-[11px] text-slate-500 mt-2.5">
-                  By registering, you agree to our terms of service. Free forever for solo barbers.
+                  By registering, you agree to our terms of service. 14-day free trial on all plans.
                 </p>
               </div>
             </form>

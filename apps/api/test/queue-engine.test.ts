@@ -254,19 +254,19 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
   });
 
   it('should enforce tier quota gating when adding branches or stylists', async () => {
-    // 1. Check Ramesh organization (SOLO tier: max 1 branch, max 1 stylist)
+    // 1. Check Ramesh organization (STARTER tier: max 1 branch, max 1 stylist)
     const rameshOrg = await repository.getOrganizationById('org-ramesh');
     expect(rameshOrg).not.toBeNull();
-    expect(rameshOrg?.tier).toBe('SOLO');
+    expect(rameshOrg?.tier).toBe('STARTER');
     expect(rameshOrg?.maxBranches).toBe(1);
     expect(rameshOrg?.maxStylistsPerBranch).toBe(1);
 
-    // 2. Branch quota check for SOLO (already has 1 branch salon-rural-01)
+    // 2. Branch quota check for STARTER (already has 1 branch salon-rural-01)
     const branchQuota = await repository.checkOrganizationBranchQuota('org-ramesh');
     expect(branchQuota.allowed).toBe(false);
     expect(branchQuota.current).toBe(1);
 
-    // Attempting to create 2nd branch under SOLO tier throws error
+    // Attempting to create 2nd branch under STARTER tier throws error
     expect(
       repository.createSalon({
         name: 'Ramesh Branch 2',
@@ -275,11 +275,11 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
       })
     ).rejects.toThrow(/Branch quota limit/);
 
-    // 3. Stylist quota check for rural salon (already has 1 stylist)
+    // 3. Stylist quota check for starter salon (already has 1 stylist)
     const stylistQuota = await repository.checkSalonStylistQuota('salon-rural-01');
     expect(stylistQuota.allowed).toBe(false);
 
-    // Attempting to add 2nd stylist to SOLO tier salon throws error
+    // Attempting to add 2nd stylist to STARTER tier salon throws error
     expect(
       repository.addStylist('salon-rural-01', {
         name: 'Assistant Barber',
@@ -289,7 +289,7 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
   });
 
   it('should dynamically upgrade organization tier and adjust quotas', async () => {
-    // 1. Upgrade Ramesh Org from SOLO to PRO (maxBranches: 3, maxStylists: 10)
+    // 1. Upgrade Ramesh Org from STARTER to PRO (maxBranches: 3, maxStylists: 10)
     const upgraded = await repository.updateOrganizationTier('org-ramesh', 'PRO');
     expect(upgraded).not.toBeNull();
     expect(upgraded?.tier).toBe('PRO');

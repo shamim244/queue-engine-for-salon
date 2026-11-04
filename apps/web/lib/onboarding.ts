@@ -34,7 +34,7 @@ export interface OnboardingFormData {
   operatingMode?: string;
   organizationName?: string;
   organizationSlug?: string;
-  tier?: "STARTER" | "PRO" | "ENTERPRISE" | "SOLO";
+  tier?: "STARTER" | "PRO" | "ENTERPRISE";
   ownerUser: OwnerUserInput;
   stylists: StylistInput[];
   services: ServiceInput[];

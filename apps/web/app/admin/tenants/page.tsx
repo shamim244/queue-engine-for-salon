@@ -235,7 +235,7 @@ export default function AdminTenantsPage() {
     if (planFilter === "ALL") return salons;
     return salons.filter((s) => {
       const tier = (s as any).tier || (s.organizationId === "org-aura" ? "PRO" : "STARTER");
-      if (planFilter === "STARTER") return tier === "STARTER" || tier === "SOLO";
+      if (planFilter === "STARTER") return tier === "STARTER";
       return tier === planFilter;
     });
   }, [salons, planFilter]);

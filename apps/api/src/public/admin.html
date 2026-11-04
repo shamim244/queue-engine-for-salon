@@ -212,12 +212,12 @@
             <div style="display: flex; gap: 6px;">
               ${s.organizationId ? `
                 <button class="salon-badge" style="cursor: pointer; border: 1px solid var(--border); background: var(--surface-light);" onclick="toggleTier('${s.organizationId}', '${s.tier}')">
-                  ⚡ Tier: <b>${s.tier}</b> (Click to cycle)
+                  ⚡ SaaS Plan: <b>${s.tier || 'STARTER'}</b> (Click to cycle)
                 </button>
               ` : ''}
-              <button class="salon-badge ${s.operatingMode === 'RURAL_SOLO' ? 'badge-rural' : ''}" style="cursor: pointer; border: 1px solid var(--border);" onclick="toggleMode('${s.id}', '${s.operatingMode}')">
-                🔄 Mode: <b>${s.operatingMode}</b> (Toggle)
-              </button>
+              <span class="salon-badge" style="border: 1px solid var(--border);">
+                💈 Active Chairs: <b>${s.stylists?.length || 1}</b>
+              </span>
             </div>
           </div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px;">
@@ -233,7 +233,7 @@
     }
 
     async function toggleTier(orgId, currentTier) {
-      const nextTier = currentTier === 'SOLO' ? 'PRO' : currentTier === 'PRO' ? 'ENTERPRISE' : 'SOLO';
+      const nextTier = currentTier === 'STARTER' ? 'PRO' : currentTier === 'PRO' ? 'ENTERPRISE' : 'STARTER';
       if (!confirm(`Switch organization tier to ${nextTier}?`)) return;
 
       try {

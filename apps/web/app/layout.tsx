@@ -5,7 +5,7 @@ import { AuthProvider } from "@/lib/auth-context";
 export const metadata: Metadata = {
   title: "Engine Que System | Enterprise Salon Queue Management",
   description:
-    "Real-time high-concurrency queue engine and operational portal for modern salons and rural solo-barbers.",
+    "Real-time high-concurrency queue engine and operational portal for salons, barbershops, and multi-branch studios.",
 };
 
 export default function RootLayout({

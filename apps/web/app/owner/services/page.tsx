@@ -196,7 +196,7 @@ function OwnerServicesContent() {
           <Badge variant="purple" className="text-[10px] mb-1">
             FLEXIBLE CHAIR
           </Badge>
-          <p className="font-semibold text-white">Rural Negotiable Pricing</p>
+          <p className="font-semibold text-white">Flexible Chairside Pricing</p>
           <p className="text-slate-400">
             Stylist live-edits the final bill on the chair tablet before 1-tap cash or UPI checkout.
           </p>
@@ -343,7 +343,7 @@ function OwnerServicesContent() {
               >
                 <option value="FIXED">FIXED (Standard flat rate)</option>
                 <option value="STARTING_AT">STARTING_AT (Upsell in chair)</option>
-                <option value="FLEXIBLE_CHAIR">FLEXIBLE_CHAIR (Rural negotiable amount)</option>
+                <option value="FLEXIBLE_CHAIR">FLEXIBLE_CHAIR (Custom chairside amount)</option>
               </select>
             </div>
 

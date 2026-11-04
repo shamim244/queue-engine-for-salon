@@ -581,14 +581,14 @@ function OnboardingWizardContent() {
               <Button variant="ghost" className="text-slate-400">Cancel</Button>
             </Link>
             <Button onClick={handleNext} className="gap-2 bg-blue-600 hover:bg-blue-500">
-              Continue to Architecture Model
+              Continue to Subscription Plan
               <ChevronRight className="h-4 w-4" />
             </Button>
           </CardFooter>
         </Card>
       )}
 
-      {/* STEP 2: Architecture Model Selection */}
+      {/* STEP 2: SaaS Subscription Plan Selection */}
       {currentStep === 2 && (
         <Card className="bg-slate-900/60 border-slate-800 shadow-xl">
           <CardHeader>
@@ -607,7 +607,7 @@ function OnboardingWizardContent() {
               <div
                 onClick={() => applyPlan("STARTER")}
                 className={`p-6 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                  formData.tier === "STARTER" || formData.tier === "SOLO"
+                  formData.tier === "STARTER"
                     ? "bg-blue-950/30 border-blue-500 ring-2 ring-blue-500/20 shadow-lg shadow-blue-500/10"
                     : "bg-slate-950/40 border-slate-800 hover:border-slate-700"
                 }`}
@@ -617,7 +617,7 @@ function OnboardingWizardContent() {
                     <Badge variant="default" className="text-xs px-2 py-0.5">
                       Starter Plan
                     </Badge>
-                    {(formData.tier === "STARTER" || formData.tier === "SOLO") && (
+                    {formData.tier === "STARTER" && (
                       <span className="h-5 w-5 rounded-full bg-blue-600 text-white flex items-center justify-center">
                         <Check className="h-3 w-3" />
                       </span>

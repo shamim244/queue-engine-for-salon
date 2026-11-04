@@ -88,7 +88,8 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
 
   // 1.3 Upgrade or Downgrade Organization Tier
   .post('/organizations/:id/tier', async ({ params, body, set }) => {
-    const { tier } = body as { tier: 'SOLO' | 'PRO' | 'ENTERPRISE' };
+    const rawTier = (body as any).tier;
+    const tier: SubscriptionTier = rawTier === 'PRO' || rawTier === 'ENTERPRISE' ? rawTier : 'STARTER';
     const updated = await repository.updateOrganizationTier(params.id, tier);
     if (!updated) {
       set.status = 404;
@@ -101,7 +102,7 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
     };
   }, {
     body: t.Object({
-      tier: t.Union([t.Literal('SOLO'), t.Literal('PRO'), t.Literal('ENTERPRISE')]),
+      tier: t.Union([t.Literal('STARTER'), t.Literal('PRO'), t.Literal('ENTERPRISE'), t.Literal('SOLO')]),
     })
   })
 

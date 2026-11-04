@@ -122,7 +122,7 @@ export function seedDemoData() {
     id: 'org-ramesh',
     name: 'Ramesh Traditional Grooming',
     slug: 'ramesh-grooming',
-    tier: 'SOLO',
+    tier: 'STARTER',
     maxBranches: 1,
     maxStylistsPerBranch: 1,
     createdAt: new Date(),
@@ -470,10 +470,9 @@ export const repository = {
       slug = `${rawSlug}-${counter++}`;
     }
 
-    const tier = params.tier || 'SOLO';
+    const tier: SubscriptionTier = params.tier === 'PRO' || params.tier === 'ENTERPRISE' ? params.tier : 'STARTER';
     const limits = {
       STARTER: { maxBranches: 1, maxStylistsPerBranch: 1 },
-      SOLO: { maxBranches: 1, maxStylistsPerBranch: 1 },
       PRO: { maxBranches: 3, maxStylistsPerBranch: 10 },
       ENTERPRISE: { maxBranches: 999, maxStylistsPerBranch: 999 },
     }[tier] || { maxBranches: 1, maxStylistsPerBranch: 1 };
@@ -512,7 +511,6 @@ export const repository = {
   async updateOrganizationTier(orgId: string, tier: SubscriptionTier): Promise<Organization | null> {
     const limits = {
       STARTER: { maxBranches: 1, maxStylistsPerBranch: 1 },
-      SOLO: { maxBranches: 1, maxStylistsPerBranch: 1 },
       PRO: { maxBranches: 3, maxStylistsPerBranch: 10 },
       ENTERPRISE: { maxBranches: 999, maxStylistsPerBranch: 999 },
     }[tier] || { maxBranches: 1, maxStylistsPerBranch: 1 };

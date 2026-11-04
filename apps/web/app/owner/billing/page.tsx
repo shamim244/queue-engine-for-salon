@@ -174,7 +174,7 @@ function OwnerBillingContent() {
       {/* Subscription Tier Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {tiers.map((t) => {
-          const isCurrent = currentTier === t.id || (t.id === "STARTER" && currentTier === "SOLO");
+          const isCurrent = currentTier === t.id;
           return (
             <Card
               key={t.id}

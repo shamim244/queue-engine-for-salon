@@ -52,21 +52,21 @@
     <div class="card wizard-card">
       <form id="setupForm" onsubmit="handleRegister(event)">
         <!-- Operating Mode Selection -->
-        <label class="input-label">1. Choose Salon Operating Mode</label>
+        <label class="input-label">1. Choose SaaS Subscription Plan</label>
         <div class="mode-selector">
-          <div id="modeSolo" class="mode-option selected" onclick="selectMode('RURAL_SOLO')">
-            <div style="font-size: 1.4rem; margin-bottom: 4px;">🌾</div>
-            <div style="font-weight: 700; font-size: 0.95rem;">Solo-Barber / Express</div>
+          <div id="modeStarter" class="mode-option selected" onclick="selectTier('STARTER')">
+            <div style="font-size: 1.4rem; margin-bottom: 4px;">⚡</div>
+            <div style="font-weight: 700; font-size: 0.95rem;">Starter Plan (₹499/mo)</div>
             <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">
-              No receptionist. Controlled 100% from your phone with 1-tap buttons and voice callouts.
+              1 Branch, up to 3 chairs. Fast 1-tap chair controls, door QR check-in, and WhatsApp alerts.
             </div>
           </div>
 
-          <div id="modeMulti" class="mode-option" onclick="selectMode('MODERN_MULTI')">
-            <div style="font-size: 1.4rem; margin-bottom: 4px;">🏙️</div>
-            <div style="font-weight: 700; font-size: 0.95rem;">Multi-Station Salon</div>
+          <div id="modePro" class="mode-option" onclick="selectTier('PRO')">
+            <div style="font-size: 1.4rem; margin-bottom: 4px;">🚀</div>
+            <div style="font-weight: 700; font-size: 0.95rem;">Pro Plan (₹1,499/mo)</div>
             <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">
-              Full-service salon with front-desk reception desk and lobby TV departure board.
+              Up to 5 branches, 10 chairs/branch. Lobby TV departure board and rapid chair switching.
             </div>
           </div>
         </div>
@@ -108,32 +108,32 @@
   </div>
 
   <script>
-    let selectedMode = 'RURAL_SOLO';
+    let selectedTier = 'STARTER';
 
-    const defaultServicesSolo = [
+    const defaultServicesStarter = [
       { name: 'Signature Haircut', price: 80, duration: 20 },
       { name: 'Classic Beard Shave', price: 40, duration: 15 },
       { name: 'Haircut + Shave Combo', price: 110, duration: 30 },
       { name: 'Head Massage / Champy', price: 50, duration: 15 },
     ];
 
-    const defaultServicesMulti = [
+    const defaultServicesPro = [
       { name: 'Signature Cut & Styling', price: 450, duration: 30 },
       { name: 'Beard Sculpt & Hot Towel', price: 200, duration: 20 },
       { name: 'Hair Spa Deep Conditioning', price: 750, duration: 45 },
       { name: 'Scalp Massage Treatment', price: 250, duration: 20 },
     ];
 
-    function selectMode(mode) {
-      selectedMode = mode;
-      document.getElementById('modeSolo').className = `mode-option ${mode === 'RURAL_SOLO' ? 'selected' : ''}`;
-      document.getElementById('modeMulti').className = `mode-option ${mode === 'MODERN_MULTI' ? 'selected' : ''}`;
+    function selectTier(tier) {
+      selectedTier = tier;
+      document.getElementById('modeStarter').className = `mode-option ${tier === 'STARTER' ? 'selected' : ''}`;
+      document.getElementById('modePro').className = `mode-option ${tier === 'PRO' ? 'selected' : ''}`;
       populateDefaultServices();
     }
 
     function populateDefaultServices() {
       const container = document.getElementById('servicesContainer');
-      const list = selectedMode === 'RURAL_SOLO' ? defaultServicesSolo : defaultServicesMulti;
+      const list = selectedTier === 'STARTER' ? defaultServicesStarter : defaultServicesPro;
       container.innerHTML = '';
       for (const s of list) {
         addServiceRow(s.name, s.price, s.duration);
