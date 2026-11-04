@@ -65,7 +65,7 @@ export default function SalonLobbyTvPage({ params }: { params: Promise<{ slug: s
   }, [slug]);
 
   // Real-time WebSocket connection
-  const { isConnected } = useSalonSocket(salon?.id, (event) => {
+  const { isConnected, status, reconnectAttempts } = useSalonSocket(salon?.id, (event) => {
     console.log("[Lobby TV Board] Socket event:", event.type);
     fetchQueueData();
   });
@@ -94,7 +94,7 @@ export default function SalonLobbyTvPage({ params }: { params: Promise<{ slug: s
             </h1>
             <div className="flex items-center gap-3 mt-1">
               <span className="text-xs uppercase tracking-wider font-semibold text-slate-400">AIRPORT DEPARTURE QUEUE BOARD</span>
-              <ConnectionPill isConnected={isConnected} />
+              <ConnectionPill isConnected={isConnected} status={status} reconnectAttempts={reconnectAttempts} />
             </div>
           </div>
         </div>

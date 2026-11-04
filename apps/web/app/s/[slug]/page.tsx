@@ -146,7 +146,7 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
   }, [slug]);
 
   // Real-time WebSocket hook
-  const { isConnected } = useSalonSocket(salon?.id, (event) => {
+  const { isConnected, status, reconnectAttempts } = useSalonSocket(salon?.id, (event) => {
     console.log("[Customer Board] Event:", event.type);
     fetchSalonAndQueue();
   });
@@ -247,7 +247,7 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
           </div>
 
           <div className="flex items-center gap-2">
-            <ConnectionPill isConnected={isConnected} />
+            <ConnectionPill isConnected={isConnected} status={status} reconnectAttempts={reconnectAttempts} />
             <Link
               href={`/s/${slug}/tv`}
               target="_blank"

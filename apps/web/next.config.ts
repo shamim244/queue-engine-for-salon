@@ -4,6 +4,13 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   compress: true,
   poweredByHeader: false,
+  allowedDevOrigins: [
+    "web.nexgentech.site",
+    "nexgentech.site",
+    "*.nexgentech.site",
+    "localhost:3000",
+    "127.0.0.1:3000",
+  ],
   async rewrites() {
     return [
       {
