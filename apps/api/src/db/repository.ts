@@ -843,14 +843,14 @@ export const repository = {
           ticket.customerName,
           ticket.customerPhone,
           ticket.serviceId || 'srv-haircut-01',
-          ticket.serviceName,
-          JSON.stringify(ticket.selectedAddOns),
-          ticket.totalPrice,
-          ticket.totalDurationMinutes,
-          ticket.status,
-          ticket.source,
-          ticket.estimatedWaitMinutes,
-          ticket.paymentStatus,
+          ticket.serviceName || 'Haircut',
+          JSON.stringify(ticket.selectedAddOns || []),
+          ticket.totalPrice !== undefined ? ticket.totalPrice : 100,
+          ticket.totalDurationMinutes || ticket.estimatedWaitMinutes || 20,
+          ticket.status || 'WAITING',
+          ticket.source || 'QR_SCAN',
+          ticket.estimatedWaitMinutes || 0,
+          ticket.paymentStatus || 'PENDING',
           toMySqlDatetime(ticket.checkInTime),
         ]
       );
@@ -1203,6 +1203,83 @@ export const repository = {
       totalServedToday,
       totalRevenueToday,
       avgWaitTime,
+    };
+  },
+
+  async getStaffDailyReport(salonId: string, stylistId?: string) {
+    let completedTickets: any[] = [];
+    let totalServedToday = 0;
+    let totalRevenueToday = 0;
+    let avgActualMinutes = 0;
+    const servicesCountMap: Record<string, number> = {};
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      let sql = `SELECT * FROM queue_tickets 
+                 WHERE salon_id = ? AND status = 'COMPLETED' AND DATE(completed_time) = CURRENT_DATE()`;
+      const params: any[] = [salonId];
+      if (stylistId) {
+        sql += ` AND stylist_id = ?`;
+        params.push(stylistId);
+      }
+      sql += ` ORDER BY completed_time DESC`;
+      const [rows]: any = await db.query(sql, params);
+
+      completedTickets = rows.map((r: any) => ({
+        id: r.id,
+        salonId: r.salon_id,
+        stylistId: r.stylist_id,
+        ticketNumber: r.ticket_number,
+        customerName: r.customer_name,
+        customerPhone: r.customer_phone,
+        serviceId: r.service_id,
+        serviceName: r.service_name,
+        totalPrice: Number(r.total_price),
+        totalDurationMinutes: Number(r.total_duration_minutes),
+        status: r.status,
+        checkInTime: toIsoStringSafe(r.check_in_time) || new Date().toISOString(),
+        startedTime: toIsoStringSafe(r.started_time),
+        completedTime: toIsoStringSafe(r.completed_time),
+        paymentStatus: r.payment_status,
+        paymentAmount: r.payment_amount ? Number(r.payment_amount) : Number(r.total_price),
+      }));
+    } else {
+      completedTickets = Array.from(memoryStore.tickets.values()).filter((t) => {
+        const isToday = t.status === 'COMPLETED' && t.salonId === salonId;
+        const matchesStylist = !stylistId || t.stylistId === stylistId;
+        return isToday && matchesStylist;
+      });
+    }
+
+    totalServedToday = completedTickets.length;
+    totalRevenueToday = completedTickets.reduce((sum, t) => sum + (t.paymentAmount || t.totalPrice || 0), 0);
+
+    let totalDurationSum = 0;
+    let durationCount = 0;
+    for (const t of completedTickets) {
+      servicesCountMap[t.serviceName] = (servicesCountMap[t.serviceName] || 0) + 1;
+      if (t.startedTime && t.completedTime) {
+        const start = new Date(t.startedTime).getTime();
+        const end = new Date(t.completedTime).getTime();
+        const diffMins = Math.round((end - start) / 60000);
+        if (diffMins > 0 && diffMins < 180) {
+          totalDurationSum += diffMins;
+          durationCount++;
+        }
+      }
+    }
+
+    avgActualMinutes = durationCount > 0 ? Math.round(totalDurationSum / durationCount) : 20;
+
+    return {
+      success: true,
+      salonId,
+      stylistId,
+      totalServedToday,
+      totalRevenueToday,
+      avgActualMinutes,
+      servicesCountMap,
+      completedTickets: completedTickets.slice(0, 20),
     };
   },
 
