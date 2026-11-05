@@ -19,7 +19,8 @@ describe('Modular Queue Domain State Machine & Routing', () => {
       expect(canTransitionTicket('COMPLETED', 'WAITING')).toBe(false);
       expect(canTransitionTicket('COMPLETED', 'IN_CHAIR')).toBe(false);
       expect(canTransitionTicket('CANCELLED', 'SUMMONED')).toBe(false);
-      expect(canTransitionTicket('WAITING', 'IN_CHAIR')).toBe(false); // Must be summoned first
+      expect(canTransitionTicket('IN_CHAIR', 'WAITING')).toBe(false);
+      expect(canTransitionTicket('IN_CHAIR', 'SUMMONED')).toBe(false);
     });
 
     it('validates transition on a ticket object and returns informative reasons', () => {
