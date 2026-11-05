@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
@@ -19,6 +19,8 @@ import {
   Palette,
   Cpu,
   ShieldCheck,
+  Menu,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +29,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, demoLogin } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
+  // Handle Escape key to close mobile drawer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsMobileMenuOpen(false);
+    };
+    if (isMobileMenuOpen) {
+      window.addEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [isMobileMenuOpen]);
 
   const navSections = [
     {
@@ -57,13 +82,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push("/login");
   };
 
-  return (
-    <div className="min-h-screen bg-slate-950 flex flex-col md:flex-row text-slate-100">
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-900/60 p-5 flex flex-col justify-between shrink-0">
-        <div className="space-y-6">
+  const renderNavContent = (onItemClick?: () => void) => (
+    <>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-white shadow-lg shadow-blue-500/20">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-white shadow-lg shadow-blue-500/20 shrink-0">
               EQ
             </div>
             <div>
@@ -74,99 +98,165 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <p className="text-xs text-slate-400">Queue Engine Platform</p>
             </div>
           </div>
-
-          <div className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/50 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs">
-              <Radio className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
-              <span className="text-slate-300 font-medium">Bun Core 3001</span>
-            </div>
-            <span className="h-2 w-2 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
-          </div>
-
-          <nav className="space-y-5">
-            {navSections.map((section) => (
-              <div key={section.title} className="space-y-1">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mb-1">
-                  {section.title}
-                </p>
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all ${
-                        isActive
-                          ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 font-semibold"
-                          : "text-slate-400 hover:text-white hover:bg-slate-800/60"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Icon className="h-4 w-4 shrink-0" />
-                        <span>{item.label}</span>
-                      </div>
-                      {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-75 shrink-0" />}
-                    </Link>
-                  );
-                })}
-              </div>
-            ))}
-          </nav>
-        </div>
-
-        {/* Footer auth control */}
-        <div className="pt-6 border-t border-slate-800/80 space-y-3">
-          {user ? (
-            <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/40 flex items-center justify-between">
-              <div className="truncate mr-2">
-                <p className="text-xs font-semibold text-white truncate">
-                  {user.username || "Super Administrator"}
-                </p>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <Badge variant="purple" className="text-[10px] px-1.5 py-0 font-mono tracking-wider">
-                    {user.role}
-                  </Badge>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleLogout}
-                title="Logout"
-                className="shrink-0 hover:bg-rose-500/10"
-              >
-                <LogOut className="h-4 w-4 text-slate-400 hover:text-rose-400" />
-              </Button>
-            </div>
-          ) : (
-            <Link href="/login?redirect=/admin" className="w-full block">
-              <Button
-                variant="outline"
-                className="w-full text-xs gap-1.5 border-slate-700 hover:bg-slate-800 text-slate-200"
-              >
-                <LogIn className="h-3.5 w-3.5 text-blue-400" />
-                Sign In to Platform
-              </Button>
-            </Link>
+          {onItemClick && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-slate-400 hover:text-white md:hidden"
+              onClick={onItemClick}
+              aria-label="Close menu"
+            >
+              <X className="h-5 w-5" />
+            </Button>
           )}
-
-          <div className="flex justify-between items-center text-[11px] text-slate-500 px-1 pt-1">
-            <div className="flex items-center gap-2">
-              <Link href="/" className="hover:text-blue-400 transition-colors">
-                Home
-              </Link>
-              <span>•</span>
-              <Link href="/dev" className="hover:text-blue-400 transition-colors">
-                Dev Hub
-              </Link>
-            </div>
-            <span>v1.4.3</span>
-          </div>
         </div>
+
+        <div className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/50 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs">
+            <Radio className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
+            <span className="text-slate-300 font-medium">Bun Core 3001</span>
+          </div>
+          <span className="h-2 w-2 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
+        </div>
+
+        <nav className="space-y-5">
+          {navSections.map((section) => (
+            <div key={section.title} className="space-y-1">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mb-1">
+                {section.title}
+              </p>
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onItemClick}
+                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all ${
+                      isActive
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 font-semibold"
+                        : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span>{item.label}</span>
+                    </div>
+                    {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-75 shrink-0" />}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+      </div>
+
+      {/* Footer auth control */}
+      <div className="pt-6 border-t border-slate-800/80 space-y-3">
+        {user ? (
+          <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/40 flex items-center justify-between">
+            <div className="truncate mr-2">
+              <p className="text-xs font-semibold text-white truncate">
+                {user.username || "Super Administrator"}
+              </p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <Badge variant="purple" className="text-[10px] px-1.5 py-0 font-mono tracking-wider">
+                  {user.role}
+                </Badge>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              title="Logout"
+              className="shrink-0 hover:bg-rose-500/10"
+            >
+              <LogOut className="h-4 w-4 text-slate-400 hover:text-rose-400" />
+            </Button>
+          </div>
+        ) : (
+          <Link href="/login?redirect=/admin" onClick={onItemClick} className="w-full block">
+            <Button
+              variant="outline"
+              className="w-full text-xs gap-1.5 border-slate-700 hover:bg-slate-800 text-slate-200"
+            >
+              <LogIn className="h-3.5 w-3.5 text-blue-400" />
+              Sign In to Platform
+            </Button>
+          </Link>
+        )}
+
+        <div className="flex justify-between items-center text-[11px] text-slate-500 px-1 pt-1">
+          <div className="flex items-center gap-2">
+            <Link href="/" onClick={onItemClick} className="hover:text-blue-400 transition-colors">
+              Home
+            </Link>
+            <span>•</span>
+            <Link href="/dev" onClick={onItemClick} className="hover:text-blue-400 transition-colors">
+              Dev Hub
+            </Link>
+          </div>
+          <span>v1.4.3</span>
+        </div>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex flex-col md:flex-row text-slate-100">
+      {/* 1. Mobile Top Navbar with 3-line Hamburger Menu */}
+      <div className="md:hidden border-b border-slate-800 bg-slate-900/90 backdrop-blur px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+        <Link href="/admin" className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-white shadow-md shadow-blue-500/20">
+            EQ
+          </div>
+          <div>
+            <span className="font-bold text-sm text-white block leading-tight flex items-center gap-1.5">
+              Super Admin
+              <Badge variant="purple" className="text-[9px] px-1 py-0">HQ</Badge>
+            </span>
+            <span className="text-[10px] text-slate-400">Queue Engine Platform</span>
+          </div>
+        </Link>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 w-9 p-0 border-slate-700 bg-slate-800/80 text-slate-300 hover:text-white"
+          onClick={() => setIsMobileMenuOpen(true)}
+          aria-label="Open mobile navigation menu"
+          aria-expanded={isMobileMenuOpen}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+      </div>
+
+      {/* 2. Mobile Slide-Over Drawer Overlay */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex animate-in fade-in duration-200">
+          <div
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <aside
+            className="relative w-72 max-w-[85vw] h-full bg-slate-900 border-r border-slate-800 p-5 flex flex-col justify-between z-10 shadow-2xl overflow-y-auto animate-in slide-in-from-left duration-200"
+            tabIndex={-1}
+            aria-label="Mobile Navigation"
+          >
+            {renderNavContent(() => setIsMobileMenuOpen(false))}
+          </aside>
+        </div>
+      )}
+
+      {/* 3. Desktop Permanent Sidebar (Hidden on mobile) */}
+      <aside className="hidden md:flex md:w-64 border-r border-slate-800 bg-slate-900/60 p-5 flex-col justify-between shrink-0 md:min-h-screen sticky md:top-0 z-30">
+        {renderNavContent()}
       </aside>
 
-      {/* Main Content Area */}
+      {/* 4. Main Content Area */}
       <main className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-7xl">
         <AuthGuard requiredRole="SUPER_ADMIN">
           {children}

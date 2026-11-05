@@ -92,7 +92,7 @@ describe("Home Page & Developer Launcher Routing", () => {
       expect(html).toContain("Salon Owner Account Credentials");
       expect(html).toContain("Owner Account");
       expect(html).toContain("Password");
-      expect(html).toContain("Autofill Demo Salon");
+      expect(html).toContain("Launch Your Salon Engine Now");
     });
   });
 });

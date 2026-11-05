@@ -842,7 +842,7 @@ export const repository = {
           ticket.ticketNumber,
           ticket.customerName,
           ticket.customerPhone,
-          ticket.serviceId,
+          ticket.serviceId || 'srv-haircut-01',
           ticket.serviceName,
           JSON.stringify(ticket.selectedAddOns),
           ticket.totalPrice,
