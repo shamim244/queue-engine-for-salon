@@ -384,7 +384,7 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
               </Link>
             ) : (
               <Link
-                href="/login"
+                href={`/login?redirect=${encodeURIComponent(`/s/${slug}`)}&salon=${encodeURIComponent(slug)}`}
                 className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-700 transition-colors"
               >
                 Sign In
@@ -439,6 +439,25 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
                 <ExternalLink className="h-3.5 w-3.5 text-blue-400" />
                 <span>TV</span>
               </Link>
+              {user ? (
+                <Link
+                  href="/me"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-400 flex items-center gap-1 font-semibold"
+                >
+                  <UserIcon className="h-3.5 w-3.5" />
+                  <span>Account</span>
+                </Link>
+              ) : (
+                <Link
+                  href={`/login?redirect=${encodeURIComponent(`/s/${slug}`)}&salon=${encodeURIComponent(slug)}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-slate-300 flex items-center gap-1 font-semibold"
+                >
+                  <UserIcon className="h-3.5 w-3.5" />
+                  <span>Sign In</span>
+                </Link>
+              )}
             </div>
           </div>
         )}
@@ -1467,14 +1486,14 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
               </p>
               <div className="pt-1 flex flex-col gap-1.5">
                 <Link
-                  href="/owner/storefront"
+                  href={`/owner/storefront?salon=${slug}`}
                   className="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-semibold"
                 >
                   <Store className="h-3.5 w-3.5" />
                   <span>Customize Storefront</span>
                 </Link>
                 <Link
-                  href="/owner"
+                  href={`/owner?salon=${slug}`}
                   className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"
                 >
                   <ShieldCheck className="h-3.5 w-3.5" />

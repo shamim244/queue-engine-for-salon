@@ -79,8 +79,9 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get("redirect");
+  const salonParam = searchParams.get("salon");
 
-  const { login, demoLogin, user } = useAuth();
+  const { login, demoLogin, user, salon } = useAuth();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -89,6 +90,19 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Extract salon slug from redirectParam if not explicitly in salon query
+  const getContextSalonSlug = (overrideSalon?: string | null): string => {
+    if (overrideSalon) return overrideSalon;
+    if (salonParam) return salonParam;
+    if (redirectParam) {
+      const qMatch = redirectParam.match(/[?&]salon=([a-zA-Z0-9-_]+)/);
+      if (qMatch) return qMatch[1];
+      const pMatch = redirectParam.match(/^\/s\/([a-zA-Z0-9-_]+)/);
+      if (pMatch) return pMatch[1];
+    }
+    return salon?.slug || "ramesh-barber";
+  };
 
   // Restore remembered identifier if present
   useEffect(() => {
@@ -103,10 +117,11 @@ function LoginForm() {
   // If already logged in, redirect to destination
   useEffect(() => {
     if (user && !isLoading) {
-      const target = resolveAuthRedirect(redirectParam, user.role);
+      const effectiveSlug = getContextSalonSlug(salon?.slug);
+      const target = resolveAuthRedirect(redirectParam, user.role, effectiveSlug);
       router.push(target);
     }
-  }, [user, isLoading, redirectParam, router]);
+  }, [user, isLoading, redirectParam, salonParam, salon, router]);
 
   const handleStandardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,7 +142,8 @@ function LoginForm() {
 
       const resp = await login(identifier.trim(), password);
       const role = resp?.user?.role;
-      const target = resolveAuthRedirect(redirectParam, role);
+      const effectiveSlug = getContextSalonSlug(resp?.salon?.slug);
+      const target = resolveAuthRedirect(redirectParam, role, effectiveSlug);
       router.push(target);
     } catch (err: any) {
       setErrorMessage(
@@ -145,7 +161,14 @@ function LoginForm() {
 
     try {
       await demoLogin(preset.id);
-      const target = resolveAuthRedirect(redirectParam, preset.id);
+      // Determine best salon slug for demo account:
+      // If user came from a specific salon URL, preserve it; otherwise use persona default
+      let presetSlug: string | undefined;
+      if (preset.id === "SALON_OWNER") presetSlug = "aura-salon";
+      else if (preset.id === "STAFF") presetSlug = "ramesh-barber";
+
+      const effectiveSlug = getContextSalonSlug(presetSlug);
+      const target = resolveAuthRedirect(redirectParam, preset.id, effectiveSlug);
       router.push(target);
     } catch (err: any) {
       setErrorMessage(
@@ -174,6 +197,14 @@ function LoginForm() {
         <p className="text-slate-400 text-sm max-w-md mx-auto">
           Unified Platform Authentication &bull; Zero-Trust Role Routing
         </p>
+        {redirectParam && (
+          <div className="pt-1">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-[11px] text-slate-300">
+              <span className="text-slate-500">Signing in to continue to:</span>
+              <strong className="text-amber-400 font-mono">{redirectParam}</strong>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Demo 1-Click Quick Login Presets */}
@@ -355,8 +386,11 @@ function LoginForm() {
             </Button>
 
             <div className="flex items-center justify-between w-full text-[11px] text-slate-500 px-1">
-              <Link href="/" className="hover:text-blue-400 transition-colors">
-                &larr; Return to Public Portal
+              <Link
+                href={redirectParam && redirectParam.startsWith("/") ? redirectParam : "/"}
+                className="hover:text-blue-400 transition-colors"
+              >
+                &larr; {redirectParam ? `Return to ${redirectParam}` : "Return to Public Portal"}
               </Link>
               <span>Protected by Zero-Trust Boundary</span>
             </div>

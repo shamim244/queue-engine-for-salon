@@ -119,6 +119,36 @@ describe("Enterprise Unified Authentication & Protected Route Guard System", () 
       expect(resolveAuthRedirect("//evil.com", "SUPER_ADMIN")).toBe("/admin");
       expect(resolveAuthRedirect("https://attacker.com", "STAFF")).toBe("/s/ramesh-barber/station");
     });
+
+    it("should route appropriately across all 4 roles when logging in from customer side (/s/[slug])", () => {
+      // 1. Super Admin logging in from customer side -> routed to platform admin HQ
+      expect(resolveAuthRedirect("/s/ramesh-barber", "SUPER_ADMIN")).toBe("/admin");
+      expect(resolveAuthRedirect("/s/aura-salon", "SUPER_ADMIN")).toBe("/admin");
+
+      // 2. Salon Owner logging in from customer side -> routed to owner portal for that salon
+      expect(resolveAuthRedirect("/s/ramesh-barber", "SALON_OWNER")).toBe("/owner?salon=ramesh-barber");
+      expect(resolveAuthRedirect("/s/aura-salon", "SALON_OWNER")).toBe("/owner?salon=aura-salon");
+
+      // 3. Staff / Barber logging in from customer side -> routed to chair station desk for that salon
+      expect(resolveAuthRedirect("/s/ramesh-barber", "STAFF")).toBe("/s/ramesh-barber/station");
+      expect(resolveAuthRedirect("/s/aura-salon", "STAFF")).toBe("/s/aura-salon/station");
+
+      // 4. Customer logging in from customer side -> returns to the customer storefront so they can book/queue
+      expect(resolveAuthRedirect("/s/ramesh-barber", "CUSTOMER")).toBe("/s/ramesh-barber");
+      expect(resolveAuthRedirect("/s/aura-salon", "CUSTOMER")).toBe("/s/aura-salon");
+    });
+
+    it("should protect against unauthorized cross-role redirects", () => {
+      // Customer trying to access restricted admin or owner portals is redirected away safely
+      expect(resolveAuthRedirect("/admin/billing", "CUSTOMER")).toBe("/me");
+      expect(resolveAuthRedirect("/owner/staff", "CUSTOMER")).toBe("/me");
+
+      // Staff trying to access admin is routed to station desk
+      expect(resolveAuthRedirect("/admin/settings", "STAFF")).toBe("/s/ramesh-barber/station");
+
+      // Salon owner trying to access platform admin is routed to owner portal
+      expect(resolveAuthRedirect("/admin/security", "SALON_OWNER")).toBe("/owner");
+    });
   });
 
   describe("AuthGuard Component", () => {

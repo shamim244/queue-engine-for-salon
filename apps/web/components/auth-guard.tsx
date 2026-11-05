@@ -36,15 +36,110 @@ export function resolveAuthRedirect(
   role?: string,
   defaultSalonSlug = "ramesh-barber"
 ): string {
-  if (
-    redirectParam &&
+  if (!role) {
+    return "/login";
+  }
+
+  // 1. Extract salon slug from redirectParam if present (e.g. /s/:slug or ?salon=:slug)
+  let extractedSlug: string | null = null;
+  if (redirectParam && typeof redirectParam === "string") {
+    const salonQueryMatch = redirectParam.match(/[?&]salon=([a-zA-Z0-9-_]+)/);
+    if (salonQueryMatch) {
+      extractedSlug = salonQueryMatch[1];
+    } else {
+      const sPathMatch = redirectParam.match(/^\/s\/([a-zA-Z0-9-_]+)/);
+      if (sPathMatch) {
+        extractedSlug = sPathMatch[1];
+      }
+    }
+  }
+  const effectiveSlug = extractedSlug || defaultSalonSlug;
+
+  // 2. Validate clean relative URL (block open redirect attacks)
+  const isSafeRelative =
+    Boolean(redirectParam) &&
+    typeof redirectParam === "string" &&
     redirectParam.startsWith("/") &&
     !redirectParam.startsWith("//") &&
-    !redirectParam.includes(":")
-  ) {
-    return redirectParam;
+    !redirectParam.includes(":") &&
+    !redirectParam.startsWith("/login");
+
+  if (!isSafeRelative || !redirectParam) {
+    return getRoleDestination(role, effectiveSlug);
   }
-  return getRoleDestination(role, defaultSalonSlug);
+
+  const cleanPath = redirectParam.trim();
+
+  // 3. Role-Based & Origin-Aware Redirection Decision
+  switch (role) {
+    case "SUPER_ADMIN": {
+      // Super Admin routes to admin/owner control centers
+      if (
+        cleanPath.startsWith("/admin") ||
+        cleanPath.startsWith("/dev") ||
+        cleanPath.startsWith("/owner")
+      ) {
+        return cleanPath;
+      }
+      // If logging in from the customer side (/s/...), customer portal (/me), or home (/),
+      // an administrator must be routed to their HQ Admin dashboard.
+      return "/admin";
+    }
+
+    case "SALON_OWNER": {
+      // Salon Owner routes to owner management portals
+      if (cleanPath.startsWith("/owner")) {
+        return cleanPath;
+      }
+      // If from chair station (/s/.../station), owner can monitor it
+      if (cleanPath.includes("/station")) {
+        return cleanPath;
+      }
+      // If logging in from the customer side (/s/...), admin, /me, or root (/),
+      // a salon owner must be routed to their Owner Operations Portal
+      return extractedSlug ? `/owner?salon=${extractedSlug}` : "/owner";
+    }
+
+    case "STAFF": {
+      // Stylist / Barber routes to their mirror tablet station desk
+      if (cleanPath.includes("/station") || cleanPath.startsWith("/staff")) {
+        return cleanPath;
+      }
+      // If from customer storefront (/s/...), /owner, /admin, /me, or root,
+      // staff belongs at their chair station desk
+      return `/s/${effectiveSlug}/station`;
+    }
+
+    case "CUSTOMER": {
+      // Customer belongs on customer-facing pages
+      // 1. If visiting a public salon storefront (/s/[slug]), keep customer on that storefront
+      const isPublicStorefront =
+        cleanPath.startsWith("/s/") &&
+        !cleanPath.includes("/station") &&
+        !cleanPath.includes("/desk") &&
+        !cleanPath.includes("/barber");
+
+      if (isPublicStorefront) {
+        return cleanPath;
+      }
+
+      // 2. Customer profile and ticket portal (/me)
+      if (cleanPath.startsWith("/me")) {
+        return cleanPath;
+      }
+
+      // 3. If from a station desk (/s/:slug/station), route customer to that salon's public door
+      if (cleanPath.includes("/station") && extractedSlug) {
+        return `/s/${extractedSlug}`;
+      }
+
+      // 4. Default for any other protected route (/admin, /owner) or general landing -> customer portal
+      return "/me";
+    }
+
+    default:
+      return "/login";
+  }
 }
 
 export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
