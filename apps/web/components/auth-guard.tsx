@@ -23,7 +23,7 @@ export function getRoleDestination(role?: string, defaultSalonSlug = "ramesh-bar
     case "SALON_OWNER":
       return "/owner";
     case "STAFF":
-      return `/s/${defaultSalonSlug}/station`;
+      return "/staff";
     case "CUSTOMER":
       return "/me";
     default:
@@ -101,13 +101,11 @@ export function resolveAuthRedirect(
     }
 
     case "STAFF": {
-      // Stylist / Barber routes to their mirror tablet station desk
-      if (cleanPath.includes("/station") || cleanPath.startsWith("/staff")) {
+      // Stylist / Barber routes to their dedicated staff panel or station desk
+      if (cleanPath.startsWith("/staff") || cleanPath.includes("/station")) {
         return cleanPath;
       }
-      // If from customer storefront (/s/...), /owner, /admin, /me, or root,
-      // staff belongs at their chair station desk
-      return `/s/${effectiveSlug}/station`;
+      return "/staff";
     }
 
     case "CUSTOMER": {

@@ -97,13 +97,13 @@ describe("Enterprise Unified Authentication & Protected Route Guard System", () 
     it("should map user roles to their respective enterprise destinations", () => {
       expect(getRoleDestination("SUPER_ADMIN")).toBe("/admin");
       expect(getRoleDestination("SALON_OWNER")).toBe("/owner");
-      expect(getRoleDestination("STAFF")).toBe("/s/ramesh-barber/station");
+      expect(getRoleDestination("STAFF")).toBe("/staff");
       expect(getRoleDestination("CUSTOMER")).toBe("/me");
       expect(getRoleDestination(undefined)).toBe("/login");
     });
 
-    it("should allow custom salon slug for staff destination when provided", () => {
-      expect(getRoleDestination("STAFF", "aura-unisex")).toBe("/s/aura-unisex/station");
+    it("should allow staff destination to point to dedicated staff panel", () => {
+      expect(getRoleDestination("STAFF", "aura-unisex")).toBe("/staff");
     });
 
     it("should preserve custom redirect query if valid relative route", () => {
@@ -117,7 +117,7 @@ describe("Enterprise Unified Authentication & Protected Route Guard System", () 
       expect(resolveAuthRedirect("", "SALON_OWNER")).toBe("/owner");
       // Block open redirect attempts starting with '//' or external scheme
       expect(resolveAuthRedirect("//evil.com", "SUPER_ADMIN")).toBe("/admin");
-      expect(resolveAuthRedirect("https://attacker.com", "STAFF")).toBe("/s/ramesh-barber/station");
+      expect(resolveAuthRedirect("https://attacker.com", "STAFF")).toBe("/staff");
     });
 
     it("should route appropriately across all 4 roles when logging in from customer side (/s/[slug])", () => {
@@ -129,9 +129,9 @@ describe("Enterprise Unified Authentication & Protected Route Guard System", () 
       expect(resolveAuthRedirect("/s/ramesh-barber", "SALON_OWNER")).toBe("/owner?salon=ramesh-barber");
       expect(resolveAuthRedirect("/s/aura-salon", "SALON_OWNER")).toBe("/owner?salon=aura-salon");
 
-      // 3. Staff / Barber logging in from customer side -> routed to chair station desk for that salon
-      expect(resolveAuthRedirect("/s/ramesh-barber", "STAFF")).toBe("/s/ramesh-barber/station");
-      expect(resolveAuthRedirect("/s/aura-salon", "STAFF")).toBe("/s/aura-salon/station");
+      // 3. Staff / Barber logging in from customer side -> routed to dedicated staff panel
+      expect(resolveAuthRedirect("/s/ramesh-barber", "STAFF")).toBe("/staff");
+      expect(resolveAuthRedirect("/s/aura-salon", "STAFF")).toBe("/staff");
 
       // 4. Customer logging in from customer side -> returns to the customer storefront so they can book/queue
       expect(resolveAuthRedirect("/s/ramesh-barber", "CUSTOMER")).toBe("/s/ramesh-barber");
@@ -143,8 +143,8 @@ describe("Enterprise Unified Authentication & Protected Route Guard System", () 
       expect(resolveAuthRedirect("/admin/billing", "CUSTOMER")).toBe("/me");
       expect(resolveAuthRedirect("/owner/staff", "CUSTOMER")).toBe("/me");
 
-      // Staff trying to access admin is routed to station desk
-      expect(resolveAuthRedirect("/admin/settings", "STAFF")).toBe("/s/ramesh-barber/station");
+      // Staff trying to access admin is routed to dedicated staff panel
+      expect(resolveAuthRedirect("/admin/settings", "STAFF")).toBe("/staff");
 
       // Salon owner trying to access platform admin is routed to owner portal
       expect(resolveAuthRedirect("/admin/security", "SALON_OWNER")).toBe("/owner");
