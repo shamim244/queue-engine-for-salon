@@ -513,10 +513,10 @@ function OwnerStaffContent() {
 
       {/* Unlinked Legacy Stylists Alert Banner (if any legacy mock stylists exist) */}
       {unlinkedStylists.length > 0 && (
-        <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-950/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-start gap-3">
+        <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-950/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
             <AlertCircle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-bold text-amber-200">
                 Legacy Stations Found ({unlinkedStylists.length})
               </p>
@@ -529,7 +529,7 @@ function OwnerStaffContent() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 md:max-w-md">
             {unlinkedStylists.map((st) => (
               <Button
                 key={st.id}
