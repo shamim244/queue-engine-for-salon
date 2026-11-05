@@ -1,35 +1,41 @@
-# Engine Que System - Master Documentation Suite
+# Engine Que System - Master Engineering Documentation Suite
 
 > **The Definitive Source of Truth for the Engine Que Multi-Tenant Queue & Salon Management Platform.**
 
-This directory contains the complete product, architectural, operational, and roadmap specifications for the **Engine Que System**. Any new engineer, product manager, or AI assistant can read these documents to understand every architectural decision, business rule, and technical pattern established for this project.
+This directory contains the complete, organized product, architectural, operational, and development documentation suite for the **Engine Que System**. All specifications are structured into dedicated, modular folders for rapid developer onboarding and end-to-end execution.
 
 ---
 
-## Documentation Index
+## Master Documentation Structure
 
-| File | Purpose | Key Topics Covered |
-|---|---|---|
-| [**01_PRODUCT_REQUIREMENTS_DOCUMENT_(PRD).md**](./01_PRODUCT_REQUIREMENTS_DOCUMENT_(PRD).md) | **Product Requirements & Business Strategy** | Problem statement, Dual-Mode paradigm (Rural Solo vs Modern Multi-Station), User Personas, Feature Matrix, Business Model & Subscription Tiers, Monetization Streams, Devil's Advocate mitigations. |
-| [**02_SYSTEM_ARCHITECTURE_AND_TECH_SPEC.md**](./02_SYSTEM_ARCHITECTURE_AND_TECH_SPEC.md) | **Technical Architecture & Engineering Spec** | Decoupled Hybrid Architecture (Bun + Elysia backend + Next.js 15 frontend), MySQL schema & ERD, WebSocket protocol, Auth & Session Matrix, 4-Digit Quick PIN Keypad, and the Walk-in + Appointment Interleaving Algorithm. |
-| [**03_MOBILE_AND_CROSS_PLATFORM_STRATEGY.md**](./03_MOBILE_AND_CROSS_PLATFORM_STRATEGY.md) | **Mobile & Hardware Integration Blueprint** | PWA vs Flutter vs React Native decision matrix, Shared Mirror Tablet UX, Lobby TV constraints, Bluetooth thermal printer POS support, and offline resilience. |
-| [**04_EXECUTION_ROADMAP_AND_MILESTONES.md**](./04_EXECUTION_ROADMAP_AND_MILESTONES.md) | **Project Roadmap & Implementation Phases** | Current status (Phase 1 & 1.5 Complete), Phase 2 Next.js Web Portals, Phase 3 Appointment Booking Engine, Phase 4 Native Mobile App, and Phase 5 Vertical Expansion (Clinics, Restaurants). |
-| [**05_FRONTEND_UI_PANELS_SPECIFICATION.md**](./05_FRONTEND_UI_PANELS_SPECIFICATION.md) | **Frontend UI Panels & Component Specification** | Comprehensive breakdown of the 6 core panels: Super Admin, Salon Owner Hub, Staff Preferences, Staff Chair Working Station (with 4-digit PIN), Customer Live Queue / TV, and Customer Profile & History Portal. |
+```
+docs/
+├── prd/          # Product Requirements, Personas, Features, UI Panels & Roadmap
+├── trd/          # Technical Architecture, Headless Specs & Client-Compute Rules
+├── api/          # REST OpenAPI Specifications & WebSocket Real-Time Protocols
+├── database/     # MySQL 8.0/9.1 Relational Schema, ERD Diagrams & Indexes
+├── adr/          # Architectural Decision Records (ADRs) & Trade-off Logs
+└── guides/       # Quickstart Setup, Development Workflows & Runbooks
+```
 
 ---
 
-## Core Principles to Never Forget
+## Documentation Folders Index
 
-1. **Dual-Mode Operational Reality:**
-   * Never sacrifice the **Rural Solo-Barber** (Ramesh: no receptionist, no TV, cash & flexible pricing, wet/dirty hands, shared mirror tablet) for the sake of the **Modern Multi-Station Salon** (Aura: reception desk, TV departure board, online UPI payments, fixed pricing). The system MUST natively support both without code forks.
-2. **Headless API-First Architecture:**
-   * The core queue state machine, wait-time prediction, sessions, and WebSocket broadcasts run on **Bun v1.4.3 + ElysiaJS** for microsecond performance (<15ms ticket turnaround).
-   * The rich management dashboards (SuperAdmin, Salon Owner, Multi-Station Desk) run on **Next.js 15 + Tailwind CSS + shadcn/ui** to maximize development velocity and eliminate raw DOM boilerplate.
-   * Future Android mobile apps (Flutter) will connect to the exact same REST & WebSocket endpoints without touching backend code.
-3. **Frictionless Customer Door Check-In:**
-   * Customers standing outside on 2G/3G networks must NEVER be blocked by mandatory app downloads, account creation, or password setups. Scan QR $\to$ Pick Service $\to$ Instant Ticket issued in $<3$ seconds.
-4. **Zero-Trust Stateful Sessions with 4-Digit Quick PIN:**
-   * Stylists on shared mirror tablets authenticate with a rapid **4-digit PIN on a touch numpad** in $<200\text{ms}$.
-   * Salon owners maintain an instant **Emergency Kill-Switch** (`revokeAllUserSessions`) to instantly revoke all active logins for any compromised or terminated staff member.
-5. **Dynamic Zero-Downtime Subscription Tiers:**
-   * `SOLO` (1 branch, 1 stylist), `PRO` (3 branches, 10 stylists/branch), `ENTERPRISE` (unlimited). Upgrading or downgrading dynamically adjusts limits without locking tables or interrupting active customer queues.
+| Folder | Core Scope & Key Documents |
+| :--- | :--- |
+| [**`docs/prd/`**](./prd/README.md) | **Product Requirements Documentation**<br>• [01_core_prd.md](./prd/01_core_prd.md): Vision, Problem Statements, Personas, Pricing<br>• [02_frontend_ui_spec.md](./prd/02_frontend_ui_spec.md): Specs for all 5 web operational surfaces<br>• [03_roadmap_and_milestones.md](./prd/03_roadmap_and_milestones.md): Multi-phase implementation roadmap |
+| [**`docs/trd/`**](./trd/README.md) | **Technical Requirements Documentation**<br>• [01_system_architecture_tech_spec.md](./trd/01_system_architecture_tech_spec.md): Bun, Elysia, Queue State Machine, Soft-Bump<br>• [02_mobile_cross_platform_strategy.md](./trd/02_mobile_cross_platform_strategy.md): Headless API, Flutter parity, PWA offline cache<br>• [03_client_compute_and_performance_spec.md](./trd/03_client_compute_and_performance_spec.md): Zero server timers, Gzip compression, sub-50ms cache |
+| [**`docs/api/`**](./api/README.md) | **API & WebSocket Specifications**<br>• [websocket-protocol.md](./api/websocket-protocol.md): Room broadcasts (`TICKET_SUMMONED`, `QUEUE_UPDATED`)<br>• Swagger Docs: `http://localhost:3001/swagger` |
+| [**`docs/database/`**](./database/README.md) | **Database Architecture & Data Models**<br>• [schema-and-erd.md](./database/schema-and-erd.md): MySQL tables, Mermaid ERD, and composite indexes |
+| [**`docs/adr/`**](./adr/README.md) | **Architectural Decision Records (ADRs)**<br>• [001-bun-and-elysia-runtime.md](./adr/001-bun-and-elysia-runtime.md): Why Bun + Elysia for sub-15ms throughput<br>• [002-client-compute-architecture.md](./adr/002-client-compute-architecture.md): Why client clocks over server timer loops<br>• [003-unified-subscription-plan-model.md](./adr/003-unified-subscription-plan-model.md): Unified model over SOLO vs MULTI code forks |
+| [**`docs/guides/`**](./guides/README.md) | **Developer Guides & Runbooks**<br>• [developer-setup-and-runbook.md](./guides/developer-setup-and-runbook.md): Local startup, test runners, ports, routes |
+
+---
+
+## Core Engineering Principles
+
+1. **Zero Server Timer Waste:** Continuous math and countdowns run exclusively on client hardware. The server is strictly an atomic state persistence authority.
+2. **Unified Codebase:** 1-chair rural shops and 10-chair urban salons run the identical unified code, governed cleanly by subscription plan quotas.
+3. **Headless Cross-Platform Parity:** All REST and WebSocket payloads remain pure JSON adhering to OpenAPI standards for immediate Flutter client readiness.
+4. **End-to-End Real Implementation:** No shallow mockups or prototype placeholders. Every feature connects directly to persistent storage and verified live.
