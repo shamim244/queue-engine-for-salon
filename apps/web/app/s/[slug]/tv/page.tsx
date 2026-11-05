@@ -116,7 +116,7 @@ export default function SalonLobbyTvPage({ params }: { params: Promise<{ slug: s
             <span className="text-xs uppercase tracking-widest text-slate-400 font-bold block">
               Live Time
             </span>
-            <span className="text-3xl font-black text-white">{currentTime || "--:--:--"}</span>
+            <span suppressHydrationWarning className="text-3xl font-black text-white">{currentTime || "--:--:--"}</span>
           </div>
         </div>
       </header>

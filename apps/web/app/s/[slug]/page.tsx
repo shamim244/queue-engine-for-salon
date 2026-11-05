@@ -1504,9 +1504,9 @@ export default function CustomerDoorPage({ params }: { params: Promise<{ slug: s
           </div>
 
           <div className="pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400">
-            <p>© {new Date().getFullYear()} {salon?.name || "Salon"}. All rights reserved.</p>
+            <p>© 2026 {salon?.name || "Salon"}. All rights reserved.</p>
             <p className="text-slate-400">
-              Powered by Queue Engine Enterprise · Built with Next.js 15 &amp; Bun
+              Powered by Queue Engine Enterprise · Built with Next.js 16 &amp; Bun
             </p>
           </div>
         </div>

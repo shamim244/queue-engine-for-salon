@@ -380,7 +380,7 @@ export default function AdminOverviewPage() {
                     <div key={log.id} className="text-xs space-y-1 pb-2 border-b border-slate-800/60 last:border-0 last:pb-0">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-white">{log.action}</span>
-                        <span className="text-[10px] text-slate-500 font-mono">
+                        <span suppressHydrationWarning className="text-[10px] text-slate-500 font-mono">
                           {new Date(log.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>

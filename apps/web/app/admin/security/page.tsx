@@ -25,7 +25,7 @@ import {
 const initialSampleLogs: AuditLog[] = [
   {
     id: "audit-001",
-    timestamp: new Date().toISOString(),
+    timestamp: "2026-11-05T08:00:00.000Z",
     action: "SYSTEM_BOOTSTRAP",
     actor: "SYSTEM",
     details: "Engine Que enterprise core initialized with multi-tenant schema.",
@@ -33,7 +33,7 @@ const initialSampleLogs: AuditLog[] = [
   },
   {
     id: "audit-002",
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
+    timestamp: "2026-11-05T07:00:00.000Z",
     action: "TENANT_SEEDED",
     actor: "SYSTEM",
     details: "Seeded default tenants: Ramesh Traditional Barber and Aura Luxury Wellness.",
@@ -364,7 +364,7 @@ function SecurityContent() {
                 ) : (
                   filteredLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-slate-900/40 transition-colors">
-                      <td className="py-3 px-4 whitespace-nowrap font-mono text-slate-400">
+                      <td suppressHydrationWarning className="py-3 px-4 whitespace-nowrap font-mono text-slate-400">
                         {new Date(log.timestamp).toLocaleString()}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap font-semibold text-slate-200">
