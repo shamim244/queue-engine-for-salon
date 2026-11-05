@@ -5,33 +5,45 @@ import { renderToString } from "react-dom/server";
 // Mock next/navigation
 mock.module("next/navigation", () => ({
   useRouter: () => ({
-    push: mock((_url: string) => {}),
-    replace: mock((_url: string) => {}),
-    prefetch: mock(() => {}),
-    back: mock(() => {}),
+    push: () => {},
+    replace: () => {},
+    refresh: () => {},
+    prefetch: () => {},
   }),
+  useSearchParams: () => new URLSearchParams(),
   usePathname: () => "/s/ramesh-barber",
-  useSearchParams: () => new URLSearchParams(""),
 }));
 
-// Mock useAuth
-mock.module("../lib/auth-context", () => ({
+// Mock socket hook
+mock.module("@/lib/socket", () => ({
+  useSalonSocket: () => ({
+    isConnected: true,
+    status: "CONNECTED",
+    reconnectAttempts: 0,
+  }),
+}));
+
+// Mock auth hook
+mock.module("@/lib/auth-context", () => ({
   useAuth: () => ({
     user: null,
     salon: null,
-    login: mock(() => {}),
-    logout: mock(() => {}),
-    switchSalon: mock(() => {}),
+    staff: null,
+    organization: null,
+    branches: [],
+    token: null,
+    isLoading: false,
+    login: async () => {},
+    pinLogin: async () => {},
+    logout: async () => {},
   }),
-  AuthProvider: ({ children }: any) => children,
 }));
 
-describe("Salon Digital Storefront & Homepage (/s/[slug])", () => {
+describe("Salon Digital Storefront & Decoupled Architecture (/s/[slug])", () => {
   it("should render full digital storefront layout with hero, wait time, service menu, about us, and contact sections", async () => {
     const PageModule = await import("../app/s/[slug]/page");
     const CustomerDoorPage = PageModule.default;
 
-    // React 19 synchronous thenable for use() in SSR
     const paramsPromise = Promise.resolve({ slug: "ramesh-barber" });
     (paramsPromise as any).status = "fulfilled";
     (paramsPromise as any).value = { slug: "ramesh-barber" };
@@ -39,15 +51,11 @@ describe("Salon Digital Storefront & Homepage (/s/[slug])", () => {
     const html = renderToString(React.createElement(CustomerDoorPage, { params: paramsPromise }));
 
     // 1. Navigation Menu & Brand Header
-    expect(html).toContain("Digital Storefront");
     expect(html).toContain("Live Queue");
+    expect(html).toContain("Services");
     expect(html).toContain("Lobby TV");
-    expect(html).toContain('href="#hero"');
-    expect(html).toContain('href="#queue"');
-    expect(html).toContain('href="#services"');
-    expect(html).toContain('href="#team"');
-    expect(html).toContain('href="#about"');
-    expect(html).toContain('href="#contact"');
+    expect(html).toContain("/s/ramesh-barber/queue");
+    expect(html).toContain("/s/ramesh-barber/services");
 
     // 2. Hero Section & Live Wait Telemetry
     expect(html).toContain('id="hero"');
@@ -55,30 +63,56 @@ describe("Salon Digital Storefront & Homepage (/s/[slug])", () => {
     expect(html).toContain("Live Queue Wait Time");
     expect(html).toContain("Join Live Queue Now");
 
-    // 3. Queue Departure Board
-    expect(html).toContain('id="queue"');
-    expect(html).toContain("Live Queue Flow &amp; Chair Floor");
-
-    // 4. Service Menu Section
+    // 3. Service Menu Section
     expect(html).toContain('id="services"');
     expect(html).toContain("Service Menu &amp; Transparent Pricing");
 
-    // 5. Rich About Us & Craft Section
+    // 4. Rich About Us & Craft Section
     expect(html).toContain('id="about"');
     expect(html).toContain("Our Story &amp; Craft");
     expect(html).toContain("UV Sterilization");
     expect(html).toContain("Studio Amenities &amp; Guest Comforts");
 
-    // 6. Contact, Location & Operating Hours Section
+    // 5. Contact, Location & Operating Hours Section
     expect(html).toContain('id="contact"');
     expect(html).toContain("Contact Us, Hours &amp; Location");
     expect(html).toContain("Operating Hours");
     expect(html).toContain("Salon Location");
-    expect(html).toContain("Direct Contact");
 
-    // 7. Footer & Owner Administration Links
-    expect(html).toContain("Quick Navigation");
-    expect(html).toContain("Customize Storefront");
-    expect(html).toContain("/owner/storefront");
+    // 6. Footer Links
+    expect(html).toContain("/s/ramesh-barber/queue");
+    expect(html).toContain("/s/ramesh-barber/services");
+    expect(html).toContain("/s/ramesh-barber/tv");
+  });
+
+  it("should render dedicated queue operational page (/s/[slug]/queue)", async () => {
+    const QueuePageModule = await import("../app/s/[slug]/queue/page");
+    const DedicatedQueuePage = QueuePageModule.default;
+
+    const paramsPromise = Promise.resolve({ slug: "ramesh-barber" });
+    (paramsPromise as any).status = "fulfilled";
+    (paramsPromise as any).value = { slug: "ramesh-barber" };
+
+    const html = renderToString(React.createElement(DedicatedQueuePage, { params: paramsPromise }));
+
+    expect(html).toContain("Instant Walk-In Check-In");
+    expect(html).toContain("Your Full Name");
+    expect(html).toContain("Join Live Queue Now");
+    expect(html).toContain("Live Floor &amp; Waiting List");
+  });
+
+  it("should render dedicated services catalog page (/s/[slug]/services)", async () => {
+    const ServicesPageModule = await import("../app/s/[slug]/services/page");
+    const DedicatedServicesPage = ServicesPageModule.default;
+
+    const paramsPromise = Promise.resolve({ slug: "ramesh-barber" });
+    (paramsPromise as any).status = "fulfilled";
+    (paramsPromise as any).value = { slug: "ramesh-barber" };
+
+    const html = renderToString(React.createElement(DedicatedServicesPage, { params: paramsPromise }));
+
+    expect(html).toContain("Full Service Catalog");
+    expect(html).toContain("Transparent Pricing Guarantee");
+    expect(html).toContain("Service Menu &amp; Transparent Pricing");
   });
 });

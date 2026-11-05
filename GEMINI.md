@@ -34,3 +34,27 @@ This document establishes permanent architectural rules and memory for the `queu
 - **Zero Browser Dialogs:** Never use browser-blocking `alert()` or `confirm()` dialogs. Use accessible, non-blocking UI components (modals, sheets, toast notifications).
 - **Non-Intrusive Connection States:** Display live connection health via unobtrusive UI indicators (`🟢 Live Sync`, `🟡 Reconnecting`, `⚪ Offline Cache`).
 - **Low-Bandwidth Resilience:** Design for rural Indian salon environments where 4G/3G connections fluctuate. Ticket state and salon catalogs must remain viewable offline from local client cache.
+
+---
+
+## 5. Dedicated Route Separation (No Monolithic Pages)
+- **Strict Decoupling:** Never merge disparate user tasks (marketing storefront, live queue join/ticket tracker, full services catalog, lobby TV) into a single monolithic page.
+- **Dedicated Route Hierarchy:**
+  - `/s/[slug]`: Welcoming digital storefront showcasing salon identity, amenities, quick wait time overview, and high-converting CTA.
+  - `/s/[slug]/queue`: Dedicated operational page for live queue join, check-in drawer, and active pocket ticket tracker.
+  - `/s/[slug]/services`: Dedicated full services menu, detailed pricing, and add-on exploration.
+  - `/s/[slug]/tv`: Dedicated full-screen kiosk / TV display for waiting lounge mirrors.
+
+---
+
+## 6. High Modularity & DRY Reusable Components
+- **Component Isolation:** Every recurring UI pattern (navigation headers, service cards, customer reviews, barber rosters, queue badges) must be extracted into dedicated, reusable component files under `apps/web/components/`.
+- **Maintainable Page Entrypoints:** Page files (`page.tsx`) must serve as lightweight orchestrators, not 1,500-line dumping grounds.
+
+---
+
+## 7. Android Mobile-First Mandate (95%–99% Traffic Core Focus)
+- **Mobile Hardware Priority:** 95%–99% of customers and barbers interact on Android smartphones (varying screen resolutions, Chrome on Android, rural 4G/3G networks).
+- **Touch Targets & Thumb Reach:** All primary action buttons (Join Queue, Select Service, Pin Entry) must feature generous touch targets ($\ge 44\text{px}$–$48\text{px}$) and stay comfortable for one-handed thumb interaction.
+- **Font Legibility & Layout:** Crisp, legible typography without squinting, zero horizontal overflow/cutoffs, and fluid auto-scaling. Desktop layouts adapt gracefully as a secondary viewport.
+
