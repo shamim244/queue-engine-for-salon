@@ -20,6 +20,7 @@ import {
   Check,
   CheckCircle2,
   Sparkles,
+  Scissors,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +28,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Badge } from "@/components/ui/badge";
 
 interface CredentialPreset {
-  role: "SUPER_ADMIN" | "SALON_OWNER";
+  role: "SUPER_ADMIN" | "SALON_OWNER" | "STAFF";
   title: string;
   badge: string;
   badgeVariant: "purple" | "default" | "success" | "warning";
@@ -55,6 +56,15 @@ const AVAILABLE_PRESETS: CredentialPreset[] = [
     secret: "Owner@123",
     targetDesc: "Chairs, Queue & Salon Hub (/owner)",
   },
+  {
+    role: "STAFF",
+    title: "Staff Stylist",
+    badge: "Staff Desk",
+    badgeVariant: "warning",
+    identifier: "ramesh",
+    secret: "Ramesh@123",
+    targetDesc: "Chair Control & Queue Station (/staff)",
+  },
 ];
 
 function LoginForm() {
@@ -73,7 +83,7 @@ function LoginForm() {
   const [activeAutoRole, setActiveAutoRole] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showCredentialsBox, setShowCredentialsBox] = useState(false);
-  const [selectedCredRole, setSelectedCredRole] = useState<"SUPER_ADMIN" | "SALON_OWNER">("SUPER_ADMIN");
+  const [selectedCredRole, setSelectedCredRole] = useState<"SUPER_ADMIN" | "SALON_OWNER" | "STAFF">("SUPER_ADMIN");
 
   const getContextSalonSlug = (overrideSalon?: string | null): string => {
     if (overrideSalon) return overrideSalon;
@@ -204,7 +214,7 @@ function LoginForm() {
               variant="ghost"
               size="sm"
               onClick={() => {
-                const target = selectedCredRole === "SUPER_ADMIN" ? AVAILABLE_PRESETS[0] : AVAILABLE_PRESETS[1];
+                const target = AVAILABLE_PRESETS.find((p) => p.role === selectedCredRole) || AVAILABLE_PRESETS[0];
                 handleFillCredentials(target);
               }}
               className="h-7 px-2.5 text-[11px] gap-1.5 text-amber-300 hover:text-amber-200 hover:bg-amber-950/30 border border-amber-500/20"
@@ -214,10 +224,11 @@ function LoginForm() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             {AVAILABLE_PRESETS.map((preset) => {
               const isThisLoading = activeAutoRole === preset.role;
               const isSuperAdmin = preset.role === "SUPER_ADMIN";
+              const isStaff = preset.role === "STAFF";
               return (
                 <button
                   key={preset.role}
@@ -227,12 +238,16 @@ function LoginForm() {
                   className={`px-3 py-2.5 rounded-xl border text-left transition-all relative flex items-center justify-between group ${
                     isSuperAdmin
                       ? "border-purple-500/30 bg-purple-950/20 hover:bg-purple-950/40 hover:border-purple-500/50"
+                      : isStaff
+                      ? "border-amber-500/30 bg-amber-950/20 hover:bg-amber-950/40 hover:border-amber-500/50"
                       : "border-blue-500/30 bg-blue-950/20 hover:bg-blue-950/40 hover:border-blue-500/50"
                   }`}
                 >
                   <span className="flex items-center gap-2">
                     {isSuperAdmin ? (
                       <Crown className="w-4 h-4 text-purple-400" />
+                    ) : isStaff ? (
+                      <Scissors className="w-4 h-4 text-amber-400" />
                     ) : (
                       <Store className="w-4 h-4 text-blue-400" />
                     )}

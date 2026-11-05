@@ -368,6 +368,7 @@ describe("Enterprise Unified Authentication & Protected Route Guard System", () 
       expect(html).toContain("Sign In to Platform");
       expect(html).toContain("Platform Administrator");
       expect(html).toContain("Salon Owner / Storefront");
+      expect(html).toContain("Staff Stylist");
       expect(html).toContain("Instant 1-Click Authentication");
       expect(html).toContain("Standard Credentials Login");
       expect(html).toContain("Show &amp; Fill Credentials");
