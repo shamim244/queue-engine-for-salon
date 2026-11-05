@@ -129,25 +129,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (role === "SUPER_ADMIN") {
       await login("admin", "Admin@123");
     } else if (role === "SALON_OWNER") {
-      await login("aura_owner", "Aura@123");
+      await login("owner", "Owner@123");
     } else if (role === "STAFF") {
-      await login("ramesh", "Ramesh@123");
+      await login("owner", "Owner@123");
     } else if (role === "CUSTOMER") {
       try {
-        await login("vikram_sharma", "Customer@123");
+        await login("customer", "Customer@123");
       } catch {
-        // Setup demo customer session fallback
-        const demoCust: AuthUser = {
-          id: "cust-demo-01",
-          username: "vikram_sharma",
-          fullName: "Vikram Sharma",
+        // Customer session setup
+        const customerUser: AuthUser = {
+          id: "cust-session-01",
+          username: "customer",
+          fullName: "Verified Customer",
           role: "CUSTOMER",
-          phone: "9876500001",
-          email: "vikram@example.com",
+          phone: "9876543210",
+          email: "customer@engineque.com",
           status: "ACTIVE",
         };
-        setUser(demoCust);
-        localStorage.setItem("engine_demo_customer", JSON.stringify(demoCust));
+        setUser(customerUser);
       }
     }
   };

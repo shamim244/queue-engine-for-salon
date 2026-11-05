@@ -53,14 +53,6 @@ export const defaultAuditLogs: AuditLog[] = [
   },
   {
     id: 'audit-002',
-    timestamp: new Date(Date.now() - 3600000 * 12).toISOString(),
-    action: 'TENANT_SEEDED',
-    actor: 'SYSTEM',
-    details: 'Seeded default tenants: Ramesh Grooming Studio and Aura Wellness Group.',
-    category: 'ONBOARDING',
-  },
-  {
-    id: 'audit-003',
     timestamp: new Date(Date.now() - 3600000 * 4).toISOString(),
     action: 'SECURITY_AUDIT',
     actor: 'superadmin',
@@ -68,11 +60,11 @@ export const defaultAuditLogs: AuditLog[] = [
     category: 'SECURITY',
   },
   {
-    id: 'audit-004',
+    id: 'audit-003',
     timestamp: new Date(Date.now() - 3600000).toISOString(),
     action: 'GATEWAY_HEALTH_CHECK',
     actor: 'SYSTEM',
-    details: 'WhatsApp Simulator notification pipeline marked healthy.',
+    details: 'Notification delivery pipeline initialized and operational.',
     category: 'CONFIG',
   },
 ];
@@ -124,26 +116,14 @@ export function seedDemoData() {
     slug: 'ramesh-grooming',
     tier: 'STARTER',
     maxBranches: 1,
-    maxStylistsPerBranch: 1,
-    createdAt: new Date(),
-  };
-
-  const auraOrg: Organization = {
-    id: 'org-aura',
-    name: 'Aura Luxury Wellness Group',
-    slug: 'aura-wellness',
-    tier: 'PRO',
-    maxBranches: 5,
-    maxStylistsPerBranch: 8,
+    maxStylistsPerBranch: 2,
     createdAt: new Date(),
   };
 
   memoryStore.organizations.set(rameshOrg.id, rameshOrg);
   memoryStore.organizations.set(rameshOrg.slug, rameshOrg);
-  memoryStore.organizations.set(auraOrg.id, auraOrg);
-  memoryStore.organizations.set(auraOrg.slug, auraOrg);
 
-  // 1. Standard Single-Chair Salon
+  // 1. Primary Operating Salon
   const ruralSalon: Salon = {
     id: 'salon-rural-01',
     organizationId: rameshOrg.id,
@@ -169,8 +149,8 @@ export function seedDemoData() {
       '100% Sanitized Tools',
       'Kids & Family Friendly'
     ],
-    announcement: '🎉 Festive Special: Get a complimentary head massage with every Hair Cut + Shave Combo this week!',
-    announcementActive: true,
+    announcement: '',
+    announcementActive: false,
     createdAt: new Date(),
     stylists: [],
     services: [],
@@ -186,6 +166,16 @@ export function seedDemoData() {
     currentTicketId: null,
   };
 
+  const sanjayStylist: Stylist = {
+    id: 'stylist-ramesh-02',
+    salonId: ruralSalon.id,
+    name: 'Assistant Barber Sanjay',
+    phone: '+91 98765 43211',
+    isActive: true,
+    historicalAvgDurationMinutes: 20,
+    currentTicketId: null,
+  };
+
   const ruralServices: ServiceDefinition[] = [
     { id: 'srv-r-1', salonId: ruralSalon.id, name: 'Haircut (बाल कटिंग)', basePrice: 80, estimatedDurationMinutes: 20, isAddOn: false, icon: '✂️' },
     { id: 'srv-r-2', salonId: ruralSalon.id, name: 'Clean Shave (दाढ़ी शेव)', basePrice: 40, estimatedDurationMinutes: 15, isAddOn: false, icon: '🪒' },
@@ -194,173 +184,21 @@ export function seedDemoData() {
     { id: 'srv-r-5', salonId: ruralSalon.id, name: 'Head Massage / Champy (चम्पी)', basePrice: 50, estimatedDurationMinutes: 15, isAddOn: true, icon: '💆' },
   ];
 
-  // 2. Multi-Chair Salon
-  const modernSalon: Salon = {
-    id: 'salon-modern-01',
-    organizationId: auraOrg.id,
-    name: 'Aura Premium Salon & Spa',
-    slug: 'aura-salon',
-    phone: '+91 99887 76655',
-    countryCode: '+91',
-    currency: 'INR',
-    address: 'Plot 42, High Street Galleria, 2nd Floor',
-    tagline: 'Luxury Aesthetics, Master Colorists & Therapeutic Grooming',
-    about: 'Aura is a premier unisex beauty sanctuary providing bespoke styling, international color artistry, and therapeutic scalp spas in an ultra-luxurious ambiance.',
-    email: 'concierge@aurasalon.com',
-    whatsappPhone: '+91 99887 76655',
-    googleMapsUrl: 'https://maps.google.com/?q=High+Street+Galleria+Aura+Salon',
-    instagramHandle: '@aurasalonandspa',
-    operatingHours: 'Daily: 9:00 AM – 10:00 PM',
-    amenities: [
-      'Valet Parking',
-      'High-Speed Wi-Fi',
-      'Artisan Coffee & Tea',
-      'Cards & Apple Pay',
-      'Private VIP Suites',
-      'Sanitized Workstations'
-    ],
-    announcement: '✨ Now accepting online reservations and live walk-in queue for the festive season!',
-    announcementActive: true,
-    createdAt: new Date(),
-    stylists: [],
-    services: [],
-  };
-
-  const modernStylists: Stylist[] = [
-    { id: 'stylist-m-1', salonId: modernSalon.id, name: 'Leo (Master Stylist)', phone: '+91 99887 76651', isActive: true, historicalAvgDurationMinutes: 35 },
-    { id: 'stylist-m-2', salonId: modernSalon.id, name: 'Sarah (Senior Stylist)', phone: '+91 99887 76652', isActive: true, historicalAvgDurationMinutes: 30 },
-    { id: 'stylist-m-3', salonId: modernSalon.id, name: 'Maria (Color Specialist)', phone: '+91 99887 76653', isActive: true, historicalAvgDurationMinutes: 45 },
-    { id: 'stylist-m-4', salonId: modernSalon.id, name: 'Sam (Junior Stylist)', phone: '+91 99887 76654', isActive: true, historicalAvgDurationMinutes: 25 },
-  ];
-
-  const modernServices: ServiceDefinition[] = [
-    { id: 'srv-m-1', salonId: modernSalon.id, name: 'Signature Haircut & Styling', basePrice: 450, estimatedDurationMinutes: 30, isAddOn: false, icon: '✂️' },
-    { id: 'srv-m-2', salonId: modernSalon.id, name: 'Beard Trim & Sculpting', basePrice: 200, estimatedDurationMinutes: 20, isAddOn: false, icon: '🧔' },
-    { id: 'srv-m-3', salonId: modernSalon.id, name: 'Hair Spa & Deep Conditioning', basePrice: 850, estimatedDurationMinutes: 45, isAddOn: false, icon: '🧖' },
-    { id: 'srv-m-4', salonId: modernSalon.id, name: 'Organic Beard Oil Treatment', basePrice: 150, estimatedDurationMinutes: 10, isAddOn: true, icon: '✨' },
-    { id: 'srv-m-5', salonId: modernSalon.id, name: 'Hair Wash & Scalp Massage', basePrice: 180, estimatedDurationMinutes: 15, isAddOn: true, icon: '💆' },
-  ];
-
-  ruralSalon.stylists = [rameshStylist];
+  ruralSalon.stylists = [rameshStylist, sanjayStylist];
   ruralSalon.services = ruralServices;
-  modernSalon.stylists = modernStylists;
-  modernSalon.services = modernServices;
 
   // Save in memory
   memoryStore.salons.set(ruralSalon.id, ruralSalon);
   memoryStore.salons.set(ruralSalon.slug, ruralSalon);
-  memoryStore.salons.set(modernSalon.id, modernSalon);
-  memoryStore.salons.set(modernSalon.slug, modernSalon);
 
-  for (const s of [rameshStylist, ...modernStylists]) memoryStore.stylists.set(s.id, s);
-  for (const s of [...ruralServices, ...modernServices]) memoryStore.services.set(s.id, s);
+  for (const s of ruralSalon.stylists) memoryStore.stylists.set(s.id, s);
+  for (const s of ruralServices) memoryStore.services.set(s.id, s);
 
   memoryStore.ticketSequence.set(ruralSalon.id, 100);
-  memoryStore.ticketSequence.set(modernSalon.id, 200);
-
-  // Pre-seed completed visits for demo customer Vikram Sharma (phone: 9876500001)
-  const vikramHistory: QueueTicket[] = [
-    {
-      id: 'tkt-seed-001',
-      salonId: ruralSalon.id,
-      stylistId: rameshStylist.id,
-      ticketNumber: 88,
-      customerName: 'Vikram Sharma',
-      customerPhone: '9876500001',
-      serviceId: ruralServices[2].id,
-      serviceName: ruralServices[2].name,
-      selectedAddOns: [],
-      totalPrice: 110,
-      totalDurationMinutes: 25,
-      status: 'COMPLETED',
-      source: 'QR_SCAN',
-      estimatedWaitMinutes: 0,
-      checkInTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      summonedTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000 + 10 * 60000).toISOString(),
-      startedTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000 + 12 * 60000).toISOString(),
-      completedTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000 + 35 * 60000).toISOString(),
-      paymentStatus: 'ONLINE_PAID',
-      paymentAmount: 110,
-      positionInQueue: 0,
-    },
-    {
-      id: 'tkt-seed-002',
-      salonId: ruralSalon.id,
-      stylistId: rameshStylist.id,
-      ticketNumber: 92,
-      customerName: 'Vikram Sharma',
-      customerPhone: '9876500001',
-      serviceId: ruralServices[0].id,
-      serviceName: ruralServices[0].name,
-      selectedAddOns: [],
-      totalPrice: 80,
-      totalDurationMinutes: 15,
-      status: 'COMPLETED',
-      source: 'QR_SCAN',
-      estimatedWaitMinutes: 0,
-      checkInTime: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-      summonedTime: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000 + 5 * 60000).toISOString(),
-      startedTime: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000 + 7 * 60000).toISOString(),
-      completedTime: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000 + 22 * 60000).toISOString(),
-      paymentStatus: 'CASH_PAID',
-      paymentAmount: 80,
-      positionInQueue: 0,
-    },
-    {
-      id: 'tkt-seed-003',
-      salonId: modernSalon.id,
-      stylistId: modernStylists[0].id,
-      ticketNumber: 155,
-      customerName: 'Vikram Sharma',
-      customerPhone: '9876500001',
-      serviceId: modernServices[0].id,
-      serviceName: modernServices[0].name,
-      selectedAddOns: [],
-      totalPrice: 450,
-      totalDurationMinutes: 30,
-      status: 'COMPLETED',
-      source: 'QR_SCAN',
-      estimatedWaitMinutes: 0,
-      checkInTime: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
-      summonedTime: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000 + 15 * 60000).toISOString(),
-      startedTime: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000 + 18 * 60000).toISOString(),
-      completedTime: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000 + 48 * 60000).toISOString(),
-      paymentStatus: 'ONLINE_PAID',
-      paymentAmount: 450,
-      positionInQueue: 0,
-    },
-    {
-      id: 'tkt-seed-004',
-      salonId: ruralSalon.id,
-      stylistId: rameshStylist.id,
-      ticketNumber: 97,
-      customerName: 'Vikram Sharma',
-      customerPhone: '9876500001',
-      serviceId: ruralServices[1].id,
-      serviceName: ruralServices[1].name,
-      selectedAddOns: [],
-      totalPrice: 50,
-      totalDurationMinutes: 10,
-      status: 'COMPLETED',
-      source: 'QR_SCAN',
-      estimatedWaitMinutes: 0,
-      checkInTime: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
-      summonedTime: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000 + 2 * 60000).toISOString(),
-      startedTime: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000 + 4 * 60000).toISOString(),
-      completedTime: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000 + 14 * 60000).toISOString(),
-      paymentStatus: 'CASH_PAID',
-      paymentAmount: 50,
-      positionInQueue: 0,
-    },
-  ];
-
-  for (const t of vikramHistory) {
-    memoryStore.tickets.set(t.id, t);
-  }
 
   // Sync to MySQL if connected
   if (isMySqlConnected) {
-    syncDemoToMySql([ruralSalon, modernSalon]).catch((e) =>
+    syncDemoToMySql([ruralSalon]).catch((e) =>
       console.warn('[MySQL Seed Warning]', e.message)
     );
   }

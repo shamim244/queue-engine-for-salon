@@ -12,67 +12,49 @@ import {
   EyeOff,
   ArrowRight,
   AlertCircle,
-  Sparkles,
-  Scissors,
-  Store,
   Crown,
+  Store,
   Loader2,
+  KeyRound,
+  ShieldCheck,
+  Check,
+  Building2,
   CheckCircle2,
-  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-interface DemoPreset {
-  id: AllowedRole;
-  label: string;
-  icon: React.ReactNode;
+interface CredentialPreset {
+  role: "SUPER_ADMIN" | "SALON_OWNER";
+  title: string;
   badge: string;
-  badgeColor: "purple" | "default" | "warning" | "success" | "outline";
+  badgeVariant: "purple" | "default" | "success" | "warning";
   identifier: string;
-  desc: string;
+  secret: string;
+  targetDesc: string;
 }
 
-const DEMO_PRESETS: DemoPreset[] = [
+const AVAILABLE_PRESETS: CredentialPreset[] = [
   {
-    id: "SUPER_ADMIN",
-    label: "Super Admin",
-    icon: <Crown className="w-4 h-4 text-purple-400" />,
-    badge: "Full HQ",
-    badgeColor: "purple",
-    identifier: "admin / Admin@123",
-    desc: "Platform governance, tenants & billing",
+    role: "SUPER_ADMIN",
+    title: "Platform Administrator",
+    badge: "HQ Governance",
+    badgeVariant: "purple",
+    identifier: "admin",
+    secret: "Admin@123",
+    targetDesc: "Access platform metrics, onboarding, and enterprise settings (/admin)",
   },
   {
-    id: "SALON_OWNER",
-    label: "Salon Owner",
-    icon: <Store className="w-4 h-4 text-blue-400" />,
-    badge: "Aura Unisex",
-    badgeColor: "default",
-    identifier: "aura_owner / Aura@123",
-    desc: "Multi-branch queue & staff operations",
+    role: "SALON_OWNER",
+    title: "Salon Owner / Storefront",
+    badge: "Salon Operations",
+    badgeVariant: "default",
+    identifier: "owner",
+    secret: "Owner@123",
+    targetDesc: "Manage chairs, catalog, queue flow, and branches (/owner)",
   },
-  {
-    id: "STAFF",
-    label: "Stylist / Barber",
-    icon: <Scissors className="w-4 h-4 text-amber-400" />,
-    badge: "Ramesh Chair",
-    badgeColor: "warning",
-    identifier: "ramesh / Ramesh@123",
-    desc: "Mirror tablet station & queue controls",
-  },
-  {
-    id: "CUSTOMER",
-    label: "Customer Demo",
-    icon: <User className="w-4 h-4 text-emerald-400" />,
-    badge: "Self Check-in",
-    badgeColor: "success",
-    identifier: "vikram_sharma / Customer@123",
-    desc: "Live queue tracker, haircut specs & loyalty stamp cards",
-  },
-
 ];
 
 function LoginForm() {
@@ -81,15 +63,17 @@ function LoginForm() {
   const redirectParam = searchParams.get("redirect");
   const salonParam = searchParams.get("salon");
 
-  const { login, demoLogin, user, salon } = useAuth();
+  const { login, user, salon } = useAuth();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [activeAutoRole, setActiveAutoRole] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showCredentialsBox, setShowCredentialsBox] = useState(false);
+  const [selectedCredRole, setSelectedCredRole] = useState<"SUPER_ADMIN" | "SALON_OWNER">("SUPER_ADMIN");
 
   // Extract salon slug from redirectParam if not explicitly in salon query
   const getContextSalonSlug = (overrideSalon?: string | null): string => {
@@ -123,6 +107,7 @@ function LoginForm() {
     }
   }, [user, isLoading, redirectParam, salonParam, salon, router]);
 
+  // Handle standard credential submit
   const handleStandardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim() || !password.trim()) {
@@ -147,59 +132,62 @@ function LoginForm() {
       router.push(target);
     } catch (err: any) {
       setErrorMessage(
-        err.message || "Invalid credentials. Please verify your username, email, or phone number."
+        err.message || "Invalid credentials. Please verify your username, email, or password."
       );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDemoPreset = async (preset: DemoPreset) => {
+  // 1-Click Automatic Login handler
+  const handleAutoLogin = async (preset: CredentialPreset) => {
     setErrorMessage(null);
-    setActivePreset(preset.id);
+    setActiveAutoRole(preset.role);
     setIsLoading(true);
 
     try {
-      await demoLogin(preset.id);
-      // Determine best salon slug for demo account:
-      // If user came from a specific salon URL, preserve it; otherwise use persona default
-      let presetSlug: string | undefined;
-      if (preset.id === "SALON_OWNER") presetSlug = "aura-salon";
-      else if (preset.id === "STAFF") presetSlug = "ramesh-barber";
-
-      const effectiveSlug = getContextSalonSlug(presetSlug);
-      const target = resolveAuthRedirect(redirectParam, preset.id, effectiveSlug);
+      const resp = await login(preset.identifier, preset.secret);
+      const role = resp?.user?.role || preset.role;
+      const effectiveSlug = getContextSalonSlug(resp?.salon?.slug);
+      const target = resolveAuthRedirect(redirectParam, role, effectiveSlug);
       router.push(target);
     } catch (err: any) {
       setErrorMessage(
-        err.message || `Failed to authenticate as ${preset.label}. Ensure backend is running.`
+        err.message || `Failed to sign in as ${preset.title}. Please verify backend status.`
       );
     } finally {
       setIsLoading(false);
-      setActivePreset(null);
+      setActiveAutoRole(null);
     }
   };
 
+  // Show and fill credentials into the login form inputs
+  const handleFillCredentials = (preset: CredentialPreset) => {
+    setSelectedCredRole(preset.role);
+    setShowCredentialsBox(true);
+    setIdentifier(preset.identifier);
+    setPassword(preset.secret);
+    setErrorMessage(null);
+  };
+
   return (
-    <div className="w-full max-w-xl mx-auto space-y-6">
+    <div className="w-full max-w-lg mx-auto space-y-6">
       {/* Header Branding */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold tracking-wide uppercase">
-          <Radio className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
-          Enterprise Gatekeeper
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300 text-xs font-semibold tracking-wide">
+          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <span>Engine Que Enterprise Access</span>
         </div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2">
-          Engine Que
-          <Badge variant="purple" className="text-xs font-semibold px-2 py-0.5">
-            Auth v2.0
-          </Badge>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+          Sign In to Platform
         </h1>
-        <p className="text-slate-400 text-sm max-w-md mx-auto">
-          Unified Platform Authentication &bull; Zero-Trust Role Routing
+        <p className="text-xs sm:text-sm text-slate-400">
+          Unified authentication for Platform Governance, Salon Operations & Queues
         </p>
+
         {redirectParam && (
           <div className="pt-1">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-[11px] text-slate-300">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 border border-slate-800 text-[11px] text-slate-300">
               <span className="text-slate-500">Signing in to continue to:</span>
               <strong className="text-amber-400 font-mono">{redirectParam}</strong>
             </span>
@@ -207,54 +195,60 @@ function LoginForm() {
         )}
       </div>
 
-      {/* Demo 1-Click Quick Login Presets */}
-      <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-md">
-        <CardHeader className="pb-3">
+      {/* 1-Click Direct Auto-Login Action Buttons */}
+      <Card className="border-slate-800 bg-slate-900/70 backdrop-blur-md shadow-xl">
+        <CardHeader className="pb-3 pt-5 px-5">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-200">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              1-Click Instant Demo Authentication
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-blue-400" />
+              <span>Instant 1-Click Authentication</span>
             </CardTitle>
-            <span className="text-[11px] text-slate-400 font-mono">Development Sandbox</span>
+            <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-700">
+              Auto-Routing
+            </Badge>
           </div>
-          <CardDescription className="text-xs text-slate-400">
-            Select a verified platform persona to authenticate instantly without typing credentials.
-          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {DEMO_PRESETS.map((preset) => {
-              const isSelected = activePreset === preset.id;
+        <CardContent className="px-5 pb-5 pt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {AVAILABLE_PRESETS.map((preset) => {
+              const isThisLoading = activeAutoRole === preset.role;
+              const isSuperAdmin = preset.role === "SUPER_ADMIN";
               return (
                 <button
-                  key={preset.id}
+                  key={preset.role}
                   type="button"
                   disabled={isLoading}
-                  onClick={() => handleDemoPreset(preset)}
-                  className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden group ${
-                    isSelected
-                      ? "border-blue-500 bg-blue-950/40 ring-2 ring-blue-500/30"
-                      : "border-slate-800 bg-slate-800/40 hover:bg-slate-800 hover:border-slate-700"
+                  onClick={() => handleAutoLogin(preset)}
+                  className={`p-3.5 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-col justify-between ${
+                    isSuperAdmin
+                      ? "border-purple-500/30 bg-purple-950/20 hover:bg-purple-950/40 hover:border-purple-500/50"
+                      : "border-blue-500/30 bg-blue-950/20 hover:bg-blue-950/40 hover:border-blue-500/50"
                   }`}
                 >
-                  <div className="flex items-start justify-between mb-1.5">
-                    <div className="flex items-center gap-2 font-medium text-white text-xs">
-                      {preset.icon}
-                      <span>{preset.label}</span>
+                  <div className="flex items-center justify-between w-full mb-2">
+                    <div className="flex items-center gap-2 font-bold text-white text-xs">
+                      {isSuperAdmin ? (
+                        <Crown className="w-4 h-4 text-purple-400" />
+                      ) : (
+                        <Store className="w-4 h-4 text-blue-400" />
+                      )}
+                      <span>{preset.title}</span>
                     </div>
-                    <Badge variant={preset.badgeColor} className="text-[10px] px-1.5 py-0">
+                    <Badge variant={preset.badgeVariant} className="text-[10px] px-1.5 py-0">
                       {preset.badge}
                     </Badge>
                   </div>
-                  <p className="text-[11px] text-slate-400 leading-snug truncate mb-1">
-                    {preset.desc}
+
+                  <p className="text-[11px] text-slate-400 line-clamp-1 mb-3">
+                    {preset.targetDesc}
                   </p>
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-700/40 text-[10px] font-mono text-slate-500 group-hover:text-slate-300">
-                    <span className="truncate">{preset.identifier}</span>
-                    {isSelected ? (
-                      <Loader2 className="w-3 h-3 text-blue-400 animate-spin shrink-0" />
-                    ) : (
-                      <ArrowRight className="w-3 h-3 text-slate-500 group-hover:text-white transition-colors shrink-0" />
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-[11px] font-semibold">
+                    <span className={isSuperAdmin ? "text-purple-400" : "text-blue-400"}>
+                      Auto Login &rarr;
+                    </span>
+                    {isThisLoading && (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-300" />
                     )}
                   </div>
                 </button>
@@ -266,17 +260,81 @@ function LoginForm() {
 
       {/* Standard Form Authentication */}
       <Card className="border-slate-800 bg-slate-900/90 shadow-2xl">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-semibold text-white flex items-center gap-2">
-            <Lock className="w-4 h-4 text-blue-400" />
-            Standard Credentials Login
-          </CardTitle>
+        <CardHeader className="pb-3 pt-5 px-6">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+              <Lock className="w-4 h-4 text-blue-400" />
+              <span>Standard Credentials Login</span>
+            </CardTitle>
+
+            {/* Button that shows credentials details and auto-fills into the form */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const target = selectedCredRole === "SUPER_ADMIN" ? AVAILABLE_PRESETS[0] : AVAILABLE_PRESETS[1];
+                handleFillCredentials(target);
+              }}
+              className="text-xs h-8 gap-1.5 border-slate-700 bg-slate-800/80 hover:bg-slate-800 text-amber-300 hover:text-amber-200"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+              <span>Show & Fill Credentials</span>
+            </Button>
+          </div>
           <CardDescription className="text-xs text-slate-400">
             Sign in with your assigned username, verified mobile phone number, or corporate email.
           </CardDescription>
         </CardHeader>
+
         <form onSubmit={handleStandardSubmit}>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-6 pt-2 pb-5">
+            {/* Active Credentials Preview Box */}
+            {showCredentialsBox && (
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-amber-500/30 text-xs space-y-2.5 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-amber-400 font-bold uppercase tracking-wider text-[11px]">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Credentials Populated Into Form</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCredentialsBox(false)}
+                    className="text-slate-500 hover:text-slate-300 text-[11px]"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {AVAILABLE_PRESETS.map((p) => {
+                    const isSelected = selectedCredRole === p.role;
+                    return (
+                      <button
+                        key={p.role}
+                        type="button"
+                        onClick={() => handleFillCredentials(p)}
+                        className={`p-2 rounded-lg border text-left transition-all ${
+                          isSelected
+                            ? "border-amber-500/60 bg-amber-500/10 text-white"
+                            : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold text-[11px] text-slate-200">{p.title}</span>
+                          {isSelected && <Check className="w-3 h-3 text-amber-400" />}
+                        </div>
+                        <div className="font-mono text-[10px] space-y-0.5 text-slate-400">
+                          <div>User: <strong className="text-slate-200">{p.identifier}</strong></div>
+                          <div>Pass: <strong className="text-slate-200">{p.secret}</strong></div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {errorMessage && (
               <div
                 role="alert"
@@ -297,15 +355,15 @@ function LoginForm() {
                 className="text-xs font-medium text-slate-300 flex items-center gap-1.5"
               >
                 <User className="w-3.5 h-3.5 text-slate-400" />
-                Identifier (Username, Phone, or Email)
+                <span>Identifier (Username, Phone, or Email)</span>
               </label>
               <Input
                 id="login-identifier"
                 type="text"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="e.g. admin or 9876543210 or ramesh"
-                className="bg-slate-950/70 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-blue-500"
+                placeholder="e.g. admin or owner"
+                className="bg-slate-950 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-blue-500"
                 disabled={isLoading}
                 required
               />
@@ -319,7 +377,7 @@ function LoginForm() {
               >
                 <span className="flex items-center gap-1.5">
                   <Lock className="w-3.5 h-3.5 text-slate-400" />
-                  Security Password
+                  <span>Security Password</span>
                 </span>
               </label>
               <div className="relative">
@@ -329,7 +387,7 @@ function LoginForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your security password"
-                  className="bg-slate-950/70 border-slate-700 text-white placeholder:text-slate-500 pr-10 focus-visible:ring-blue-500"
+                  className="bg-slate-950 border-slate-700 text-white placeholder:text-slate-500 pr-10 focus-visible:ring-blue-500"
                   disabled={isLoading}
                   required
                 />
@@ -348,7 +406,7 @@ function LoginForm() {
               </div>
             </div>
 
-            {/* Mirror Tablet / Device Persistence Checkbox */}
+            {/* Device Persistence Checkbox */}
             <div className="flex items-center justify-between pt-1">
               <label
                 htmlFor="remember-device"
@@ -361,21 +419,21 @@ function LoginForm() {
                   onChange={(e) => setRememberDevice(e.target.checked)}
                   className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900"
                 />
-                <span>Remember this mirror tablet / browser session</span>
+                <span>Remember this workstation / mirror session</span>
               </label>
             </div>
           </CardContent>
 
-          <CardFooter className="flex flex-col space-y-3 pt-2">
+          <CardFooter className="flex flex-col space-y-3 pt-1 px-6 pb-6">
             <Button
               type="submit"
               disabled={isLoading}
               className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-lg shadow-blue-600/20 h-10 transition-all"
             >
-              {isLoading ? (
+              {isLoading && activeAutoRole === null ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Authenticating...</span>
+                  <span>Signing In...</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
@@ -385,7 +443,7 @@ function LoginForm() {
               )}
             </Button>
 
-            <div className="flex items-center justify-between w-full text-[11px] text-slate-500 px-1">
+            <div className="flex items-center justify-between w-full text-[11px] text-slate-500 px-1 pt-1">
               <Link
                 href={redirectParam && redirectParam.startsWith("/") ? redirectParam : "/"}
                 className="hover:text-blue-400 transition-colors"
@@ -403,13 +461,13 @@ function LoginForm() {
 
 function LoginLoadingSkeleton() {
   return (
-    <div className="w-full max-w-xl mx-auto space-y-6 animate-pulse p-4">
+    <div className="w-full max-w-lg mx-auto space-y-6 animate-pulse p-4">
       <div className="text-center space-y-3">
         <div className="h-6 w-32 bg-slate-800 rounded-full mx-auto" />
         <div className="h-8 w-48 bg-slate-800 rounded-xl mx-auto" />
         <div className="h-4 w-64 bg-slate-800 rounded mx-auto" />
       </div>
-      <div className="h-40 bg-slate-900/60 rounded-2xl border border-slate-800" />
+      <div className="h-32 bg-slate-900/60 rounded-2xl border border-slate-800" />
       <div className="h-64 bg-slate-900/90 rounded-2xl border border-slate-800" />
     </div>
   );

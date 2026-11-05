@@ -148,7 +148,7 @@ export default function MarketingHomePage() {
             <Link href="/s/ramesh-barber/station" className="w-full sm:w-auto">
               <Button size="lg" variant="outline" className="w-full border-slate-700 hover:bg-slate-900 text-slate-200 font-semibold gap-2 h-12 px-6">
                 <Armchair className="h-4 w-4 text-emerald-400" />
-                Live Cutting Station Demo
+                Launch Cutting Station
               </Button>
             </Link>
 
@@ -349,7 +349,7 @@ export default function MarketingHomePage() {
 
               <div className="mt-8 pt-6 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
                 <Link href="/s/ramesh-barber" className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1">
-                  <span>Open Door QR Demo &rarr;</span>
+                  <span>Open Door QR Storefront &rarr;</span>
                 </Link>
                 <Link href="/register">
                   <Button size="sm" variant="outline" className="text-xs border-slate-700 hover:bg-slate-800 text-slate-200">
@@ -406,7 +406,7 @@ export default function MarketingHomePage() {
 
               <div className="mt-8 pt-6 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
                 <Link href="/s/ramesh-barber/station" className="text-xs font-semibold text-purple-400 hover:text-purple-300 flex items-center gap-1">
-                  <span>Open Station Desk Demo &rarr;</span>
+                  <span>Open Station Desk &rarr;</span>
                 </Link>
                 <Link href="/register">
                   <Button size="sm" className="text-xs bg-blue-600 hover:bg-blue-500 text-white">

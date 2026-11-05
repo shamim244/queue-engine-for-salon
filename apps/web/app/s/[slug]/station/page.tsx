@@ -485,14 +485,6 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
           </div>
 
           <div className="pt-4 space-y-2">
-            <button
-              type="button"
-              onClick={handleQuickUnlock}
-              className="text-xs text-amber-400/80 hover:text-amber-300 underline underline-offset-4 font-semibold"
-            >
-              ⚡ Quick 1-Tap Unlock (Demo Mode)
-            </button>
-
             {salon?.stylists && salon.stylists.length > 1 && (
               <div>
                 <button

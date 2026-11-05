@@ -351,7 +351,7 @@ describe("Enterprise Unified Authentication & Protected Route Guard System", () 
   });
 
   describe("Unified Login View (LoginPage)", () => {
-    it("should render enterprise login page with branding and 1-click demo presets", () => {
+    it("should render clean enterprise login page with 1-click auto-login and credential autofill button", () => {
       const mockAuth = createMockAuthContext({
         isLoading: false,
         user: null,
@@ -364,14 +364,14 @@ describe("Enterprise Unified Authentication & Protected Route Guard System", () 
       );
 
       const html = renderToString(tree);
-      expect(html).toContain("Engine Que");
-      expect(html).toContain("Unified Platform Authentication");
-      expect(html).toContain("Super Admin");
-      expect(html).toContain("Salon Owner");
-      expect(html).toContain("Stylist / Barber");
-      expect(html).toContain("Customer Demo");
+      expect(html).toContain("Engine Que Enterprise Access");
+      expect(html).toContain("Sign In to Platform");
+      expect(html).toContain("Platform Administrator");
+      expect(html).toContain("Salon Owner / Storefront");
+      expect(html).toContain("Instant 1-Click Authentication");
       expect(html).toContain("Standard Credentials Login");
-      expect(html).toContain("Remember this mirror tablet");
+      expect(html).toContain("Show &amp; Fill Credentials");
+      expect(html).toContain("Remember this workstation / mirror session");
       expect(html).toContain("Sign In to Platform");
     });
   });
