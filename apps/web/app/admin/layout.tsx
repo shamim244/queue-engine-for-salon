@@ -12,6 +12,7 @@ import {
   CreditCard,
   Radio,
   LogOut,
+  LogIn,
   Sparkles,
   ChevronRight,
   Settings,
@@ -139,14 +140,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </Button>
             </div>
           ) : (
-            <Button
-              variant="outline"
-              className="w-full text-xs gap-1.5 border-dashed"
-              onClick={() => demoLogin("SUPER_ADMIN")}
-            >
-              <Sparkles className="h-3.5 w-3.5 text-blue-400" />
-              Quick Super Admin Auth
-            </Button>
+            <Link href="/login?redirect=/admin" className="w-full block">
+              <Button
+                variant="outline"
+                className="w-full text-xs gap-1.5 border-slate-700 hover:bg-slate-800 text-slate-200"
+              >
+                <LogIn className="h-3.5 w-3.5 text-blue-400" />
+                Sign In to Platform
+              </Button>
+            </Link>
           )}
 
           <div className="flex justify-between items-center text-[11px] text-slate-500 px-1 pt-1">

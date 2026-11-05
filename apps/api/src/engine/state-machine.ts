@@ -2,9 +2,9 @@ import type { QueueTicket, TicketStatus } from './types';
 
 // Allowed state transitions map
 const VALID_TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
-  WAITING: ['SUMMONED', 'CANCELLED', 'NO_SHOW'],
-  SUMMONED: ['IN_CHAIR', 'SOFT_BUMPED', 'WAITING', 'CANCELLED', 'NO_SHOW'],
-  SOFT_BUMPED: ['SUMMONED', 'IN_CHAIR', 'CANCELLED', 'NO_SHOW'],
+  WAITING: ['SUMMONED', 'SOFT_BUMPED', 'IN_CHAIR', 'COMPLETED', 'CANCELLED', 'NO_SHOW'],
+  SUMMONED: ['IN_CHAIR', 'SOFT_BUMPED', 'WAITING', 'COMPLETED', 'CANCELLED', 'NO_SHOW'],
+  SOFT_BUMPED: ['SUMMONED', 'IN_CHAIR', 'COMPLETED', 'CANCELLED', 'NO_SHOW'],
   IN_CHAIR: ['COMPLETED', 'CANCELLED'],
   COMPLETED: [],
   CANCELLED: [],

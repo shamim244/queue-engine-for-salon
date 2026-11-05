@@ -8,17 +8,14 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
     seedDemoData();
   });
 
-  it('should seed default rural and modern demo salons', async () => {
+  it('should seed default primary salon', async () => {
     const salons = await repository.getAllSalons();
-    expect(salons.length).toBeGreaterThanOrEqual(2);
+    expect(salons.length).toBeGreaterThanOrEqual(1);
 
     const rural = await repository.getSalonBySlug('ramesh-barber');
     expect(rural).not.toBeNull();
     expect(rural?.stylists.length).toBe(1);
-
-    const modern = await repository.getSalonBySlug('aura-salon');
-    expect(modern).not.toBeNull();
-    expect(modern?.stylists.length).toBe(4);
+    expect(rural?.services.length).toBeGreaterThan(0);
   });
 
   it('should process customer QR check-in and calculate wait time', async () => {
@@ -160,8 +157,8 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
     expect(ramesh?.role).toBe('STAFF');
     expect(ramesh?.staffId).toBe('stylist-ramesh-01');
 
-    // 3. Modern Salon Owner login
-    const owner = await authService.authenticateUser('aura_owner', 'Aura@123');
+    // 3. Salon Owner login
+    const owner = await authService.authenticateUser('owner', 'Owner@123');
     expect(owner).not.toBeNull();
     expect(owner?.role).toBe('SALON_OWNER');
 
@@ -211,11 +208,11 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
     expect(byPhone?.session.token.length).toBeGreaterThanOrEqual(32);
 
     // 2. Email login
-    const byEmail = await authService.authenticateUser('owner@aurasalon.com', 'Aura@123');
+    const byEmail = await authService.authenticateUser('owner@rameshbarber.com', 'Owner@123');
     expect(byEmail).not.toBeNull();
-    expect(byEmail?.username).toBe('aura_owner');
+    expect(byEmail?.username).toBe('owner');
     expect(byEmail?.organization).not.toBeNull();
-    expect(byEmail?.organization?.tier).toBe('PRO');
+    expect(byEmail?.organization?.tier).toBe('STARTER');
 
     // 3. Session validation
     const validated = await authService.validateSession(byPhone!.session.token);
@@ -323,18 +320,18 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
   it('should support front desk manual summon and ticket cancellation', async () => {
     // 1. Check in client
     const ticket = await queueEngine.checkIn({
-      salonSlug: 'aura-salon',
+      salonSlug: 'ramesh-barber',
       customerName: 'Priya Patel',
       customerPhone: '9876543201',
-      serviceId: 'srv-m-1',
+      serviceId: 'srv-r-1',
     });
     expect(ticket.status).toBe('WAITING');
 
     // 2. Direct summon by ticket ID
-    const summoned = await queueEngine.summonTicket(ticket.id, 'stylist-aura-1');
+    const summoned = await queueEngine.summonTicket(ticket.id, 'stylist-ramesh-01');
     expect(summoned).not.toBeNull();
     expect(summoned?.status).toBe('SUMMONED');
-    expect(summoned?.stylistId).toBe('stylist-aura-1');
+    expect(summoned?.stylistId).toBe('stylist-ramesh-01');
 
     // 3. Cancel ticket
     const cancelled = await queueEngine.cancelTicket(ticket.id, 'Customer stepped out');
@@ -342,7 +339,7 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
     expect(cancelled?.status).toBe('CANCELLED');
 
     // Verify it is no longer in active tickets
-    const active = await repository.getActiveTickets('salon-modern-01');
+    const active = await repository.getActiveTickets('salon-rural-01');
     expect(active.some((t) => t.id === ticket.id)).toBe(false);
   });
 });

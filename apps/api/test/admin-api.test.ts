@@ -17,8 +17,8 @@ describe('Admin Telemetry, Configuration, and Onboarding API', () => {
     const res = await app.handle(new Request('http://localhost/api/admin/stats'));
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.totalSalons).toBeGreaterThanOrEqual(2);
-    expect(data.totalStylists).toBeGreaterThanOrEqual(5);
+    expect(data.totalSalons).toBeGreaterThanOrEqual(1);
+    expect(data.totalStylists).toBeGreaterThanOrEqual(1);
     expect(typeof data.totalTicketsToday).toBe('number');
     expect(typeof data.socketClientsCount).toBe('number');
     expect(typeof data.uptimeSeconds).toBe('number');

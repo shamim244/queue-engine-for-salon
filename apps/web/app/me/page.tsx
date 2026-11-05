@@ -27,6 +27,7 @@ import {
   Store,
   ChevronRight,
   LogOut,
+  LogIn,
   QrCode,
   TicketPercent,
   Share2,
@@ -333,14 +334,15 @@ function CustomerAccountContent() {
               </Button>
             </div>
           ) : (
-            <Button
-              variant="outline"
-              className="w-full text-xs gap-1.5 border-dashed"
-              onClick={() => demoLogin("CUSTOMER")}
-            >
-              <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-              Demo Customer Auth
-            </Button>
+            <Link href="/login?redirect=/me" className="w-full block">
+              <Button
+                variant="outline"
+                className="w-full text-xs gap-1.5 border-slate-700 hover:bg-slate-800 text-slate-200"
+              >
+                <LogIn className="h-3.5 w-3.5 text-blue-400" />
+                Sign In to Account
+              </Button>
+            </Link>
           )}
 
           <div className="flex justify-between items-center text-[11px] text-slate-500 px-1">

@@ -21,7 +21,7 @@ describe('Native API Response Compression', () => {
   it('compresses payloads >1KB with gzip when client requests Accept-Encoding: gzip', async () => {
     // Salon catalog endpoint is large (>1KB)
     const res = await app.handle(
-      new Request('http://localhost/api/salons/aura-salon', {
+      new Request('http://localhost/api/salons/ramesh-barber', {
         headers: {
           'Accept-Encoding': 'gzip, deflate, br',
         },
@@ -38,13 +38,13 @@ describe('Native API Response Compression', () => {
     const jsonStr = new TextDecoder().decode(decompressedBuffer);
     const json = JSON.parse(jsonStr);
 
-    expect(json.salon.slug).toBe('aura-salon');
+    expect(json.salon.slug).toBe('ramesh-barber');
     expect(json.salon.services.length).toBeGreaterThan(0);
   });
 
   it('serves uncompressed raw JSON when client does not support gzip', async () => {
     const res = await app.handle(
-      new Request('http://localhost/api/salons/aura-salon', {
+      new Request('http://localhost/api/salons/ramesh-barber', {
         headers: {
           // No Accept-Encoding header
         },
@@ -54,6 +54,6 @@ describe('Native API Response Compression', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-encoding')).toBeNull();
     const json = await res.json();
-    expect(json.salon.slug).toBe('aura-salon');
+    expect(json.salon.slug).toBe('ramesh-barber');
   });
 });

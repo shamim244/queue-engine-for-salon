@@ -6,14 +6,29 @@ describe('Stylist Preference & Universal Fast Line Queue Suite', () => {
   let salonId: string;
   let rahulId: string;
   let leoId: string;
+  let serviceId: string;
 
   beforeEach(async () => {
     seedDemoData();
-    const modernSalon = await repository.getSalonBySlug('aura-salon');
-    expect(modernSalon).not.toBeNull();
-    salonId = modernSalon!.id;
-    rahulId = modernSalon!.stylists[0].id; // Leo / First stylist
-    leoId = modernSalon!.stylists[1]?.id || modernSalon!.stylists[0].id;
+    let modernSalon = await repository.getSalonBySlug('aura-salon');
+    if (!modernSalon) {
+      modernSalon = await repository.createSalon({
+        name: 'Aura Studio',
+        slug: 'aura-salon',
+        phone: '+91 98888 00000',
+        stylists: [
+          { name: 'Rahul', phone: '+91 98888 00001' },
+          { name: 'Leo', phone: '+91 98888 00002' },
+        ],
+        services: [
+          { name: 'Master Haircut', basePrice: 200, estimatedDurationMinutes: 25 },
+        ],
+      });
+    }
+    salonId = modernSalon.id;
+    rahulId = modernSalon.stylists[0].id; // Rahul / First stylist
+    leoId = modernSalon.stylists[1]?.id || modernSalon.stylists[0].id;
+    serviceId = modernSalon.services[0].id;
   });
 
   it('should prioritize tickets that explicitly selected the calling stylist over universal tickets', async () => {
@@ -22,7 +37,7 @@ describe('Stylist Preference & Universal Fast Line Queue Suite', () => {
       salonSlug: 'aura-salon',
       customerName: 'Anand Universal',
       customerPhone: '9888811111',
-      serviceId: 'srv-m-1',
+      serviceId,
       stylistId: null,
     });
 
@@ -31,7 +46,7 @@ describe('Stylist Preference & Universal Fast Line Queue Suite', () => {
       salonSlug: 'aura-salon',
       customerName: 'Rohit Preferred Leo',
       customerPhone: '9888822222',
-      serviceId: 'srv-m-1',
+      serviceId,
       stylistId: leoId,
     });
 
@@ -53,7 +68,7 @@ describe('Stylist Preference & Universal Fast Line Queue Suite', () => {
       salonSlug: 'aura-salon',
       customerName: 'Karan FastLine',
       customerPhone: '9888833333',
-      serviceId: 'srv-m-1',
+      serviceId,
       stylistId: null,
     });
 

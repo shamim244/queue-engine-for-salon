@@ -7,11 +7,18 @@ import { repository, seedDemoData } from '../src/db/repository';
 describe('User Management & Staff Authentication API', () => {
   let createdUserId = '';
   let createdStaffUserId = '';
-  let testSalonId = 'salon-modern-01';
+  let testSalonId = 'salon-rural-01';
 
   beforeAll(async () => {
     seedDemoData();
     await authService.seedDefaultUsers();
+    const testSalon = await repository.createSalon({
+      name: 'Modern Barbershop Test',
+      slug: 'modern-test-salon',
+      phone: '+91 99999 88888',
+      stylists: [],
+    });
+    testSalonId = testSalon.id;
   });
 
   describe('Super Admin User Directory API', () => {

@@ -209,6 +209,11 @@ export const queueEngine = {
     const ticket = await repository.getTicketById(ticketId);
     if (!ticket) return null;
 
+    const validation = validateTicketTransition(ticket, 'IN_CHAIR');
+    if (!validation.allowed) {
+      throw new Error(validation.reason || `Cannot transition ticket from ${ticket.status} to IN_CHAIR`);
+    }
+
     const updated = await repository.updateTicketStatus(ticketId, 'IN_CHAIR', {
       stylistId: stylistId || ticket.stylistId || undefined,
       startedTime: new Date().toISOString(),
@@ -238,6 +243,11 @@ export const queueEngine = {
     const ticket = await repository.getTicketById(ticketId);
     if (!ticket) return null;
 
+    const validation = validateTicketTransition(ticket, 'COMPLETED');
+    if (!validation.allowed) {
+      throw new Error(validation.reason || `Cannot transition ticket from ${ticket.status} to COMPLETED`);
+    }
+
     const amount = paymentAmount !== undefined ? paymentAmount : ticket.totalPrice;
 
     const updated = await repository.updateTicketStatus(ticketId, 'COMPLETED', {
@@ -265,6 +275,11 @@ export const queueEngine = {
   async softBump(ticketId: string): Promise<QueueTicket | null> {
     const ticket = await repository.getTicketById(ticketId);
     if (!ticket) return null;
+
+    const validation = validateTicketTransition(ticket, 'SOFT_BUMPED');
+    if (!validation.allowed) {
+      throw new Error(validation.reason || `Cannot transition ticket from ${ticket.status} to SOFT_BUMPED`);
+    }
 
     const updated = await repository.updateTicketStatus(ticketId, 'SOFT_BUMPED');
     if (!updated) return null;

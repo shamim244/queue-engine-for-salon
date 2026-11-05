@@ -19,6 +19,32 @@ describe('Staff Station, Consumer Lifecycle, and 4-Way Synchronization Suite', (
   beforeEach(async () => {
     seedDemoData();
     await authService.seedDefaultUsers();
+
+    // Test fixture: Customer Vikram Sharma with 4 visits
+    const vikram = await authService.getUserByUsername('vikram_sharma');
+    if (!vikram) {
+      await authService.createUser({
+        username: 'vikram_sharma',
+        password: 'Customer@123',
+        fullName: 'Vikram Sharma',
+        phone: '9876500001',
+        email: 'vikram@example.com',
+        role: 'CUSTOMER',
+      });
+    }
+
+    const tickets = await repository.getTicketsByCustomer('9876500001');
+    if (tickets.length < 4) {
+      const fixtures: any[] = [
+        { id: 'tkt-v-1', salonId: 'salon-rural-01', customerName: 'Vikram Sharma', customerPhone: '9876500001', status: 'COMPLETED', totalPrice: 150, paymentAmount: 150, serviceName: 'Haircut', ticketNumber: 1, checkInTime: new Date(Date.now() - 86400000 * 4).toISOString() },
+        { id: 'tkt-v-2', salonId: 'salon-rural-01', customerName: 'Vikram Sharma', customerPhone: '9876500001', status: 'COMPLETED', totalPrice: 180, paymentAmount: 180, serviceName: 'Shave', ticketNumber: 2, checkInTime: new Date(Date.now() - 86400000 * 3).toISOString() },
+        { id: 'tkt-v-3', salonId: 'salon-rural-01', customerName: 'Vikram Sharma', customerPhone: '9876500001', status: 'COMPLETED', totalPrice: 160, paymentAmount: 160, serviceName: 'Combo', ticketNumber: 3, checkInTime: new Date(Date.now() - 86400000 * 2).toISOString() },
+        { id: 'tkt-v-4', salonId: 'salon-rural-01', customerName: 'Vikram Sharma', customerPhone: '9876500001', status: 'COMPLETED', totalPrice: 200, paymentAmount: 200, serviceName: 'Trim', ticketNumber: 4, checkInTime: new Date(Date.now() - 86400000 * 1).toISOString() },
+      ];
+      for (const t of fixtures) {
+        await repository.createTicket(t);
+      }
+    }
   });
 
   describe('1. Consumer Registration and Authentication Flow', () => {

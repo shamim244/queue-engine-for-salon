@@ -5,8 +5,6 @@ export function getApiBaseUrl(): string {
 
   if (typeof window !== "undefined" && window.location?.hostname) {
     const hostname = window.location.hostname;
-    // When accessed through remote domain (e.g. web.nexgentech.site) or remote host,
-    // use relative path "" so requests go through Next.js reverse proxy (/api/...) on the same domain and protocol (HTTPS)
     if (hostname !== "localhost" && hostname !== "127.0.0.1") {
       return "";
     }

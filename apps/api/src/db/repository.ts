@@ -116,7 +116,7 @@ export function seedDemoData() {
     slug: 'ramesh-grooming',
     tier: 'STARTER',
     maxBranches: 1,
-    maxStylistsPerBranch: 2,
+    maxStylistsPerBranch: 1,
     createdAt: new Date(),
   };
 
@@ -166,16 +166,6 @@ export function seedDemoData() {
     currentTicketId: null,
   };
 
-  const sanjayStylist: Stylist = {
-    id: 'stylist-ramesh-02',
-    salonId: ruralSalon.id,
-    name: 'Assistant Barber Sanjay',
-    phone: '+91 98765 43211',
-    isActive: true,
-    historicalAvgDurationMinutes: 20,
-    currentTicketId: null,
-  };
-
   const ruralServices: ServiceDefinition[] = [
     { id: 'srv-r-1', salonId: ruralSalon.id, name: 'Haircut (बाल कटिंग)', basePrice: 80, estimatedDurationMinutes: 20, isAddOn: false, icon: '✂️' },
     { id: 'srv-r-2', salonId: ruralSalon.id, name: 'Clean Shave (दाढ़ी शेव)', basePrice: 40, estimatedDurationMinutes: 15, isAddOn: false, icon: '🪒' },
@@ -184,7 +174,7 @@ export function seedDemoData() {
     { id: 'srv-r-5', salonId: ruralSalon.id, name: 'Head Massage / Champy (चम्पी)', basePrice: 50, estimatedDurationMinutes: 15, isAddOn: true, icon: '💆' },
   ];
 
-  ruralSalon.stylists = [rameshStylist, sanjayStylist];
+  ruralSalon.stylists = [rameshStylist];
   ruralSalon.services = ruralServices;
 
   // Save in memory

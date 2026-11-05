@@ -112,19 +112,6 @@ function RegisterContent() {
     }
   };
 
-  const handleAutofillDemo = () => {
-    const randomId = Math.floor(100 + Math.random() * 900);
-    const name = `Classic Cuts Salon ${randomId}`;
-    const slug = slugify(name);
-    setSalonName(name);
-    setSalonSlug(slug);
-    setPhone("+91 98765 0" + randomId);
-    setOwnerName("Kailash Sharma");
-    setUsername(`kailash_${randomId}`);
-    setPassword("Salon@1234");
-    setError(null);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -465,10 +452,7 @@ function RegisterContent() {
               </Link>
               <Button
                 variant="outline"
-                onClick={() => {
-                  setSuccessData(null);
-                  handleAutofillDemo();
-                }}
+                onClick={() => setSuccessData(null)}
                 className="border-slate-700 text-slate-300"
               >
                 Register Another Salon
@@ -478,27 +462,14 @@ function RegisterContent() {
         ) : (
           /* Registration Form */
           <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 sm:p-10 shadow-2xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-6 border-b border-slate-800">
-              <div>
-                <Badge variant="purple" className="mb-2 text-xs">Self-Service Onboarding</Badge>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                  Register Your Salon
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                  Launch your salon queue engine in 3 minutes. Zero setup fee.
-                </p>
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAutofillDemo}
-                className="text-xs border-dashed border-blue-500/40 text-blue-300 hover:bg-blue-950/30 gap-1.5 shrink-0"
-              >
-                <Sparkles className="h-3.5 w-3.5 text-blue-400" />
-                Autofill Demo Salon
-              </Button>
+            <div className="mb-8 pb-6 border-b border-slate-800">
+              <Badge variant="purple" className="mb-2 text-xs">Self-Service Onboarding</Badge>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                Register Your Salon
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                Launch your salon queue engine in 3 minutes. Zero setup fee.
+              </p>
             </div>
 
             {error && (

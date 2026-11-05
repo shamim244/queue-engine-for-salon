@@ -562,6 +562,37 @@ export const authService = {
         );
       }
     }
+
+    // 3. Primary Staff / Stylist (Ramesh Kumar, Station Tablet PIN: 1234)
+    const rameshUser = await this.getUserByUsername('ramesh');
+    if (!rameshUser) {
+      await this.createUser({
+        username: 'ramesh',
+        password: 'Ramesh@123',
+        fullName: 'Ramesh Kumar',
+        phone: '9876543210',
+        email: 'ramesh@rameshbarber.com',
+        role: 'STAFF',
+        pin: '1234',
+        staffId: 'stylist-ramesh-01',
+        salonId: 'salon-rural-01',
+        organizationId: 'org-ramesh',
+      });
+      console.log('[Auth] Seeded Staff: ramesh / Ramesh@123 (PIN: 1234)');
+    } else if (!rameshUser.pinHash || !rameshUser.staffId) {
+      rameshUser.staffId = 'stylist-ramesh-01';
+      rameshUser.salonId = 'salon-rural-01';
+      rameshUser.organizationId = 'org-ramesh';
+      rameshUser.pinHash = await Bun.password.hash('1234', { algorithm: 'bcrypt', cost: 10 });
+      memoryUsers.set(rameshUser.username, rameshUser);
+      memoryUsers.set(rameshUser.id, rameshUser);
+      if (isMySqlConnected) {
+        await getDb().query(
+          'UPDATE users SET organization_id = ?, salon_id = ?, staff_id = ?, pin_hash = ? WHERE id = ?',
+          ['org-ramesh', 'salon-rural-01', 'stylist-ramesh-01', rameshUser.pinHash, rameshUser.id]
+        );
+      }
+    }
   },
 };
 
