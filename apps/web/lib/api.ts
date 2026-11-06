@@ -1,3 +1,3 @@
-export * from "./api/index";
-import { api } from "./api/index";
+export * from "./api-client";
+import { api } from "./api-client";
 export default api;
