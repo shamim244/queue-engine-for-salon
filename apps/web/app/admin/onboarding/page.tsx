@@ -3,39 +3,10 @@
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Building2,
-  Sparkles,
-  Check,
-  ChevronRight,
-  ChevronLeft,
-  Eye,
-  EyeOff,
-  Plus,
-  Trash2,
-  QrCode,
-  Tv,
-  Armchair,
-  ExternalLink,
-  Store,
-  Scissors,
-  Users,
-  Copy,
-  RotateCcw,
-  AlertCircle,
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  ShieldCheck,
-} from "lucide-react";
+import { Sparkles, Check, AlertCircle } from "lucide-react";
 import {
   slugify,
-  getSingleStationPreset,
-  getMultiStationPreset,
   validateOnboardingForm,
   submitOnboarding,
   type OnboardingFormData,
@@ -43,6 +14,13 @@ import {
   type ServiceInput,
 } from "@/lib/onboarding";
 import { Salon, Organization } from "@/lib/api";
+
+import { StepSalonIdentity } from "@/components/admin/onboarding/step-salon-identity";
+import { StepSubscriptionPlan } from "@/components/admin/onboarding/step-subscription-plan";
+import { StepOwnerCredentials } from "@/components/admin/onboarding/step-owner-credentials";
+import { StepStylistsRoster } from "@/components/admin/onboarding/step-stylists-roster";
+import { StepServicesCatalog } from "@/components/admin/onboarding/step-services-catalog";
+import { StepLaunchKit } from "@/components/admin/onboarding/step-launch-kit";
 
 function OnboardingWizardContent() {
   const router = useRouter();
@@ -104,9 +82,10 @@ function OnboardingWizardContent() {
   const handleNameChange = (name: string) => {
     setFormData((prev) => {
       const updatedSlug = !isSlugManual ? slugify(name) : prev.slug;
-      const updatedOwnerUsername = !prev.ownerUser.username || prev.ownerUser.username === slugify(prev.name).replace(/-/g, "_")
-        ? slugify(name).replace(/-/g, "_")
-        : prev.ownerUser.username;
+      const updatedOwnerUsername =
+        !prev.ownerUser.username || prev.ownerUser.username === slugify(prev.name).replace(/-/g, "_")
+          ? slugify(name).replace(/-/g, "_")
+          : prev.ownerUser.username;
 
       return {
         ...prev,
@@ -269,7 +248,7 @@ function OnboardingWizardContent() {
       if (result.success && result.salon) {
         setProvisionedSalon(result.salon);
         setProvisionedOrg(result.organization || null);
-        setCurrentStep(6); // Step 6: Confirmation & Instant Launch Kit
+        setCurrentStep(6);
       } else {
         setFormError("Provisioning failed. Backend did not return salon profile.");
       }
@@ -358,7 +337,7 @@ function OnboardingWizardContent() {
         {currentStep < 6 && (
           <div className="flex items-center gap-3">
             <Link href="/admin/tenants">
-              <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
+              <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white min-h-[44px]">
                 Cancel & Exit
               </Button>
             </Link>
@@ -382,7 +361,7 @@ function OnboardingWizardContent() {
                     if (s.id < currentStep) setCurrentStep(s.id);
                   }}
                   disabled={s.id > currentStep}
-                  className={`text-left p-2.5 rounded-xl transition-all flex flex-col justify-between border ${
+                  className={`text-left p-2.5 rounded-xl transition-all flex flex-col justify-between border min-h-[48px] ${
                     isCurrent
                       ? "bg-blue-600/10 border-blue-500/50 shadow-sm shadow-blue-500/10"
                       : isPassed
@@ -435,1130 +414,79 @@ function OnboardingWizardContent() {
 
       {/* STEP 1: Salon Identity & Location */}
       {currentStep === 1 && (
-        <Card className="bg-slate-900/60 border-slate-800 shadow-xl">
-          <CardHeader>
-            <div className="flex items-center gap-2 text-blue-400 text-xs font-semibold uppercase tracking-wider">
-              <Store className="h-4 w-4" />
-              <span>Step 1 of 5</span>
-            </div>
-            <CardTitle className="text-xl text-white">Salon Identity & Location</CardTitle>
-            <CardDescription className="text-slate-400">
-              Enter primary business identity, brand handle URL slug, and regional contact details.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Salon Name */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-200 flex items-center justify-between">
-                  <span>Salon Name <span className="text-red-400">*</span></span>
-                  <span className="text-xs text-slate-500">e.g. Ramesh Traditional Barber</span>
-                </label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  placeholder="e.g. Royal Crown Barbers"
-                  className={`bg-slate-950 border-slate-800 text-white ${
-                    stepErrors.name ? "border-red-500" : ""
-                  }`}
-                />
-                {stepErrors.name && (
-                  <p className="text-xs text-red-400">{stepErrors.name}</p>
-                )}
-              </div>
-
-              {/* URL Slug */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-200 flex items-center justify-between">
-                  <span>Tenant Slug <span className="text-red-400">*</span></span>
-                  <span className="text-xs text-slate-500">Auto-generated alphanumeric handle</span>
-                </label>
-                <div className="relative">
-                  <Input
-                    value={formData.slug}
-                    onChange={(e) => {
-                      setIsSlugManual(true);
-                      setFormData((prev) => ({ ...prev, slug: slugify(e.target.value) }));
-                    }}
-                    placeholder="royal-crown-barbers"
-                    className="bg-slate-950 border-slate-800 text-white font-mono text-sm pl-28"
-                  />
-                  <span className="absolute left-3 top-2.5 text-xs font-mono text-slate-500 select-none">
-                    /s/
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Customer URL: <span className="text-slate-300 font-mono">/s/{formData.slug || "slug"}</span>
-                </p>
-              </div>
-
-              {/* Phone */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-200 flex items-center justify-between">
-                  <span>Contact Phone <span className="text-red-400">*</span></span>
-                  <span className="text-xs text-slate-500">For SMS & WhatsApp alerts</span>
-                </label>
-                <Input
-                  value={formData.phone}
-                  onChange={(e) => {
-                    setFormData((prev) => ({ ...prev, phone: e.target.value }));
-                    if (stepErrors.phone) {
-                      setStepErrors((errs) => {
-                        const n = { ...errs };
-                        delete n.phone;
-                        return n;
-                      });
-                    }
-                  }}
-                  placeholder="+91 98765 43210"
-                  className={`bg-slate-950 border-slate-800 text-white ${
-                    stepErrors.phone ? "border-red-500" : ""
-                  }`}
-                />
-                {stepErrors.phone && (
-                  <p className="text-xs text-red-400">{stepErrors.phone}</p>
-                )}
-              </div>
-
-              {/* Currency */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-200">Currency</label>
-                <select
-                  value={formData.currency}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, currency: e.target.value }))}
-                  className="w-full h-10 px-3 rounded-md bg-slate-950 border border-slate-800 text-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="INR">INR (₹) - Indian Rupee</option>
-                  <option value="USD">USD ($) - US Dollar</option>
-                  <option value="EUR">EUR (€) - Euro</option>
-                  <option value="GBP">GBP (£) - British Pound</option>
-                  <option value="AED">AED (د.إ) - UAE Dirham</option>
-                </select>
-              </div>
-
-              {/* Address */}
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium text-slate-200">Address / Location</label>
-                <Input
-                  value={formData.address || ""}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, address: e.target.value }))}
-                  placeholder="Shop No. 4, Market Complex, Main Road..."
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              {/* UPI ID (Optional) */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-200">UPI Payment ID (Optional)</label>
-                <Input
-                  value={formData.upiPaymentId || ""}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, upiPaymentId: e.target.value }))}
-                  placeholder="salon@upi or 9876543210@paytm"
-                  className="bg-slate-950 border-slate-800 text-white font-mono text-sm"
-                />
-                <p className="text-[11px] text-slate-500">
-                  Enables instant dynamic UPI QR payment code on completion.
-                </p>
-              </div>
-
-              {/* Organization Group */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-200">Parent Enterprise Org (Optional)</label>
-                <Input
-                  value={formData.organizationName || ""}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, organizationName: e.target.value }))}
-                  placeholder="e.g. Royal Salon Group"
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-                <p className="text-[11px] text-slate-500">
-                  Assigns this branch to a parent franchise or multi-branch organization.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between border-t border-slate-800 pt-6">
-            <Link href="/admin/tenants">
-              <Button variant="ghost" className="text-slate-400">Cancel</Button>
-            </Link>
-            <Button onClick={handleNext} className="gap-2 bg-blue-600 hover:bg-blue-500">
-              Continue to Subscription Plan
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </CardFooter>
-        </Card>
+        <StepSalonIdentity
+          formData={formData}
+          setFormData={setFormData}
+          stepErrors={stepErrors}
+          setStepErrors={setStepErrors}
+          handleNameChange={handleNameChange}
+          setIsSlugManual={setIsSlugManual}
+          onNext={handleNext}
+        />
       )}
 
       {/* STEP 2: SaaS Subscription Plan Selection */}
       {currentStep === 2 && (
-        <Card className="bg-slate-900/60 border-slate-800 shadow-xl">
-          <CardHeader>
-            <div className="flex items-center gap-2 text-blue-400 text-xs font-semibold uppercase tracking-wider">
-              <Armchair className="h-4 w-4" />
-              <span>Step 2 of 5</span>
-            </div>
-            <CardTitle className="text-xl text-white">Select SaaS Subscription Plan</CardTitle>
-            <CardDescription className="text-slate-400">
-              Choose the subscription plan tier that defines the organization's location limits, stylist capacity, and features.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Option 1: Starter Plan */}
-              <div
-                onClick={() => applyPlan("STARTER")}
-                className={`p-6 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                  formData.tier === "STARTER"
-                    ? "bg-blue-950/30 border-blue-500 ring-2 ring-blue-500/20 shadow-lg shadow-blue-500/10"
-                    : "bg-slate-950/40 border-slate-800 hover:border-slate-700"
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <Badge variant="default" className="text-xs px-2 py-0.5">
-                      Starter Plan
-                    </Badge>
-                    {formData.tier === "STARTER" && (
-                      <span className="h-5 w-5 rounded-full bg-blue-600 text-white flex items-center justify-center">
-                        <Check className="h-3 w-3" />
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-1.5 flex items-center gap-2">
-                    <Store className="h-5 w-5 text-amber-400" />
-                    Starter Plan
-                  </h3>
-                  <div className="mb-3">
-                    <span className="text-2xl font-black text-white">₹499</span>
-                    <span className="text-xs text-slate-400 ml-1">/ month</span>
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                    For boutique barbershops and neighborhood salons starting with automated digital queuing.
-                  </p>
-
-                  <div className="space-y-2 pt-2 border-t border-slate-800/80">
-                    <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                      Included Capabilities:
-                    </p>
-                    <div className="flex flex-col gap-1.5 text-[11px] text-slate-300">
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> 1 Salon Location</span>
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Up to 3 Stylist Chairs</span>
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> WhatsApp & SMS Notifications</span>
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Dynamic NPCI UPI QR & Cash</span>
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Client-Side Live Service Timers</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
-                  <span>Standard Quota</span>
-                  <span className="font-semibold text-blue-400">Starter Tier</span>
-                </div>
-              </div>
-
-              {/* Option 2: Pro Plan */}
-              <div
-                onClick={() => applyPlan("PRO")}
-                className={`p-6 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                  formData.tier === "PRO"
-                    ? "bg-purple-950/30 border-purple-500 ring-2 ring-purple-500/20 shadow-lg shadow-purple-500/10"
-                    : "bg-slate-950/40 border-slate-800 hover:border-slate-700"
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <Badge variant="purple" className="text-xs px-2 py-0.5">
-                      Pro Plan · Popular
-                    </Badge>
-                    {formData.tier === "PRO" && (
-                      <span className="h-5 w-5 rounded-full bg-purple-600 text-white flex items-center justify-center">
-                        <Check className="h-3 w-3" />
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-1.5 flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-indigo-400" />
-                    Pro Plan
-                  </h3>
-                  <div className="mb-3">
-                    <span className="text-2xl font-black text-white">₹1,499</span>
-                    <span className="text-xs text-slate-400 ml-1">/ month</span>
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                    For high-volume multi-station salons, grooming studios, and growing regional multi-branch chains.
-                  </p>
-
-                  <div className="space-y-2 pt-2 border-t border-slate-800/80">
-                    <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                      Included Capabilities:
-                    </p>
-                    <div className="flex flex-col gap-1.5 text-[11px] text-slate-300">
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Up to 5 Salon Locations</span>
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Up to 10 Stylists per Location</span>
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Lobby Departure Board TV (/tv)</span>
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Station 4-Digit Quick PIN Switching</span>
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Split Queue Routing & Upsells</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
-                  <span>Expanded Capacity</span>
-                  <span className="font-semibold text-purple-400">Pro Tier</span>
-                </div>
-              </div>
-
-              {/* Option 3: Enterprise Plan */}
-              <div
-                onClick={() => applyPlan("ENTERPRISE")}
-                className={`p-6 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                  formData.tier === "ENTERPRISE"
-                    ? "bg-amber-950/30 border-amber-500 ring-2 ring-amber-500/20 shadow-lg shadow-amber-500/10"
-                    : "bg-slate-950/40 border-slate-800 hover:border-slate-700"
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <Badge variant="warning" className="text-xs px-2 py-0.5">
-                      Enterprise Plan
-                    </Badge>
-                    {formData.tier === "ENTERPRISE" && (
-                      <span className="h-5 w-5 rounded-full bg-amber-600 text-white flex items-center justify-center">
-                        <Check className="h-3 w-3" />
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-1.5 flex items-center gap-2">
-                    <Users className="h-5 w-5 text-amber-400" />
-                    Enterprise Plan
-                  </h3>
-                  <div className="mb-3">
-                    <span className="text-2xl font-black text-white">₹4,999</span>
-                    <span className="text-xs text-slate-400 ml-1">/ month</span>
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                    For enterprise franchises, luxury salon networks, and statewide operators requiring custom scale.
-                  </p>
-
-                  <div className="space-y-2 pt-2 border-t border-slate-800/80">
-                    <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                      Included Capabilities:
-                    </p>
-                    <div className="flex flex-col gap-1.5 text-[11px] text-slate-300">
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Unlimited Locations & Chairs</span>
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Dedicated Telemetry & Cloud HQ</span>
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Custom SMS / WhatsApp Gateway</span>
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> Priority 24/7 SLA & Account Mgr</span>
-                      <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-400" /> White-label Custom Domain</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
-                  <span>Unlimited Scale</span>
-                  <span className="font-semibold text-amber-400">Enterprise Tier</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between border-t border-slate-800 pt-6">
-            <Button variant="outline" onClick={handleBack} className="gap-2">
-              <ChevronLeft className="h-4 w-4" />
-              Back
-            </Button>
-            <Button onClick={handleNext} className="gap-2 bg-blue-600 hover:bg-blue-500">
-              Continue to Owner Account
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </CardFooter>
-        </Card>
+        <StepSubscriptionPlan
+          formData={formData}
+          applyPlan={applyPlan}
+          onBack={handleBack}
+          onNext={handleNext}
+        />
       )}
 
       {/* STEP 3: Owner Account Credentials */}
       {currentStep === 3 && (
-        <Card className="bg-slate-900/60 border-slate-800 shadow-xl">
-          <CardHeader>
-            <div className="flex items-center gap-2 text-blue-400 text-xs font-semibold uppercase tracking-wider">
-              <ShieldCheck className="h-4 w-4" />
-              <span>Step 3 of 5</span>
-            </div>
-            <CardTitle className="text-xl text-white">Owner Account Credentials</CardTitle>
-            <CardDescription className="text-slate-400">
-              Create the administrative owner credentials to access the dedicated salon owner portal.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="p-4 rounded-xl bg-blue-950/30 border border-blue-800/50 flex items-start gap-3">
-              <ShieldCheck className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
-              <div className="text-xs text-blue-200">
-                <p className="font-semibold text-white">Autonomous Tenant Ownership</p>
-                <p className="mt-0.5 text-blue-300">
-                  The salon owner will log in with these credentials at <span className="font-mono text-white">/login</span> to control live queues, override wait times, manage staff shifts, and review daily revenue.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Full Name */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-200">Owner Full Name</label>
-                <Input
-                  value={formData.ownerUser.fullName || ""}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      ownerUser: { ...prev.ownerUser, fullName: e.target.value },
-                    }))
-                  }
-                  placeholder="e.g. Ramesh Kumar"
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              {/* Username */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-200 flex items-center justify-between">
-                  <span>Username <span className="text-red-400">*</span></span>
-                  <span className="text-xs text-slate-500">Unique login handle</span>
-                </label>
-                <Input
-                  value={formData.ownerUser.username}
-                  onChange={(e) => {
-                    const u = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "");
-                    setFormData((prev) => ({
-                      ...prev,
-                      ownerUser: { ...prev.ownerUser, username: u },
-                    }));
-                    if (stepErrors.ownerUsername) {
-                      setStepErrors((errs) => {
-                        const n = { ...errs };
-                        delete n.ownerUsername;
-                        return n;
-                      });
-                    }
-                  }}
-                  placeholder="ramesh_owner"
-                  className={`bg-slate-950 border-slate-800 text-white font-mono text-sm ${
-                    stepErrors.ownerUsername ? "border-red-500" : ""
-                  }`}
-                />
-                {stepErrors.ownerUsername && (
-                  <p className="text-xs text-red-400">{stepErrors.ownerUsername}</p>
-                )}
-              </div>
-
-              {/* Password with Eye Toggle */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-200 flex items-center justify-between">
-                  <span>Password <span className="text-red-400">*</span></span>
-                  <span className="text-xs text-slate-500">Min 6 characters</span>
-                </label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    value={formData.ownerUser.password}
-                    onChange={(e) => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        ownerUser: { ...prev.ownerUser, password: e.target.value },
-                      }));
-                      if (stepErrors.ownerPassword) {
-                        setStepErrors((errs) => {
-                          const n = { ...errs };
-                          delete n.ownerPassword;
-                          return n;
-                        });
-                      }
-                    }}
-                    placeholder="Enter secure password"
-                    className={`bg-slate-950 border-slate-800 text-white pr-10 font-mono text-sm ${
-                      stepErrors.ownerPassword ? "border-red-500" : ""
-                    }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 text-slate-400 hover:text-white"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {stepErrors.ownerPassword ? (
-                  <p className="text-xs text-red-400">{stepErrors.ownerPassword}</p>
-                ) : (
-                  <p className="text-[11px] text-slate-500">
-                    Characters: {formData.ownerUser.password?.length || 0} / 6 minimum
-                  </p>
-                )}
-              </div>
-
-              {/* Owner Email (Optional) */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-200">Owner Email (Optional)</label>
-                <Input
-                  type="email"
-                  value={formData.ownerUser.email || ""}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      ownerUser: { ...prev.ownerUser, email: e.target.value },
-                    }))
-                  }
-                  placeholder="owner@salon.com"
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between border-t border-slate-800 pt-6">
-            <Button variant="outline" onClick={handleBack} className="gap-2">
-              <ChevronLeft className="h-4 w-4" />
-              Back
-            </Button>
-            <Button onClick={handleNext} className="gap-2 bg-blue-600 hover:bg-blue-500">
-              Continue to Stylist Roster
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </CardFooter>
-        </Card>
+        <StepOwnerCredentials
+          formData={formData}
+          setFormData={setFormData}
+          stepErrors={stepErrors}
+          setStepErrors={setStepErrors}
+          showPassword={showPassword}
+          setShowPassword={setShowPassword}
+          onBack={handleBack}
+          onNext={handleNext}
+        />
       )}
 
       {/* STEP 4: Stylist & Station Roster */}
       {currentStep === 4 && (
-        <Card className="bg-slate-900/60 border-slate-800 shadow-xl">
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 text-blue-400 text-xs font-semibold uppercase tracking-wider">
-                <Users className="h-4 w-4" />
-                <span>Step 4 of 5</span>
-              </div>
-              <CardTitle className="text-xl text-white">Stylist & Station Roster</CardTitle>
-              <CardDescription className="text-slate-400">
-                Configure barber chairs, staff names, historical durations, and quick 4-digit station PINs.
-              </CardDescription>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addStylist}
-              className="gap-2 border-blue-500/40 text-blue-400 hover:bg-blue-500/10 shrink-0"
-            >
-              <Plus className="h-4 w-4" />
-              Add Stylist Chair
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {stepErrors.stylists && (
-              <p className="text-xs text-red-400 bg-red-950/40 p-2.5 rounded-lg border border-red-800/40">
-                {stepErrors.stylists}
-              </p>
-            )}
-
-            <div className="space-y-3">
-              {formData.stylists.map((st, idx) => (
-                <div
-                  key={idx}
-                  className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
-                >
-                  <div className="flex items-center gap-3 w-full md:w-auto">
-                    <div className="h-8 w-8 rounded-lg bg-blue-600/20 text-blue-400 font-bold flex items-center justify-center text-xs shrink-0 border border-blue-500/30">
-                      #{idx + 1}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 w-full">
-                      {/* Name */}
-                      <div className="sm:col-span-1">
-                        <label className="text-[10px] uppercase font-semibold text-slate-500 block mb-1">
-                          Stylist Name *
-                        </label>
-                        <Input
-                          value={st.name}
-                          onChange={(e) => updateStylist(idx, { name: e.target.value })}
-                          placeholder="Stylist name"
-                          className="bg-slate-900 border-slate-800 text-white h-9 text-xs"
-                        />
-                      </div>
-
-                      {/* Phone */}
-                      <div className="sm:col-span-1">
-                        <label className="text-[10px] uppercase font-semibold text-slate-500 block mb-1">
-                          Phone Number
-                        </label>
-                        <Input
-                          value={st.phone || ""}
-                          onChange={(e) => updateStylist(idx, { phone: e.target.value })}
-                          placeholder="+91..."
-                          className="bg-slate-900 border-slate-800 text-white h-9 text-xs"
-                        />
-                      </div>
-
-                      {/* Avg Duration */}
-                      <div className="sm:col-span-1">
-                        <label className="text-[10px] uppercase font-semibold text-slate-500 block mb-1">
-                          Avg Pace (Mins)
-                        </label>
-                        <Input
-                          type="number"
-                          value={st.avgDurationMinutes || 25}
-                          onChange={(e) =>
-                            updateStylist(idx, { avgDurationMinutes: parseInt(e.target.value) || 20 })
-                          }
-                          min={5}
-                          max={180}
-                          className="bg-slate-900 border-slate-800 text-white h-9 text-xs"
-                        />
-                      </div>
-
-                      {/* 4-digit PIN */}
-                      <div className="sm:col-span-1">
-                        <label className="text-[10px] uppercase font-semibold text-slate-500 block mb-1">
-                          4-Digit PIN
-                        </label>
-                        <Input
-                          type="text"
-                          maxLength={4}
-                          value={st.pin || ""}
-                          onChange={(e) =>
-                            updateStylist(idx, { pin: e.target.value.replace(/\D/g, "").slice(0, 4) })
-                          }
-                          placeholder="1234"
-                          className="bg-slate-900 border-slate-800 text-white font-mono text-center h-9 text-xs"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {formData.stylists.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeStylist(idx)}
-                      className="text-slate-500 hover:text-red-400 h-8 px-2 self-end md:self-center"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const p = getSingleStationPreset(formData.name, formData.ownerUser.fullName);
-                  setFormData((prev) => ({ ...prev, stylists: p.stylists }));
-                }}
-                className="text-xs gap-1.5"
-              >
-                <Store className="h-3.5 w-3.5" />
-                Reset to Single Station (1 Chair)
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const p = getMultiStationPreset(formData.name);
-                  setFormData((prev) => ({ ...prev, stylists: p.stylists }));
-                }}
-                className="text-xs gap-1.5"
-              >
-                <Users className="h-3.5 w-3.5" />
-                Reset to Multi-Station (2+ Chairs)
-              </Button>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between border-t border-slate-800 pt-6">
-            <Button variant="outline" onClick={handleBack} className="gap-2">
-              <ChevronLeft className="h-4 w-4" />
-              Back
-            </Button>
-            <Button onClick={handleNext} className="gap-2 bg-blue-600 hover:bg-blue-500">
-              Continue to Service Catalog
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </CardFooter>
-        </Card>
+        <StepStylistsRoster
+          formData={formData}
+          setFormData={setFormData}
+          stepErrors={stepErrors}
+          addStylist={addStylist}
+          removeStylist={removeStylist}
+          updateStylist={updateStylist}
+          onBack={handleBack}
+          onNext={handleNext}
+        />
       )}
 
       {/* STEP 5: Service Catalog & Pricing */}
       {currentStep === 5 && (
-        <Card className="bg-slate-900/60 border-slate-800 shadow-xl">
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 text-blue-400 text-xs font-semibold uppercase tracking-wider">
-                <Scissors className="h-4 w-4" />
-                <span>Step 5 of 5</span>
-              </div>
-              <CardTitle className="text-xl text-white">Service Catalog & Pricing</CardTitle>
-              <CardDescription className="text-slate-400">
-                Define the service catalog, base rate pricing in {formData.currency || "INR"}, durations, and add-on upsells.
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addService}
-                className="gap-2 border-blue-500/40 text-blue-400 hover:bg-blue-500/10 shrink-0"
-              >
-                <Plus className="h-4 w-4" />
-                Add Service
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {stepErrors.services && (
-              <p className="text-xs text-red-400 bg-red-950/40 p-2.5 rounded-lg border border-red-800/40">
-                {stepErrors.services}
-              </p>
-            )}
-
-            {/* Catalog Preset Loader Buttons */}
-            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs text-slate-400 font-medium">Quick Template Loaders:</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const p = getSingleStationPreset(formData.name);
-                    setFormData((prev) => ({ ...prev, services: p.services }));
-                  }}
-                  className="text-xs gap-1.5 h-8"
-                >
-                  <Store className="h-3.5 w-3.5" />
-                  Load Starter Grooming Preset (Haircut, Shave, Beard, Massage)
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const p = getMultiStationPreset(formData.name);
-                    setFormData((prev) => ({ ...prev, services: p.services }));
-                  }}
-                  className="text-xs gap-1.5 h-8"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Load Multi-Station Preset (Signature Cut, Beard, Spa, Wash)
-                </Button>
-              </div>
-            </div>
-
-            {/* Services List */}
-            <div className="space-y-3">
-              {formData.services.map((srv, idx) => (
-                <div
-                  key={idx}
-                  className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
-                >
-                  <div className="flex items-center gap-3 w-full md:w-auto">
-                    <div className="h-8 w-8 rounded-lg bg-indigo-600/20 text-indigo-400 font-bold flex items-center justify-center text-xs shrink-0 border border-indigo-500/30">
-                      {srv.icon || "✂️"}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 w-full">
-                      {/* Name */}
-                      <div className="sm:col-span-1">
-                        <label className="text-[10px] uppercase font-semibold text-slate-500 block mb-1">
-                          Service Title *
-                        </label>
-                        <Input
-                          value={srv.name}
-                          onChange={(e) => updateService(idx, { name: e.target.value })}
-                          placeholder="e.g. Haircut"
-                          className="bg-slate-900 border-slate-800 text-white h-9 text-xs"
-                        />
-                      </div>
-
-                      {/* Base Price */}
-                      <div className="sm:col-span-1">
-                        <label className="text-[10px] uppercase font-semibold text-slate-500 block mb-1">
-                          Price ({formData.currency || "INR"}) *
-                        </label>
-                        <Input
-                          type="number"
-                          value={srv.basePrice}
-                          onChange={(e) =>
-                            updateService(idx, { basePrice: parseFloat(e.target.value) || 0 })
-                          }
-                          min={0}
-                          className="bg-slate-900 border-slate-800 text-white h-9 text-xs font-mono"
-                        />
-                      </div>
-
-                      {/* Duration Minutes */}
-                      <div className="sm:col-span-1">
-                        <label className="text-[10px] uppercase font-semibold text-slate-500 block mb-1">
-                          Est. Duration (Mins)
-                        </label>
-                        <Input
-                          type="number"
-                          value={srv.estimatedDurationMinutes}
-                          onChange={(e) =>
-                            updateService(idx, {
-                              estimatedDurationMinutes: parseInt(e.target.value) || 15,
-                            })
-                          }
-                          min={5}
-                          max={240}
-                          className="bg-slate-900 border-slate-800 text-white h-9 text-xs"
-                        />
-                      </div>
-
-                      {/* Add-on Toggle */}
-                      <div className="sm:col-span-1 flex flex-col justify-end">
-                        <label className="text-[10px] uppercase font-semibold text-slate-500 block mb-1">
-                          Service Role
-                        </label>
-                        <label className="h-9 px-3 rounded-md bg-slate-900 border border-slate-800 flex items-center justify-between cursor-pointer text-xs">
-                          <span className="text-slate-300">
-                            {srv.isAddOn ? "Add-on Upsell" : "Primary Base"}
-                          </span>
-                          <input
-                            type="checkbox"
-                            checked={Boolean(srv.isAddOn)}
-                            onChange={(e) => updateService(idx, { isAddOn: e.target.checked })}
-                            className="rounded border-slate-700 text-blue-600 focus:ring-0"
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {formData.services.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeService(idx)}
-                      className="text-slate-500 hover:text-red-400 h-8 px-2 self-end md:self-center"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Summary Preview Banner */}
-            <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800/80 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-3">
-              <div>
-                <span className="text-slate-200 font-semibold">{formData.name || "Salon"}</span>
-                {" • "}
-                <span className="text-blue-400 font-mono">/s/{formData.slug || "slug"}</span>
-                {" • "}
-                <span>{formData.stylists.length} Stylists</span>
-                {" • "}
-                <span>{formData.services.length} Services</span>
-              </div>
-              <div className="text-emerald-400 font-medium">
-                Ready for atomic one-click provisioning
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between border-t border-slate-800 pt-6">
-            <Button variant="outline" onClick={handleBack} className="gap-2">
-              <ChevronLeft className="h-4 w-4" />
-              Back
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold px-6 shadow-lg shadow-blue-500/25"
-            >
-              {isSubmitting ? (
-                <>
-                  <Sparkles className="h-4 w-4 animate-spin" />
-                  Provisioning Salon Instance...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  Provision Salon & Generate Launch Kit 🚀
-                </>
-              )}
-            </Button>
-          </CardFooter>
-        </Card>
+        <StepServicesCatalog
+          formData={formData}
+          setFormData={setFormData}
+          stepErrors={stepErrors}
+          isSubmitting={isSubmitting}
+          addService={addService}
+          removeService={removeService}
+          updateService={updateService}
+          onBack={handleBack}
+          onSubmit={handleSubmit}
+        />
       )}
 
       {/* STEP 6: Confirmation & Instant Launch Kit */}
       {currentStep === 6 && provisionedSalon && (
-        <div className="space-y-8 animate-in fade-in zoom-in-95 duration-400">
-          {/* Success Banner */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-emerald-950/60 via-slate-900 to-slate-950 border border-emerald-500/40 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 translate-x-8 -translate-y-8 w-64 h-64 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
-
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="space-y-2">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Tenant Onboarded & Active in Engine Core
-                </div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
-                  {provisionedSalon.name} is Live!
-                </h2>
-                <p className="text-slate-300 text-sm max-w-xl">
-                  Instance <span className="font-mono text-emerald-400">{provisionedSalon.id}</span> provisioned with{" "}
-                  {provisionedSalon.stylists?.length || formData.stylists.length} active chairs,{" "}
-                  {provisionedSalon.services?.length || formData.services.length} catalog items, and owner account{" "}
-                  <span className="font-mono text-blue-300">@{formData.ownerUser.username}</span>.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <Link href={`/owner?salon=${provisionedSalon.slug}`}>
-                  <Button className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-2">
-                    Launch Owner Hub →
-                  </Button>
-                </Link>
-                <Link href={`/s/${provisionedSalon.slug}/tv`} target="_blank">
-                  <Button variant="outline" className="border-slate-700 text-white hover:bg-slate-800 gap-2">
-                    <Tv className="h-4 w-4" />
-                    View Lobby TV
-                  </Button>
-                </Link>
-                <Button
-                  variant="ghost"
-                  onClick={resetForm}
-                  className="text-slate-400 hover:text-white gap-2"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  Onboard Another Salon
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Instant Launch Kit - 4 QR Cards */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <QrCode className="h-5 w-5 text-blue-400" />
-                  Instant Launch Kit & Deployment QR Cards
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Deploy these 4 operational endpoints immediately across door, waiting lobby, cutting chairs, and manager desk.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Card 1: Door QR Check-in */}
-              <Card className="bg-slate-900/80 border-slate-800 flex flex-col justify-between hover:border-blue-500/50 transition-all">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="default" className="text-[10px] px-2 py-0">Door Entrance</Badge>
-                    <QrCode className="h-4 w-4 text-blue-400" />
-                  </div>
-                  <CardTitle className="text-base text-white mt-2">Customer Check-in</CardTitle>
-                  <CardDescription className="text-xs text-slate-400">
-                    Print on shop door. Customers scan without app install to join queue.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-center">
-                    <div className="h-28 w-28 bg-white p-2 rounded-lg flex flex-col items-center justify-center text-slate-900 font-mono text-[10px] text-center shadow-inner">
-                      <QrCode className="h-20 w-20 text-slate-950" />
-                      <span>/s/{provisionedSalon.slug}</span>
-                    </div>
-                  </div>
-                  <p className="text-xs font-mono text-blue-400 text-center truncate">
-                    /s/{provisionedSalon.slug}
-                  </p>
-                </CardContent>
-                <CardFooter className="pt-0 flex items-center gap-2">
-                  <Link href={`/s/${provisionedSalon.slug}`} target="_blank" className="w-full">
-                    <Button variant="outline" size="sm" className="w-full text-xs gap-1.5 border-slate-700">
-                      Open Door UI
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                  </Link>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      copyToClipboard(
-                        `${typeof window !== "undefined" ? window.location.origin : ""}/s/${provisionedSalon.slug}`,
-                        "door"
-                      )
-                    }
-                    className="h-8 w-8 p-0 text-slate-400 hover:text-white"
-                  >
-                    {copiedLink === "door" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                  </Button>
-                </CardFooter>
-              </Card>
-
-              {/* Card 2: Lobby TV Departure Board */}
-              <Card className="bg-slate-900/80 border-slate-800 flex flex-col justify-between hover:border-purple-500/50 transition-all">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="purple" className="text-[10px] px-2 py-0">Waiting Lobby</Badge>
-                    <Tv className="h-4 w-4 text-purple-400" />
-                  </div>
-                  <CardTitle className="text-base text-white mt-2">Lobby TV Display</CardTitle>
-                  <CardDescription className="text-xs text-slate-400">
-                    Airport departure style queue board. Open in browser on smart TV.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-center">
-                    <div className="h-28 w-28 bg-white p-2 rounded-lg flex flex-col items-center justify-center text-slate-900 font-mono text-[10px] text-center shadow-inner">
-                      <Tv className="h-20 w-20 text-slate-950" />
-                      <span>/tv</span>
-                    </div>
-                  </div>
-                  <p className="text-xs font-mono text-purple-400 text-center truncate">
-                    /s/{provisionedSalon.slug}/tv
-                  </p>
-                </CardContent>
-                <CardFooter className="pt-0 flex items-center gap-2">
-                  <Link href={`/s/${provisionedSalon.slug}/tv`} target="_blank" className="w-full">
-                    <Button variant="outline" size="sm" className="w-full text-xs gap-1.5 border-slate-700">
-                      Launch TV View
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                  </Link>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      copyToClipboard(
-                        `${typeof window !== "undefined" ? window.location.origin : ""}/s/${provisionedSalon.slug}/tv`,
-                        "tv"
-                      )
-                    }
-                    className="h-8 w-8 p-0 text-slate-400 hover:text-white"
-                  >
-                    {copiedLink === "tv" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                  </Button>
-                </CardFooter>
-              </Card>
-
-              {/* Card 3: Stylist Mirror / Chair UI */}
-              <Card className="bg-slate-900/80 border-slate-800 flex flex-col justify-between hover:border-indigo-500/50 transition-all">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="default" className="text-[10px] px-2 py-0">Cutting Station</Badge>
-                    <Armchair className="h-4 w-4 text-indigo-400" />
-                  </div>
-                  <CardTitle className="text-base text-white mt-2">Chair / Station UI</CardTitle>
-                  <CardDescription className="text-xs text-slate-400">
-                    Mount phone or tablet next to mirror. Stylists call next with 4-digit PIN.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-center">
-                    <div className="h-28 w-28 bg-white p-2 rounded-lg flex flex-col items-center justify-center text-slate-900 font-mono text-[10px] text-center shadow-inner">
-                      <Armchair className="h-20 w-20 text-slate-950" />
-                      <span>/station</span>
-                    </div>
-                  </div>
-                  <p className="text-xs font-mono text-indigo-400 text-center truncate">
-                    /s/{provisionedSalon.slug}/station
-                  </p>
-                </CardContent>
-                <CardFooter className="pt-0 flex items-center gap-2">
-                  <Link href={`/s/${provisionedSalon.slug}/station`} target="_blank" className="w-full">
-                    <Button variant="outline" size="sm" className="w-full text-xs gap-1.5 border-slate-700">
-                      Open Station UI
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                  </Link>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      copyToClipboard(
-                        `${typeof window !== "undefined" ? window.location.origin : ""}/s/${provisionedSalon.slug}/station`,
-                        "station"
-                      )
-                    }
-                    className="h-8 w-8 p-0 text-slate-400 hover:text-white"
-                  >
-                    {copiedLink === "station" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                  </Button>
-                </CardFooter>
-              </Card>
-
-              {/* Card 4: Owner Command Hub */}
-              <Card className="bg-slate-900/80 border-slate-800 flex flex-col justify-between hover:border-emerald-500/50 transition-all">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="success" className="text-[10px] px-2 py-0">Management</Badge>
-                    <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                  </div>
-                  <CardTitle className="text-base text-white mt-2">Owner Command Hub</CardTitle>
-                  <CardDescription className="text-xs text-slate-400">
-                    Owner operations dashboard for daily metrics, shift toggles, and revenue.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-center">
-                    <div className="h-28 w-28 bg-white p-2 rounded-lg flex flex-col items-center justify-center text-slate-900 font-mono text-[10px] text-center shadow-inner">
-                      <ShieldCheck className="h-20 w-20 text-slate-950" />
-                      <span>/owner</span>
-                    </div>
-                  </div>
-                  <p className="text-xs font-mono text-emerald-400 text-center truncate">
-                    /owner?salon={provisionedSalon.slug}
-                  </p>
-                </CardContent>
-                <CardFooter className="pt-0 flex items-center gap-2">
-                  <Link href={`/owner?salon=${provisionedSalon.slug}`} className="w-full">
-                    <Button variant="outline" size="sm" className="w-full text-xs gap-1.5 border-slate-700">
-                      Launch Hub
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                  </Link>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      copyToClipboard(
-                        `${typeof window !== "undefined" ? window.location.origin : ""}/owner?salon=${provisionedSalon.slug}`,
-                        "owner"
-                      )
-                    }
-                    className="h-8 w-8 p-0 text-slate-400 hover:text-white"
-                  >
-                    {copiedLink === "owner" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                  </Button>
-                </CardFooter>
-              </Card>
-            </div>
-          </div>
-
-          {/* Action Row */}
-          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <Link href="/admin/tenants">
-              <Button variant="outline" className="gap-2 border-slate-700 text-slate-300">
-                <ChevronLeft className="h-4 w-4" />
-                Return to Tenant Directory
-              </Button>
-            </Link>
-
-            <div className="flex items-center gap-3">
-              <Button onClick={resetForm} variant="ghost" className="gap-2 text-slate-300">
-                <RotateCcw className="h-4 w-4" />
-                Onboard Another Salon
-              </Button>
-              <Link href={`/owner?salon=${provisionedSalon.slug}`}>
-                <Button className="gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold">
-                  Launch Owner Hub →
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
+        <StepLaunchKit
+          provisionedSalon={provisionedSalon}
+          formData={formData}
+          copiedLink={copiedLink}
+          copyToClipboard={copyToClipboard}
+          resetForm={resetForm}
+        />
       )}
     </div>
   );
