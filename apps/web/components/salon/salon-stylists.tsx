@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Stylist, Ticket } from "@/lib/api";
+import type { Stylist, Ticket } from "@/lib/api";
 import { Armchair } from "lucide-react";
 
 interface SalonStylistsProps {

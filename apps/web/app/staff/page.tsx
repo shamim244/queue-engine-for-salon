@@ -3,7 +3,8 @@
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { api, Salon, Ticket, Stylist, Service } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { Salon, Ticket, Stylist, Service } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

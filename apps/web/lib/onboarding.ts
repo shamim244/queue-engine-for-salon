@@ -1,5 +1,5 @@
-import { api, Salon, Organization, OnboardSalonPayload } from "./api";
-
+import { api } from "./api";
+import type { Salon, Organization, OnboardSalonPayload } from "./api";
 export interface StylistInput {
   name: string;
   phone?: string;

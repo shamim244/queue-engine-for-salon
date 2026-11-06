@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, use } from "react";
-import { api, Salon, Ticket } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { Salon, Ticket } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, maskPhone } from "@/lib/utils";

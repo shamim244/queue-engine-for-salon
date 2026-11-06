@@ -2,7 +2,8 @@
 
 import React, { Suspense, useState, useEffect } from "react";
 import { SettingsNav } from "@/components/admin/settings-nav";
-import { api, PlatformSettings } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { PlatformSettings } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

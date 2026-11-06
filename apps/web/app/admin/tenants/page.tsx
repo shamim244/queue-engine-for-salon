@@ -10,7 +10,8 @@ import {
   getSortedRowModel,
   flexRender,
 } from "@tanstack/react-table";
-import { api, Salon } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { Salon } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {

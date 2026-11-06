@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useCallback, use } from "react";
 import Link from "next/link";
-import { api, Salon, Ticket, Stylist } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { Salon, Ticket, Stylist } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

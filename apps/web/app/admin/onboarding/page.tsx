@@ -13,8 +13,7 @@ import {
   type StylistInput,
   type ServiceInput,
 } from "@/lib/onboarding";
-import { Salon, Organization } from "@/lib/api";
-
+import type { Salon, Organization } from "@/lib/api";
 import { StepSalonIdentity } from "@/components/admin/onboarding/step-salon-identity";
 import { StepSubscriptionPlan } from "@/components/admin/onboarding/step-subscription-plan";
 import { StepOwnerCredentials } from "@/components/admin/onboarding/step-owner-credentials";

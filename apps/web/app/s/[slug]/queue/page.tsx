@@ -3,7 +3,8 @@
 import React, { useEffect, useState, use, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { api, Salon, Ticket, Service, Stylist } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { Salon, Ticket, Service, Stylist } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
 import { useAuth } from "@/lib/auth-context";
 import { SalonNavbar } from "@/components/salon/salon-navbar";

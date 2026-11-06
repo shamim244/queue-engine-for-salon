@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { api, Salon } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { Salon } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { SalonNavbar } from "@/components/salon/salon-navbar";
 import { SalonServicesList } from "@/components/salon/salon-services-list";

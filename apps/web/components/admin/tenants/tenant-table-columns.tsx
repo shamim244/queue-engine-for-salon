@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
-import { Salon } from "@/lib/api";
+import type { Salon } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

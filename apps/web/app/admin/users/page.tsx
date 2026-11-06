@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useMemo, Suspense } from "react";
 import Link from "next/link";
-import { api, AuthUser, Salon } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { AuthUser, Salon } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

@@ -1,5 +1,5 @@
 import React from "react";
-import { Stylist } from "@/lib/api";
+import type { Stylist } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 

@@ -1,16 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import {
-  api,
-  AuthUser,
-  Salon,
-  Stylist,
-  Organization,
-  AuthSessionResponse,
-  setAuthToken,
-  getAuthToken,
-} from "./api";
+import { api, setAuthToken, getAuthToken } from "./api";
+import type { AuthUser, Salon, Stylist, Organization, AuthSessionResponse } from "./api";
 
 export interface AuthContextType {
   user: AuthUser | null;

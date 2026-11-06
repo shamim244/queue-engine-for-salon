@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { WS_BASE_URL, getWsBaseUrl, Ticket } from "./api";
-
+import { WS_BASE_URL, getWsBaseUrl } from "./api";
+import type { Ticket } from "./api";
 export type ConnectionStatus = "connected" | "connecting" | "reconnecting" | "offline";
 
 export interface QueueSocketEvent {

@@ -4,8 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { Scissors, Menu, X, ExternalLink, Zap, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Salon, AuthUser } from "@/lib/api";
-
+import type { Salon, AuthUser } from "@/lib/api";
 interface SalonNavbarProps {
   slug: string;
   salon: Salon | null;

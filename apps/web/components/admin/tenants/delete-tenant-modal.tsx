@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { api, Salon } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { Salon } from "@/lib/api";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Trash2, RefreshCw } from "lucide-react";
