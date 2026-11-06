@@ -3,7 +3,8 @@
 import React, { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { api, Ticket } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { Ticket } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
