@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { api, Ticket, Stylist } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { Ticket, Stylist } from "@/lib/api";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

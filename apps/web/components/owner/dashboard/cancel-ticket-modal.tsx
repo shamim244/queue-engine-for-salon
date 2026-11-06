@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { api, Ticket } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { Ticket } from "@/lib/api";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw, X } from "lucide-react";

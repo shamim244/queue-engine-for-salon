@@ -5,7 +5,8 @@ import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { AuthGuard } from "@/components/auth-guard";
-import { api, Salon } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { Salon } from "@/lib/api";
 import {
   Scissors,
   LayoutDashboard,
