@@ -370,7 +370,7 @@ describe("Enterprise Unified Authentication & Protected Route Guard System", () 
       expect(html).toContain("Email or Username");
       expect(html).toContain("Go to Partner Portal");
       expect(html).toContain("/partner/login");
-      expect(html).toContain("/admin/login");
+      expect(html).toContain("/hq/login");
     });
   });
 

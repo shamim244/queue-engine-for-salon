@@ -245,6 +245,11 @@ function StaffLayoutContent({ children }: { children: React.ReactNode }) {
 }
 
 export default function StaffLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  if (pathname?.includes("/login")) {
+    return <>{children}</>;
+  }
+
   return (
     <AuthGuard requiredRole={["STAFF", "SALON_OWNER", "SUPER_ADMIN"]}>
       <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">Loading Staff Station...</div>}>

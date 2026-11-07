@@ -31,6 +31,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { user, logout, demoLogin } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // If on admin login page, bypass layout shell and AuthGuard to avoid conflict / redirect loop
+  if (pathname?.includes("/login")) {
+    return <>{children}</>;
+  }
+
   // Close mobile drawer on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);

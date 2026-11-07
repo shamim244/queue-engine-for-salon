@@ -16,7 +16,9 @@ import {
   Home,
   UserPlus,
   LogIn,
-  ExternalLink
+  Store,
+  Scissors,
+  KeyRound
 } from "lucide-react";
 
 export default function DevLauncherPage() {
@@ -26,8 +28,9 @@ export default function DevLauncherPage() {
       role: "Platform Operator",
       badge: "Global Oversight",
       badgeColor: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-      description: "Manage all tenant salons, manage subscription plans, configure platform settings, and onboard new salons.",
+      description: "Manage tenant salons, manage subscription plans, configure platform settings, and review security logs.",
       href: "/admin",
+      loginHref: "/admin/login",
       icon: ShieldCheck,
       color: "from-purple-500 to-indigo-600",
       demo: "admin / Admin@123",
@@ -37,8 +40,9 @@ export default function DevLauncherPage() {
       role: "Salon Owner / Manager",
       badge: "Multi-Branch",
       badgeColor: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-      description: "Branch overview, staff rosters, 4-digit mirror PIN assignment, emergency kill-switch, and flexible pricing.",
+      description: "Branch overview, staff rosters, emergency kill-switch, service catalogue, and flexible chair pricing.",
       href: "/owner",
+      loginHref: "/partner/login",
       icon: Crown,
       color: "from-amber-500 to-orange-600",
       demo: "aura_owner / Aura@123",
@@ -48,8 +52,9 @@ export default function DevLauncherPage() {
       role: "Stylist / Barber",
       badge: "Speed Calibration",
       badgeColor: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-      description: "Adjust personal haircut speed (15m–60m) to dynamically tune wait times, manage shift status, and change 4-digit PIN.",
+      description: "Adjust personal haircut speed (15m–60m) to dynamically tune wait times, manage shift status, and update 4-digit PIN.",
       href: "/staff/preferences",
+      loginHref: "/staff/login",
       icon: Sliders,
       color: "from-blue-500 to-cyan-600",
       demo: "ramesh / Ramesh@123",
@@ -59,11 +64,12 @@ export default function DevLauncherPage() {
       role: "Cutting Station / Mirror",
       badge: "4-Digit Quick PIN",
       badgeColor: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-      description: "Touch numpad unlock (<200ms), 2-sec chair swap modal, currently serving box with live editable bill, and voice callout.",
+      description: "Touch numpad unlock, chair swap modal, partitioned queue tabs (Your Chair vs Other Chairs), and live bill generator.",
       href: "/s/ramesh-barber/station",
+      loginHref: "/staff/login",
       icon: Armchair,
       color: "from-emerald-500 to-teal-600",
-      demo: "Ramesh PIN: 1234 | Leo PIN: 4321",
+      demo: "Ramesh PIN: 1234",
     },
     {
       title: "5A-1. Customer Door QR & Pocket Queue",
@@ -72,6 +78,7 @@ export default function DevLauncherPage() {
       badgeColor: "bg-sky-500/10 text-sky-400 border-sky-500/20",
       description: "Scan QR code outside, join in 3 secs, track personal ticket at top + full live salon queue board below while grabbing tea.",
       href: "/s/ramesh-barber",
+      loginHref: "/login",
       icon: QrCode,
       color: "from-sky-500 to-blue-600",
       demo: "Zero app download / No password required",
@@ -83,6 +90,7 @@ export default function DevLauncherPage() {
       badgeColor: "bg-rose-500/10 text-rose-400 border-rose-500/20",
       description: "High-contrast airport-style departure board for the whole salon lounge with privacy phone masking and continuous sockets.",
       href: "/s/ramesh-barber/tv",
+      loginHref: "/login",
       icon: Tv,
       color: "from-rose-500 to-pink-600",
       demo: "Wall-mounted Smart TV Display",
@@ -94,9 +102,10 @@ export default function DevLauncherPage() {
       badgeColor: "bg-teal-500/10 text-teal-400 border-teal-500/20",
       description: "Saved haircut specifications & trimmer notes, complete visit history, digital tax receipts, and loyalty reward stamps.",
       href: "/me",
+      loginHref: "/login",
       icon: UserCircle,
       color: "from-teal-500 to-emerald-600",
-      demo: "Customer Loyalty & Haircut Specs",
+      demo: "Email & Username Login",
     },
   ];
 
@@ -104,36 +113,50 @@ export default function DevLauncherPage() {
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-8 lg:p-12">
       {/* Top QA Banner */}
       <div className="max-w-6xl mx-auto w-full mb-6">
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-blue-950/60 via-indigo-950/40 to-slate-900 border border-blue-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-blue-950/60 via-indigo-950/40 to-slate-900 border border-blue-500/30 flex flex-col lg:flex-row items-center justify-between gap-3 text-xs sm:text-sm">
           <div className="flex items-center gap-2.5 text-slate-200">
-            <span className="h-6 w-6 rounded-lg bg-blue-600/30 text-blue-400 flex items-center justify-center font-bold text-xs">
+            <span className="h-6 w-6 rounded-lg bg-blue-600/30 text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
               🧪
             </span>
             <span>
-              <strong>Developer &amp; QA Testing Console</strong> — You are viewing the multi-panel operational test launcher.
+              <strong>Developer &amp; QA Testing Console</strong> — Dedicated Multi-Tier Authentication Architecture.
             </span>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <Link
               href="/"
-              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
+              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium flex items-center gap-1.5 transition-colors text-xs"
             >
               <Home className="w-3.5 h-3.5" />
-              Visit Marketing Home &rarr;
+              Home
             </Link>
             <Link
-              href="/register"
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium flex items-center gap-1.5 transition-colors"
+              href="/admin/login"
+              className="px-2.5 py-1.5 rounded-lg bg-purple-950/50 hover:bg-purple-900/60 border border-purple-500/30 text-purple-300 font-medium flex items-center gap-1.5 transition-colors text-xs"
             >
-              <UserPlus className="w-3.5 h-3.5" />
-              Register
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Admin Login
+            </Link>
+            <Link
+              href="/partner/login"
+              className="px-2.5 py-1.5 rounded-lg bg-amber-950/50 hover:bg-amber-900/60 border border-amber-500/30 text-amber-300 font-medium flex items-center gap-1.5 transition-colors text-xs"
+            >
+              <Store className="w-3.5 h-3.5" />
+              Partner Login
             </Link>
             <Link
               href="/login"
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium flex items-center gap-1.5 transition-colors"
+              className="px-2.5 py-1.5 rounded-lg bg-blue-950/50 hover:bg-blue-900/60 border border-blue-500/30 text-blue-300 font-medium flex items-center gap-1.5 transition-colors text-xs"
             >
               <LogIn className="w-3.5 h-3.5" />
-              Login
+              Customer Login
+            </Link>
+            <Link
+              href="/register?role=owner"
+              className="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold flex items-center gap-1.5 transition-colors text-xs"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              Register Salon
             </Link>
           </div>
         </div>
@@ -175,7 +198,7 @@ export default function DevLauncherPage() {
           <div>
             <h2 className="text-xl font-bold flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-sky-400" />
-              Operational Frontend Panels
+              Operational Frontend Panels &amp; Dedicated Portals
             </h2>
             <p className="text-xs sm:text-sm text-slate-400">
               Select any panel to inspect its dedicated interface, role permissions, and live queue interactions.
@@ -187,9 +210,8 @@ export default function DevLauncherPage() {
           {panels.map((p, idx) => {
             const Icon = p.icon;
             return (
-              <Link
+              <div
                 key={idx}
-                href={p.href}
                 className="group relative bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-900/50 flex flex-col justify-between"
               >
                 <div>
@@ -213,15 +235,27 @@ export default function DevLauncherPage() {
                   </p>
                 </div>
 
-                <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between">
-                  <span className="text-[11px] font-mono text-slate-400 truncate max-w-[190px]">
+                <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-mono text-slate-400 truncate max-w-[150px]">
                     {p.demo}
                   </span>
-                  <span className="inline-flex items-center text-xs font-semibold text-sky-400 group-hover:translate-x-1 transition-transform">
-                    Launch <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <Link
+                      href={p.loginHref}
+                      className="text-[11px] font-medium text-amber-400 hover:underline flex items-center gap-1"
+                    >
+                      <KeyRound className="w-3 h-3" />
+                      Sign In
+                    </Link>
+                    <Link
+                      href={p.href}
+                      className="inline-flex items-center text-xs font-semibold text-sky-400 hover:text-sky-300 group-hover:translate-x-1 transition-transform"
+                    >
+                      Launch <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                    </Link>
+                  </div>
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>
@@ -232,17 +266,21 @@ export default function DevLauncherPage() {
         <div>
           Engine Que System &copy; 2026. Enterprise Decoupled Monorepo Architecture.
         </div>
-        <div className="flex items-center gap-6">
-          <Link href="/login" className="hover:text-slate-300 transition-colors">
-            Universal Login
+        <div className="flex items-center gap-4">
+          <Link href="/admin/login" className="hover:text-purple-300 transition-colors">
+            Admin Login
           </Link>
           <span>&bull;</span>
-          <Link href="/register" className="hover:text-slate-300 transition-colors">
+          <Link href="/partner/login" className="hover:text-amber-300 transition-colors">
+            Partner Login
+          </Link>
+          <span>&bull;</span>
+          <Link href="/login" className="hover:text-blue-300 transition-colors">
+            Customer Lounge
+          </Link>
+          <span>&bull;</span>
+          <Link href="/register?role=owner" className="hover:text-slate-300 transition-colors">
             Register Salon
-          </Link>
-          <span>&bull;</span>
-          <Link href="/" className="hover:text-slate-300 transition-colors">
-            Home Page
           </Link>
         </div>
       </footer>

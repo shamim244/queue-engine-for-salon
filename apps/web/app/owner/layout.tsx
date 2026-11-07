@@ -45,6 +45,11 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, salon, setSelectedSalon, logout, demoLogin } = useAuth();
 
+  // If on owner login page, bypass layout shell and AuthGuard to avoid redirect conflict
+  if (pathname?.includes("/login")) {
+    return <>{children}</>;
+  }
+
   const [salonsList, setSalonsList] = useState<Salon[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 

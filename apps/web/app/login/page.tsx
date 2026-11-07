@@ -183,7 +183,7 @@ function ConsumerLoginForm() {
           </div>
           <div className="text-slate-500 text-[11px]">
             Platform Administrator?{" "}
-            <Link href="/admin/login" className="text-purple-400 hover:underline">
+            <Link href="/hq/login" className="text-purple-400 hover:underline">
               HQ Sign In
             </Link>
           </div>

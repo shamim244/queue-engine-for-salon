@@ -38,9 +38,9 @@ const mockAuthValue: any = {
 };
 
 describe("Dedicated Portals: getLoginRedirectForPath", () => {
-  it("routes /admin routes to /admin/login", () => {
-    expect(getLoginRedirectForPath("/admin")).toBe("/admin/login?redirect=%2Fadmin");
-    expect(getLoginRedirectForPath("/admin/tenants")).toBe("/admin/login?redirect=%2Fadmin%2Ftenants");
+  it("routes /admin routes to /hq/login", () => {
+    expect(getLoginRedirectForPath("/admin")).toBe("/hq/login?redirect=%2Fadmin");
+    expect(getLoginRedirectForPath("/admin/tenants")).toBe("/hq/login?redirect=%2Fadmin%2Ftenants");
   });
 
   it("routes /owner routes to /partner/login", () => {

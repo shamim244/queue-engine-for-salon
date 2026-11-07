@@ -35,7 +35,7 @@ export function getLoginRedirectForPath(pathname: string | null | undefined): st
   const clean = pathname ? pathname.trim() : "/";
   const encoded = encodeURIComponent(clean);
   if (clean.startsWith("/admin")) {
-    return `/admin/login?redirect=${encoded}`;
+    return `/hq/login?redirect=${encoded}`;
   }
   if (clean.startsWith("/owner")) {
     return `/partner/login?redirect=${encoded}`;
@@ -159,6 +159,11 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
   const { user, isLoading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+
+  // Never guard or redirect when already rendering a login portal
+  if (pathname?.includes("/login")) {
+    return <>{children}</>;
+  }
 
   const redirectUrl = getLoginRedirectForPath(pathname);
 
