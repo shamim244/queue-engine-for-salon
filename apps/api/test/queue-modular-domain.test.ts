@@ -75,17 +75,30 @@ describe('Modular Queue Domain State Machine & Routing', () => {
       paymentStatus: 'PENDING',
     });
 
-    it('prioritizes ticket explicitly requesting calling stylist over universal tickets', () => {
+    it('strictly preserves chronological FIFO order among eligible tickets for the calling stylist', () => {
       const tickets: QueueTicket[] = [
-        makeTicket('tkt-univ-1', 101, 'WAITING', null), // Universal Fast line
-        makeTicket('tkt-pref-1', 102, 'WAITING', 'stylist-leo'), // Prefers Leo
+        makeTicket('tkt-univ-1', 101, 'WAITING', null), // Universal Fast line (arrived first)
+        makeTicket('tkt-pref-1', 102, 'WAITING', 'stylist-leo'), // Prefers Leo (arrived second)
         makeTicket('tkt-pref-2', 103, 'WAITING', 'stylist-ramesh'), // Prefers Ramesh
       ];
 
       const candidate = selectNextTicketCandidate(tickets, 'stylist-leo');
       expect(candidate).not.toBeNull();
+      // Ticket 101 arrived first and is eligible for Leo -> called first (no queue jumping)
+      expect(candidate?.id).toBe('tkt-univ-1');
+      expect(candidate?.ticketNumber).toBe(101);
+    });
+
+    it('calls preferred ticket first if preferred client arrived before universal clients', () => {
+      const tickets: QueueTicket[] = [
+        makeTicket('tkt-pref-1', 100, 'WAITING', 'stylist-leo'), // Prefers Leo (arrived first)
+        makeTicket('tkt-univ-1', 101, 'WAITING', null), // Universal Fast line (arrived second)
+      ];
+
+      const candidate = selectNextTicketCandidate(tickets, 'stylist-leo');
+      expect(candidate).not.toBeNull();
       expect(candidate?.id).toBe('tkt-pref-1');
-      expect(candidate?.ticketNumber).toBe(102);
+      expect(candidate?.ticketNumber).toBe(100);
     });
 
     it('falls back to Universal Line tickets when calling stylist has no preferred clients', () => {

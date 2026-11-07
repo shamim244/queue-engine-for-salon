@@ -31,8 +31,8 @@ describe('Stylist Preference & Universal Fast Line Queue Suite', () => {
     serviceId = modernSalon.services[0].id;
   });
 
-  it('should prioritize tickets that explicitly selected the calling stylist over universal tickets', async () => {
-    // Ticket 1: Universal Fast Line (stylistId: null) checked in first
+  it('should preserve strict chronological FIFO order so earlier walk-ins are not jumped by late preferred arrivals', async () => {
+    // Ticket 1: Universal Fast Line (stylistId: null) checked in first at earlier timestamp
     const ticketUniversal = await queueEngine.checkIn({
       salonSlug: 'aura-salon',
       customerName: 'Anand Universal',
@@ -50,17 +50,34 @@ describe('Stylist Preference & Universal Fast Line Queue Suite', () => {
       stylistId: leoId,
     });
 
-    // When Leo calls next, he should summon Rohit (who specifically asked for him)
-    const calledByLeo = await queueEngine.callNext(salonId, leoId);
-    expect(calledByLeo).not.toBeNull();
-    expect(calledByLeo?.id).toBe(ticketLeo.id);
-    expect(calledByLeo?.customerName).toBe('Rohit Preferred Leo');
+    // Fair Chronological Rule: Anand arrived first and is eligible for any chair (including Leo).
+    // Rohit arrived second and cannot jump ahead of Anand.
+    const firstCall = await queueEngine.callNext(salonId, leoId);
+    expect(firstCall).not.toBeNull();
+    expect(firstCall?.id).toBe(ticketUniversal.id);
+    expect(firstCall?.customerName).toBe('Anand Universal');
 
-    // Next time Leo calls next, he falls back to Anand (Universal Fast Line)
+    // Second call: now Rohit (Preferred Leo) gets called in fair arrival sequence.
     const secondCall = await queueEngine.callNext(salonId, leoId);
     expect(secondCall).not.toBeNull();
-    expect(secondCall?.id).toBe(ticketUniversal.id);
-    expect(secondCall?.customerName).toBe('Anand Universal');
+    expect(secondCall?.id).toBe(ticketLeo.id);
+    expect(secondCall?.customerName).toBe('Rohit Preferred Leo');
+  });
+
+  it('should not allow Leo to steal tickets that explicitly preferred Rahul', async () => {
+    // Ticket requesting Rahul only
+    const ticketRahulOnly = await queueEngine.checkIn({
+      salonSlug: 'aura-salon',
+      customerName: 'Suresh Wants Rahul',
+      customerPhone: '9888844444',
+      serviceId,
+      stylistId: rahulId,
+    });
+
+    // Leo calls next, but there are no universal tickets and no Leo tickets
+    const calledByLeo = await queueEngine.callNext(salonId, leoId);
+    // Leo should NOT steal Suresh who asked specifically for Rahul
+    expect(calledByLeo).toBeNull();
   });
 
   it('should fall back to Universal Line tickets when calling stylist has no direct preferences', async () => {

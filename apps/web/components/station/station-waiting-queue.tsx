@@ -26,21 +26,23 @@ export function StationWaitingQueue({
     (t) => t.status === "WAITING" || t.status === "SOFT_BUMPED" || t.status === "CALLED" || t.status === "SUMMONED"
   );
 
-  // 1. Tickets specifically requesting this chair/stylist
-  const preferredTickets = waitingTickets.filter(
-    (t) => activeStylist && t.stylistId === activeStylist.id
-  );
+  // Chronological arrival sort helper (FIFO)
+  const sortByArrival = (a: Ticket, b: Ticket) => {
+    const timeA = new Date(a.checkInTime || (a as any).createdAt || 0).getTime();
+    const timeB = new Date(b.checkInTime || (b as any).createdAt || 0).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    return (a.ticketNumber || 0) - (b.ticketNumber || 0);
+  };
 
-  // 2. Universal line (no preference, can go to any chair)
-  const universalTickets = waitingTickets.filter((t) => !t.stylistId);
+  // 1. Combined pool eligible for this chair (specific preference OR universal), strictly FIFO ordered
+  const eligibleTickets = waitingTickets
+    .filter((t) => !t.stylistId || (activeStylist && t.stylistId === activeStylist.id))
+    .sort(sortByArrival);
 
-  // Combined pool eligible for this chair
-  const eligibleTickets = [...preferredTickets, ...universalTickets];
-
-  // 3. Tickets requesting a different stylist
-  const otherStylistsTickets = waitingTickets.filter(
-    (t) => activeStylist && t.stylistId && t.stylistId !== activeStylist.id
-  );
+  // 2. Tickets requesting a different stylist (strictly FIFO ordered)
+  const otherStylistsTickets = waitingTickets
+    .filter((t) => activeStylist && t.stylistId && t.stylistId !== activeStylist.id)
+    .sort(sortByArrival);
 
   const displayedList = activeTab === "YOURS" ? eligibleTickets : otherStylistsTickets;
 

@@ -103,6 +103,74 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
       expect(html).toContain("Requested You");
       expect(html).toContain("First Available");
     });
+
+    it("should strictly order eligible tickets in chronological FIFO order so late preferred arrivals do not jump earlier walk-ins", () => {
+      // Replicating user's exact scenario from screenshot:
+      // #107 Vivo y200 (checked in at 10:00, First Available)
+      // #108 Oppo f27 brave (checked in at 10:05, First Available)
+      // #109 OPPO f27 chrome (checked in at 10:10, Requested Vikram)
+      const realWorldScenarioTickets: Ticket[] = [
+        {
+          id: "t-107",
+          salonId: "salon-test",
+          stylistId: null,
+          ticketNumber: 107,
+          customerName: "Vivo y200 chrome",
+          status: "WAITING",
+          totalPrice: 150,
+          checkInTime: "2026-11-07T10:00:00.000Z",
+          createdAt: "2026-11-07T10:00:00.000Z",
+          estimatedWaitMinutes: 3,
+        },
+        {
+          id: "t-108",
+          salonId: "salon-test",
+          stylistId: null,
+          ticketNumber: 108,
+          customerName: "Oppo f27 brave",
+          status: "WAITING",
+          totalPrice: 150,
+          checkInTime: "2026-11-07T10:05:00.000Z",
+          createdAt: "2026-11-07T10:05:00.000Z",
+          estimatedWaitMinutes: 3,
+        },
+        {
+          id: "t-109",
+          salonId: "salon-test",
+          stylistId: "stylist-1", // Requested Vikram
+          ticketNumber: 109,
+          customerName: "OPPO f27 chrome",
+          status: "WAITING",
+          totalPrice: 150,
+          checkInTime: "2026-11-07T10:10:00.000Z",
+          createdAt: "2026-11-07T10:10:00.000Z",
+          estimatedWaitMinutes: 23,
+        },
+      ];
+
+      const html = renderToString(
+        React.createElement(StationWaitingQueue, {
+          allTickets: realWorldScenarioTickets,
+          activeStylist: mockStylist1,
+          processingAction: false,
+          hasCurrentlyServing: false,
+          onSummonSpecific: () => {},
+        })
+      );
+
+      // Verify that Vivo y200 chrome appears BEFORE OPPO f27 chrome in rendered HTML
+      const pos107 = html.indexOf("Vivo y200 chrome");
+      const pos108 = html.indexOf("Oppo f27 brave");
+      const pos109 = html.indexOf("OPPO f27 chrome");
+
+      expect(pos107).toBeGreaterThan(-1);
+      expect(pos108).toBeGreaterThan(-1);
+      expect(pos109).toBeGreaterThan(-1);
+
+      // Strict FIFO order: Vivo y200 (#107) < Oppo f27 brave (#108) < OPPO f27 chrome (#109)
+      expect(pos107).toBeLessThan(pos108);
+      expect(pos108).toBeLessThan(pos109);
+    });
   });
 
   describe("Station Header & Locked View", () => {

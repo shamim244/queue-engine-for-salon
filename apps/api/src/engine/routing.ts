@@ -24,13 +24,21 @@ export function selectNextTicketCandidate(
 
   const preferWaiting = !!options.preferWaiting;
 
-  // Explicit priority partitioning:
+  // Strict chronological arrival comparator (FIFO)
+  const sortByArrival = (a: QueueTicket, b: QueueTicket) => {
+    const timeA = new Date(a.checkInTime || (a as any).createdAt || 0).getTime();
+    const timeB = new Date(b.checkInTime || (b as any).createdAt || 0).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    return (a.ticketNumber || 0) - (b.ticketNumber || 0);
+  };
+
+  // Explicit priority partitioning with chronological preservation:
   // When preferWaiting is true (e.g. after soft-bumping a no-show), prioritize WAITING tickets first.
   // When preferWaiting is false (default chair call), prioritize SOFT_BUMPED (grace period clients) first.
   const pickFromPool = (pool: QueueTicket[]): QueueTicket | null => {
     if (pool.length === 0) return null;
-    const waitingTickets = pool.filter((t) => t.status === 'WAITING');
-    const softBumpedTickets = pool.filter((t) => t.status === 'SOFT_BUMPED');
+    const waitingTickets = pool.filter((t) => t.status === 'WAITING').sort(sortByArrival);
+    const softBumpedTickets = pool.filter((t) => t.status === 'SOFT_BUMPED').sort(sortByArrival);
 
     const orderedPool = preferWaiting
       ? [...waitingTickets, ...softBumpedTickets]
@@ -41,18 +49,15 @@ export function selectNextTicketCandidate(
 
   // Case 1: Stylist-specific station call
   if (callingStylistId) {
-    // 1A. Tickets explicitly selecting this stylist
-    const preferredTickets = candidates.filter((t) => t.stylistId === callingStylistId);
-    const chosenPref = pickFromPool(preferredTickets);
-    if (chosenPref) return chosenPref;
+    // Fair Chronological Queue:
+    // Pool all tickets eligible for this chair (tickets explicitly selecting this stylist + universal walk-ins).
+    // Tickets explicitly requesting a DIFFERENT stylist are strictly excluded.
+    // Late arrivals requesting this stylist NEVER jump ahead of earlier universal walk-ins!
+    const eligibleTickets = candidates.filter(
+      (t) => !t.stylistId || t.stylistId === callingStylistId
+    );
 
-    // 1B. Fallback to Universal Line (tickets with no preferred stylist)
-    const universalTickets = candidates.filter((t) => !t.stylistId);
-    const chosenUniversal = pickFromPool(universalTickets);
-    if (chosenUniversal) return chosenUniversal;
-
-    // Do not steal tickets that explicitly preferred another stylist
-    return null;
+    return pickFromPool(eligibleTickets);
   }
 
   // Case 2: General / Front desk call (all available candidates)
