@@ -328,6 +328,120 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
     })
   })
 
+  // 8.4 Pause Spot (Customer steps out for chai/errands or Barber marks away)
+  .post('/pause', async ({ body, headers, cookie: { engine_session }, set }) => {
+    try {
+      const { ticketId, reason } = body as { ticketId: string; reason?: string };
+      const existing = await repository.getTicketById(ticketId);
+      if (!existing) {
+        set.status = 404;
+        return { success: false, message: 'Ticket not found' };
+      }
+
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && auth.role === 'CUSTOMER') {
+          const userDigits = (auth.phone || '').replace(/[^0-9]/g, '');
+          const ticketDigits = (existing.customerPhone || '').replace(/[^0-9]/g, '');
+          const isOwner =
+            (userDigits && ticketDigits && (userDigits.endsWith(ticketDigits.slice(-10)) || ticketDigits.endsWith(userDigits.slice(-10)))) ||
+            auth.username === existing.customerName ||
+            auth.fullName === existing.customerName;
+          if (!isOwner) {
+            set.status = 403;
+            return { success: false, message: 'Forbidden: Customers can only pause their own queue ticket' };
+          }
+        }
+      }
+
+      const updated = await queueEngine.pauseTicket(ticketId, reason);
+      return { success: true, ticket: updated };
+    } catch (err: any) {
+      console.error('[queueRoutes:pause] Error:', err);
+      set.status = 400;
+      return { success: false, message: err.message || 'Failed to pause ticket' };
+    }
+  }, {
+    body: t.Object({
+      ticketId: t.String(),
+      reason: t.Optional(t.String()),
+    })
+  })
+
+  // 8.5 Resume Spot (Customer returns from errand / reports back at salon)
+  .post('/resume', async ({ body, headers, cookie: { engine_session }, set }) => {
+    try {
+      const { ticketId } = body as { ticketId: string };
+      const existing = await repository.getTicketById(ticketId);
+      if (!existing) {
+        set.status = 404;
+        return { success: false, message: 'Ticket not found' };
+      }
+
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && auth.role === 'CUSTOMER') {
+          const userDigits = (auth.phone || '').replace(/[^0-9]/g, '');
+          const ticketDigits = (existing.customerPhone || '').replace(/[^0-9]/g, '');
+          const isOwner =
+            (userDigits && ticketDigits && (userDigits.endsWith(ticketDigits.slice(-10)) || ticketDigits.endsWith(userDigits.slice(-10)))) ||
+            auth.username === existing.customerName ||
+            auth.fullName === existing.customerName;
+          if (!isOwner) {
+            set.status = 403;
+            return { success: false, message: 'Forbidden: Customers can only resume their own queue ticket' };
+          }
+        }
+      }
+
+      const updated = await queueEngine.resumeTicket(ticketId);
+      return { success: true, ticket: updated };
+    } catch (err: any) {
+      console.error('[queueRoutes:resume] Error:', err);
+      set.status = 400;
+      return { success: false, message: err.message || 'Failed to resume ticket' };
+    }
+  }, {
+    body: t.Object({
+      ticketId: t.String(),
+    })
+  })
+
+  // 8.6 Mark No-Show (Barber / Staff marks customer absent)
+  .post('/no-show', async ({ body, headers, cookie: { engine_session }, set }) => {
+    try {
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && auth.role === 'CUSTOMER') {
+          set.status = 403;
+          return { success: false, message: 'Forbidden: Customers cannot mark no-show' };
+        }
+      }
+
+      const { ticketId, reason } = body as { ticketId: string; reason?: string };
+      const existing = await repository.getTicketById(ticketId);
+      if (!existing) {
+        set.status = 404;
+        return { success: false, message: 'Ticket not found' };
+      }
+
+      const updated = await queueEngine.markNoShow(ticketId, reason);
+      return { success: true, ticket: updated };
+    } catch (err: any) {
+      console.error('[queueRoutes:no-show] Error:', err);
+      set.status = 400;
+      return { success: false, message: err.message || 'Failed to mark ticket as no-show' };
+    }
+  }, {
+    body: t.Object({
+      ticketId: t.String(),
+      reason: t.Optional(t.String()),
+    })
+  })
+
   // 9. Inspect WhatsApp Notifications Simulator
   .get('/notifications', ({ query }) => {
     return notificationService.getRecentNotifications(query.salonId as string | undefined);

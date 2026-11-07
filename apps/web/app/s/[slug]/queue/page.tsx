@@ -37,6 +37,7 @@ import {
   Phone,
   User as UserIcon,
   AlertCircle,
+  Coffee,
 } from "lucide-react";
 
 export default function DedicatedQueuePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -85,6 +86,44 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
       showToast("Failed to switch preference: " + (err as Error).message, "error");
     } finally {
       setIsSwitchingPref(false);
+    }
+  };
+
+  const [pausingTicket, setPausingTicket] = useState(false);
+  const [resumingTicket, setResumingTicket] = useState(false);
+
+  const handlePauseMyTicket = async () => {
+    if (!myTicket) return;
+    setPausingTicket(true);
+    try {
+      const resp = await api.queue.pause(myTicket.id, "Customer stepped out for errand");
+      if (resp.ticket) {
+        setMyTicket(resp.ticket);
+        showToast("Your spot is held on pause! Tap 'I'm Back' when you return.", "info");
+        fetchSalonAndQueue();
+      }
+    } catch (err) {
+      showToast("Failed to pause spot: " + (err as Error).message, "error");
+    } finally {
+      setPausingTicket(false);
+    }
+  };
+
+  const handleResumeMyTicket = async () => {
+    if (!myTicket) return;
+    setResumingTicket(true);
+    try {
+      const resp = await api.queue.resume(myTicket.id);
+      if (resp.ticket) {
+        setMyTicket(resp.ticket);
+        showToast("Welcome back! You're lined up for the next available chair.", "success");
+        playChime();
+        fetchSalonAndQueue();
+      }
+    } catch (err) {
+      showToast("Failed to resume spot: " + (err as Error).message, "error");
+    } finally {
+      setResumingTicket(false);
     }
   };
 
@@ -478,24 +517,64 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
                   </Badge>
                 </div>
 
-                {(myTicket.status === "WAITING" || myTicket.status === "SOFT_BUMPED") && salon?.stylists && salon.stylists.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    onClick={() => {
-                      setNewPreferenceStylistId(myTicket.stylistId || null);
-                      setIsSwitchPrefModalOpen(true);
-                    }}
-                    className="h-8 px-3 text-[11px] border-amber-500/40 text-amber-300 hover:bg-amber-500/10 font-bold shrink-0 self-start sm:self-auto rounded-lg"
-                  >
-                    <Shuffle className="h-3.5 w-3.5 mr-1" />
-                    <span>Change Barber</span>
-                  </Button>
+                {(myTicket.status === "WAITING" || myTicket.status === "SOFT_BUMPED") && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      type="button"
+                      onClick={handlePauseMyTicket}
+                      disabled={pausingTicket}
+                      className="h-8 px-3 text-[11px] border-blue-500/40 text-blue-300 hover:bg-blue-500/10 font-bold shrink-0 rounded-lg gap-1"
+                    >
+                      <Coffee className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Pause Spot (Step Out)</span>
+                    </Button>
+
+                    {salon?.stylists && salon.stylists.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        type="button"
+                        onClick={() => {
+                          setNewPreferenceStylistId(myTicket.stylistId || null);
+                          setIsSwitchPrefModalOpen(true);
+                        }}
+                        className="h-8 px-3 text-[11px] border-amber-500/40 text-amber-300 hover:bg-amber-500/10 font-bold shrink-0 rounded-lg"
+                      >
+                        <Shuffle className="h-3.5 w-3.5 mr-1" />
+                        <span>Change Barber</span>
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
 
-              {myTicket.status === "IN_SERVICE" || myTicket.status === "IN_CHAIR" ? (
+              {myTicket.status === "PAUSED" ? (
+                <div className="p-4 rounded-2xl bg-blue-950/40 border-2 border-blue-500/50 text-blue-200 text-sm space-y-3 animate-in zoom-in-95">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-bold text-white text-base">
+                      <Coffee className="h-5 w-5 text-amber-400" />
+                      <span>Spot Paused · Errand / Chai Mode</span>
+                    </div>
+                    <Badge variant="outline" className="border-blue-400 text-blue-300 text-[10px]">
+                      HOLDING SPOT
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-blue-200 leading-relaxed">
+                    Your spot in line is safe! Barbers will not call your number while you are away. When you walk back into the salon, tap below to get into the next open chair.
+                  </p>
+                  <Button
+                    size="lg"
+                    onClick={handleResumeMyTicket}
+                    disabled={resumingTicket}
+                    className="w-full h-12 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm rounded-xl gap-2 shadow-lg shadow-emerald-500/20"
+                  >
+                    <CheckCircle2 className="h-5 w-5" />
+                    <span>👋 I&apos;m Back at Salon (Ready for Chair)</span>
+                  </Button>
+                </div>
+              ) : myTicket.status === "IN_SERVICE" || myTicket.status === "IN_CHAIR" ? (
                 <LiveServiceTimer
                   startedTime={(myTicket as any).startedTime || (myTicket as any).seatedAt || myTicket.createdAt}
                   estimatedDurationMinutes={myTicket.estimatedWaitMinutes || 20}

@@ -57,7 +57,7 @@ export const queueRepo = {
       const db = getDb();
       const [rows]: any = await db.query(
         `SELECT * FROM queue_tickets 
-         WHERE salon_id = ? AND status IN ('WAITING', 'SUMMONED', 'IN_CHAIR', 'SOFT_BUMPED')
+         WHERE salon_id = ? AND status IN ('WAITING', 'SUMMONED', 'IN_CHAIR', 'SOFT_BUMPED', 'PAUSED')
          ORDER BY check_in_time ASC`,
         [salonId]
       );
@@ -87,7 +87,7 @@ export const queueRepo = {
     }
 
     return Array.from(memoryStore.tickets.values())
-      .filter((t) => t.salonId === salonId && ['WAITING', 'SUMMONED', 'IN_CHAIR', 'SOFT_BUMPED'].includes(t.status))
+      .filter((t) => t.salonId === salonId && ['WAITING', 'SUMMONED', 'IN_CHAIR', 'SOFT_BUMPED', 'PAUSED'].includes(t.status))
       .sort((a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime());
   },
 

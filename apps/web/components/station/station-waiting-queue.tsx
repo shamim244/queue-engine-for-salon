@@ -3,7 +3,7 @@ import type { Ticket, Stylist } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, User, Shuffle, Lock } from "lucide-react";
+import { Users, User, Shuffle, Lock, Coffee, RotateCcw } from "lucide-react";
 
 interface StationWaitingQueueProps {
   allTickets: Ticket[];
@@ -11,6 +11,8 @@ interface StationWaitingQueueProps {
   processingAction: boolean;
   hasCurrentlyServing: boolean;
   onSummonSpecific: (ticket: Ticket) => void;
+  onPauseTicket?: (ticket: Ticket) => void;
+  onResumeTicket?: (ticket: Ticket) => void;
 }
 
 export function StationWaitingQueue({
@@ -19,12 +21,16 @@ export function StationWaitingQueue({
   processingAction,
   hasCurrentlyServing,
   onSummonSpecific,
+  onPauseTicket,
+  onResumeTicket,
 }: StationWaitingQueueProps) {
-  const [activeTab, setActiveTab] = useState<"YOURS" | "OTHER">("YOURS");
+  const [activeTab, setActiveTab] = useState<"YOURS" | "OTHER" | "PAUSED">("YOURS");
 
   const waitingTickets = allTickets.filter(
     (t) => t.status === "WAITING" || t.status === "SOFT_BUMPED" || t.status === "CALLED" || t.status === "SUMMONED"
   );
+
+  const pausedTickets = allTickets.filter((t) => t.status === "PAUSED");
 
   // Chronological arrival sort helper (FIFO)
   const sortByArrival = (a: Ticket, b: Ticket) => {
@@ -44,7 +50,15 @@ export function StationWaitingQueue({
     .filter((t) => activeStylist && t.stylistId && t.stylistId !== activeStylist.id)
     .sort(sortByArrival);
 
-  const displayedList = activeTab === "YOURS" ? eligibleTickets : otherStylistsTickets;
+  // 3. Paused tickets (stepped out for chai/market)
+  const sortedPausedTickets = [...pausedTickets].sort(sortByArrival);
+
+  const displayedList =
+    activeTab === "YOURS"
+      ? eligibleTickets
+      : activeTab === "OTHER"
+      ? otherStylistsTickets
+      : sortedPausedTickets;
 
   return (
     <Card className="border border-slate-800 bg-slate-900/60 shadow-xl backdrop-blur">
@@ -58,18 +72,26 @@ export function StationWaitingQueue({
             {eligibleTickets.length} eligible for your chair ({otherStylistsTickets.length} for other chairs)
           </CardDescription>
         </div>
-        <Badge variant="secondary" className="font-mono text-xs">
-          {waitingTickets.length} Total
-        </Badge>
+        <div className="flex items-center gap-1.5">
+          {pausedTickets.length > 0 && (
+            <Badge variant="outline" className="border-blue-500/40 text-blue-300 text-[10px] gap-1">
+              <Coffee className="h-3 w-3 text-amber-400 inline" />
+              <span>{pausedTickets.length} Away</span>
+            </Badge>
+          )}
+          <Badge variant="secondary" className="font-mono text-xs">
+            {waitingTickets.length} Active
+          </Badge>
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-3">
         {/* Queue Filter Segmented Tabs */}
-        <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-950 border border-slate-800 text-xs">
+        <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-slate-950 border border-slate-800 text-xs">
           <button
             type="button"
             onClick={() => setActiveTab("YOURS")}
-            className={`py-1.5 px-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+            className={`py-1.5 px-2 rounded-lg font-bold flex items-center justify-center gap-1 transition-all ${
               activeTab === "YOURS"
                 ? "bg-amber-500 text-slate-950 shadow-sm"
                 : "text-slate-400 hover:text-white"
@@ -82,7 +104,7 @@ export function StationWaitingQueue({
           <button
             type="button"
             onClick={() => setActiveTab("OTHER")}
-            className={`py-1.5 px-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+            className={`py-1.5 px-2 rounded-lg font-bold flex items-center justify-center gap-1 transition-all ${
               activeTab === "OTHER"
                 ? "bg-slate-800 text-white shadow-sm"
                 : "text-slate-400 hover:text-white"
@@ -91,6 +113,21 @@ export function StationWaitingQueue({
             <Lock className="h-3.5 w-3.5 text-slate-400" />
             <span>Other Chairs ({otherStylistsTickets.length})</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("PAUSED")}
+            className={`py-1.5 px-2 rounded-lg font-bold flex items-center justify-center gap-1 transition-all ${
+              activeTab === "PAUSED"
+                ? "bg-blue-600 text-white shadow-sm"
+                : pausedTickets.length > 0
+                ? "text-blue-300 hover:text-white"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Coffee className="h-3.5 w-3.5 text-amber-400" />
+            <span>Away ({pausedTickets.length})</span>
+          </button>
         </div>
 
         {/* Tickets List */}
@@ -98,13 +135,16 @@ export function StationWaitingQueue({
           <div className="py-8 text-center text-slate-500 text-xs">
             {activeTab === "YOURS"
               ? "No clients currently waiting for your chair. Ready for walk-ins!"
-              : "No clients waiting for other chairs."}
+              : activeTab === "OTHER"
+              ? "No clients waiting for other chairs."
+              : "No clients currently stepped out or on hold."}
           </div>
         ) : (
           <div className="divide-y divide-slate-800/80 max-h-[460px] overflow-y-auto pr-1">
             {displayedList.map((t, idx) => {
               const isSpecific = activeStylist && t.stylistId === activeStylist.id;
               const isUniversal = !t.stylistId;
+              const isPaused = t.status === "PAUSED";
 
               return (
                 <div
@@ -118,30 +158,36 @@ export function StationWaitingQueue({
                     <div>
                       <p className="font-bold text-white text-sm">{t.customerName}</p>
                       <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
-                        {isSpecific && (
+                        {isPaused ? (
+                          <span className="text-blue-400 font-semibold flex items-center gap-0.5">
+                            <Coffee className="h-3 w-3 inline text-amber-400" /> Stepped Out / Errand
+                          </span>
+                        ) : isSpecific ? (
                           <span className="text-amber-400 font-semibold flex items-center gap-0.5">
                             ★ Requested You
                           </span>
-                        )}
-                        {isUniversal && (
+                        ) : isUniversal ? (
                           <span className="text-blue-400 font-semibold flex items-center gap-0.5">
                             <Shuffle className="h-3 w-3 inline" /> First Available
                           </span>
-                        )}
-                        {!isSpecific && !isUniversal && (
+                        ) : (
                           <span className="text-slate-500">
                             Requested another barber
                           </span>
                         )}
-                        <span>·</span>
-                        <span className="text-slate-400">
-                          Wait: {t.estimatedWaitMinutes > 0 ? t.estimatedWaitMinutes : (idx > 0 ? Math.max(5, idx * 15) : 3)}m
-                        </span>
+                        {!isPaused && (
+                          <>
+                            <span>·</span>
+                            <span className="text-slate-400">
+                              Wait: {t.estimatedWaitMinutes > 0 ? t.estimatedWaitMinutes : (idx > 0 ? Math.max(5, idx * 15) : 3)}m
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-right">
+                  <div className="flex items-center gap-1.5 text-right">
                     <Badge
                       variant={
                         t.status === "CALLED" || t.status === "SUMMONED"
@@ -150,9 +196,11 @@ export function StationWaitingQueue({
                           ? "success"
                           : t.status === "SOFT_BUMPED"
                           ? "outline"
+                          : t.status === "PAUSED"
+                          ? "outline"
                           : "secondary"
                       }
-                      className="text-[10px]"
+                      className={`text-[10px] ${t.status === "PAUSED" ? "border-blue-500/50 text-blue-300" : ""}`}
                     >
                       {t.status === "SUMMONED" || t.status === "CALLED"
                         ? "SUMMONED"
@@ -160,19 +208,50 @@ export function StationWaitingQueue({
                         ? "IN CHAIR"
                         : t.status === "SOFT_BUMPED"
                         ? "3m HOLD"
+                        : t.status === "PAUSED"
+                        ? "PAUSED"
                         : `Pos #${idx + 1}`}
                     </Badge>
 
-                    {activeTab === "YOURS" && (t.status === "WAITING" || t.status === "SOFT_BUMPED") && (
+                    {/* Paused Tab Action: Resume / Customer Returned */}
+                    {activeTab === "PAUSED" && onResumeTicket && (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => onSummonSpecific(t)}
-                        disabled={processingAction || hasCurrentlyServing}
-                        className="h-7 px-2.5 text-[11px] border-amber-500/40 text-amber-300 hover:bg-amber-500/10 font-bold"
+                        onClick={() => onResumeTicket(t)}
+                        disabled={processingAction}
+                        className="h-7 px-2.5 text-[11px] border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/10 font-bold gap-1"
                       >
-                        Call to Chair
+                        <RotateCcw className="h-3 w-3" />
+                        <span>Resume</span>
                       </Button>
+                    )}
+
+                    {/* Active Tab Actions: Call to Chair & Pause */}
+                    {activeTab === "YOURS" && (t.status === "WAITING" || t.status === "SOFT_BUMPED") && (
+                      <div className="flex items-center gap-1">
+                        {onPauseTicket && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onPauseTicket(t)}
+                            disabled={processingAction}
+                            title="Mark stepped out for chai/errand"
+                            className="h-7 px-2 text-[11px] text-slate-400 hover:text-blue-300 hover:bg-blue-950/40"
+                          >
+                            <Coffee className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onSummonSpecific(t)}
+                          disabled={processingAction || hasCurrentlyServing}
+                          className="h-7 px-2.5 text-[11px] border-amber-500/40 text-amber-300 hover:bg-amber-500/10 font-bold"
+                        >
+                          Call to Chair
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>

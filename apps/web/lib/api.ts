@@ -124,7 +124,8 @@ export interface Ticket {
     | "NO_SHOW"
     | "SUMMONED"
     | "IN_CHAIR"
-    | "SOFT_BUMPED";
+    | "SOFT_BUMPED"
+    | "PAUSED";
   positionInQueue: number;
   estimatedWaitMinutes: number;
   servedByStylistId?: string | null;
@@ -682,6 +683,24 @@ export const api = {
       request<{ success: boolean; ticket: Ticket }>("/api/queue/switch-preference", {
         method: "POST",
         body: JSON.stringify({ ticketId, stylistId }),
+      }),
+
+    pause: (ticketId: string, reason?: string) =>
+      request<{ success: boolean; ticket: Ticket }>("/api/queue/pause", {
+        method: "POST",
+        body: JSON.stringify({ ticketId, reason }),
+      }),
+
+    resume: (ticketId: string) =>
+      request<{ success: boolean; ticket: Ticket }>("/api/queue/resume", {
+        method: "POST",
+        body: JSON.stringify({ ticketId }),
+      }),
+
+    noShow: (ticketId: string, reason?: string) =>
+      request<{ success: boolean; ticket: Ticket }>("/api/queue/no-show", {
+        method: "POST",
+        body: JSON.stringify({ ticketId, reason }),
       }),
 
     cancel: (ticketId: string, reason?: string) =>

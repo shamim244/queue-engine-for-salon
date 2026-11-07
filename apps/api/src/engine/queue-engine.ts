@@ -447,6 +447,95 @@ export const queueEngine = {
     return refreshed;
   },
 
+  // 8.6 Pause Ticket (Customer steps out for chai/errand, or staff marks away)
+  async pauseTicket(ticketId: string, reason?: string): Promise<QueueTicket> {
+    const ticket = await repository.getTicketById(ticketId);
+    if (!ticket) {
+      throw new Error('Ticket not found');
+    }
+
+    if (ticket.status !== 'WAITING' && ticket.status !== 'SUMMONED' && ticket.status !== 'SOFT_BUMPED') {
+      throw new Error(`Cannot pause ticket in status: ${ticket.status}`);
+    }
+
+    const updated = await repository.updateTicketStatus(ticketId, 'PAUSED');
+    if (!updated) {
+      throw new Error('Failed to update ticket status to PAUSED');
+    }
+
+    // Recalculate wait times (excluding this paused customer from blocking active lines)
+    const activeTickets = await this.recalculateQueue(ticket.salonId);
+    const refreshed = activeTickets.find((t) => t.id === ticketId) || updated;
+
+    websocketHub.broadcastToSalon(ticket.salonId, {
+      type: 'TICKET_PAUSED',
+      salonId: ticket.salonId,
+      ticket: refreshed,
+      activeQueueCount: activeTickets.length,
+      timestamp: new Date().toISOString(),
+    });
+
+    return refreshed;
+  },
+
+  // 8.7 Resume Ticket (Customer returns from errand / reports back at salon)
+  async resumeTicket(ticketId: string): Promise<QueueTicket> {
+    const ticket = await repository.getTicketById(ticketId);
+    if (!ticket) {
+      throw new Error('Ticket not found');
+    }
+
+    if (ticket.status !== 'PAUSED') {
+      throw new Error(`Ticket is not paused (status: ${ticket.status})`);
+    }
+
+    // Restore to WAITING so they are eligible for the next available chair with original arrival time
+    const updated = await repository.updateTicketStatus(ticketId, 'WAITING');
+    if (!updated) {
+      throw new Error('Failed to restore ticket status to WAITING');
+    }
+
+    const activeTickets = await this.recalculateQueue(ticket.salonId);
+    const refreshed = activeTickets.find((t) => t.id === ticketId) || updated;
+
+    websocketHub.broadcastToSalon(ticket.salonId, {
+      type: 'TICKET_RESUMED',
+      salonId: ticket.salonId,
+      ticket: refreshed,
+      activeQueueCount: activeTickets.length,
+      timestamp: new Date().toISOString(),
+    });
+
+    return refreshed;
+  },
+
+  // 8.8 Mark No-Show (Barber / staff marks customer absent / walkout)
+  async markNoShow(ticketId: string, reason?: string): Promise<QueueTicket> {
+    const ticket = await repository.getTicketById(ticketId);
+    if (!ticket) {
+      throw new Error('Ticket not found');
+    }
+
+    const updated = await repository.updateTicketStatus(ticketId, 'NO_SHOW', {
+      completedTime: new Date().toISOString(),
+    });
+    if (!updated) {
+      throw new Error('Failed to mark ticket as NO_SHOW');
+    }
+
+    const activeTickets = await this.recalculateQueue(ticket.salonId);
+
+    websocketHub.broadcastToSalon(ticket.salonId, {
+      type: 'TICKET_CANCELLED',
+      salonId: ticket.salonId,
+      ticket: updated,
+      activeQueueCount: activeTickets.length,
+      timestamp: new Date().toISOString(),
+    });
+
+    return updated;
+  },
+
   // 9. Recalculate dynamic wait times for all active tickets (serialized per salon)
   async recalculateQueue(salonId: string): Promise<QueueTicket[]> {
     const previous = recalculationQueues.get(salonId) || Promise.resolve([] as QueueTicket[]);

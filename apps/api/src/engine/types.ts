@@ -17,7 +17,8 @@ export type TicketStatus =
   | 'COMPLETED'     // Finished service and paid
   | 'SOFT_BUMPED'   // Not present within 3-min grace, moved to next slot
   | 'CANCELLED'     // Cancelled by client or barber
-  | 'NO_SHOW';      // Marked as no-show
+  | 'NO_SHOW'       // Marked as no-show
+  | 'PAUSED';       // Stepped out on errand/tea, held without blocking active calls until resumed
 
 export type TicketSource = 'QR_SCAN' | 'BARBER_QUICK_ADD' | 'RECEPTIONIST' | 'REMOTE_WEB';
 

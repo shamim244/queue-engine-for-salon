@@ -20,6 +20,16 @@ export function calculateWaitTimes(
   const inChairTickets = tickets.filter((t) => t.status === 'IN_CHAIR' || t.status === 'IN_SERVICE');
   const summonedTickets = tickets.filter((t) => t.status === 'SUMMONED' || t.status === 'CALLED');
   const activeWaiting = tickets.filter((t) => t.status === 'WAITING' || t.status === 'SOFT_BUMPED');
+  const pausedTickets = tickets.filter((t) => t.status === 'PAUSED');
+
+  // Set paused tickets as held
+  for (const paused of pausedTickets) {
+    result.set(paused.id, {
+      estimatedMinutes: 0,
+      displayRange: 'Paused',
+      position: 0,
+    });
+  }
 
   const activeStylists = (stylists || []).filter((s) => s.isActive);
 

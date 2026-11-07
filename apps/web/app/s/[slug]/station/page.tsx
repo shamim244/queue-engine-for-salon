@@ -248,6 +248,73 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     }
   };
 
+  const handlePauseAndCallNext = async () => {
+    if (!summonedTicket || !salon) return;
+    setProcessingAction(true);
+    try {
+      await api.queue.pause(summonedTicket.id, "Stepped out / Away on errand");
+      showToast(`Ticket #${summonedTicket.ticketNumber} marked as Away/Paused. Spot held!`, "info");
+      setSummonedTicket(null);
+      const nextRes = await api.queue.callNext(salon.id, activeStylist?.id);
+      if (nextRes.ticket) {
+        setSummonedTicket(nextRes.ticket);
+        speakAnnouncement(`Ticket Number ${nextRes.ticket.ticketNumber}, ${nextRes.ticket.customerName}, please step to chair!`);
+        showToast(`Summoned next client: #${nextRes.ticket.ticketNumber}`, "success");
+      }
+      fetchStationData();
+    } catch (err) {
+      showToast("Error pausing ticket: " + (err as Error).message, "error");
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleNoShow = async () => {
+    if (!summonedTicket || !salon) return;
+    setProcessingAction(true);
+    try {
+      await api.queue.noShow(summonedTicket.id, "Client did not show up");
+      showToast(`Ticket #${summonedTicket.ticketNumber} marked as No-Show.`, "info");
+      setSummonedTicket(null);
+      const nextRes = await api.queue.callNext(salon.id, activeStylist?.id);
+      if (nextRes.ticket) {
+        setSummonedTicket(nextRes.ticket);
+        speakAnnouncement(`Ticket Number ${nextRes.ticket.ticketNumber}, ${nextRes.ticket.customerName}, please step to chair!`);
+      }
+      fetchStationData();
+    } catch (err) {
+      showToast("Error marking no-show: " + (err as Error).message, "error");
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handlePauseTicket = async (ticket: Ticket) => {
+    setProcessingAction(true);
+    try {
+      await api.queue.pause(ticket.id, "Stepped out for errand");
+      showToast(`Ticket #${ticket.ticketNumber} marked as Away/Paused. Spot held.`, "info");
+      fetchStationData();
+    } catch (err) {
+      showToast("Error pausing ticket: " + (err as Error).message, "error");
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleResumeTicket = async (ticket: Ticket) => {
+    setProcessingAction(true);
+    try {
+      await api.queue.resume(ticket.id);
+      showToast(`Ticket #${ticket.ticketNumber} resumed! Ready for next open chair.`, "success");
+      fetchStationData();
+    } catch (err) {
+      showToast("Error resuming ticket: " + (err as Error).message, "error");
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
   const handleSummonSpecific = async (ticket: Ticket) => {
     setProcessingAction(true);
     try {
@@ -403,7 +470,9 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                 summonedTicket={summonedTicket}
                 processingAction={processingAction}
                 onSeatInChair={handleSeatInChair}
+                onPauseAndCallNext={handlePauseAndCallNext}
                 onHoldAndCallNext={handleHoldAndCallNext}
+                onNoShow={handleNoShow}
                 onReAnnounce={() =>
                   speakAnnouncement(
                     `Ticket Number ${summonedTicket.ticketNumber}, ${summonedTicket.customerName}, please step to chair!`
@@ -430,6 +499,8 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
               processingAction={processingAction}
               hasCurrentlyServing={!!currentlyServing}
               onSummonSpecific={handleSummonSpecific}
+              onPauseTicket={handlePauseTicket}
+              onResumeTicket={handleResumeTicket}
             />
           </div>
         </div>
