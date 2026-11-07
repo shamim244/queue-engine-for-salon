@@ -49,9 +49,12 @@ export function calculateLiveTimerStats(
   const elapsedSeconds = Math.max(0, Math.floor((nowMs - startMs) / 1000));
   const totalEstimatedSeconds = (estimatedDurationMinutes || 0) * 60;
 
-  const mins = Math.floor(elapsedSeconds / 60);
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const mins = Math.floor((elapsedSeconds % 3600) / 60);
   const secs = elapsedSeconds % 60;
-  const formattedElapsed = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  const formattedElapsed = hours > 0
+    ? `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
+    : `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 
   let remainingSeconds = 0;
   let formattedRemaining = "00:00";
@@ -84,6 +87,16 @@ export function calculateLiveTimerStats(
     isOvertime,
     overtimeSeconds,
   };
+}
+
+function formatOvertime(overtimeSeconds: number): string {
+  const oMins = Math.floor(overtimeSeconds / 60);
+  if (oMins >= 60) {
+    const oHours = Math.floor(oMins / 60);
+    const remMins = oMins % 60;
+    return remMins > 0 ? `+${oHours}h ${remMins}m` : `+${oHours}h`;
+  }
+  return `+${oMins}m`;
 }
 
 interface LiveServiceTimerProps {
@@ -173,7 +186,7 @@ export function LiveServiceTimer({
             <span>Progress: {stats.progressPercent}%</span>
             <span>
               {stats.isOvertime
-                ? `+${Math.floor(stats.overtimeSeconds / 60)}m overtime`
+                ? `${formatOvertime(stats.overtimeSeconds)} overtime`
                 : `${stats.formattedRemaining} remaining`}
             </span>
           </div>
@@ -190,7 +203,7 @@ export function LiveServiceTimer({
           {stats.isOvertime ? (
             <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-xl">
               <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
-              <span>Overtime (+{Math.floor(stats.overtimeSeconds / 60)}m)</span>
+              <span>Overtime ({formatOvertime(stats.overtimeSeconds)})</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-xl">

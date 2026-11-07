@@ -37,6 +37,18 @@ describe('Client-Side Live Service Timer Math', () => {
     expect(stats.formattedElapsed).toBe('25:00');
   });
 
+  it('formats elapsed time HH:MM:SS when service exceeds 60 minutes', () => {
+    const now = 1700000000000;
+    // 5 hours, 30 minutes, and 15 seconds ago (330 minutes and 15 seconds)
+    const started = new Date(now - (5 * 3600 + 30 * 60 + 15) * 1000).toISOString();
+    const stats = calculateLiveTimerStats(started, 20, now);
+
+    expect(stats.elapsedSeconds).toBe(19815);
+    expect(stats.formattedElapsed).toBe('05:30:15');
+    expect(stats.isOvertime).toBe(true);
+    expect(stats.overtimeSeconds).toBe(19815 - 20 * 60);
+  });
+
   it('handles invalid or future timestamps gracefully without negative values', () => {
     const now = 1700000000000;
     const future = new Date(now + 60000).toISOString();

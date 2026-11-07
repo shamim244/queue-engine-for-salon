@@ -25,7 +25,9 @@ export function StationInServiceCard({
     (currentlyServing as any).seatedAt ||
     currentlyServing.createdAt;
   const estimatedDuration =
-    (currentlyServing as any).estimatedDurationMinutes || 20;
+    (currentlyServing as any).totalDurationMinutes ||
+    (currentlyServing as any).estimatedDurationMinutes ||
+    20;
 
   return (
     <Card className="border-2 border-emerald-500/80 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/20 p-6 sm:p-8 space-y-6 shadow-2xl">
@@ -36,11 +38,10 @@ export function StationInServiceCard({
             CURRENTLY IN CHAIR
           </Badge>
         </div>
-        <LiveServiceTimer
-          startedTime={startedTime}
-          estimatedDurationMinutes={estimatedDuration}
-          variant="badge"
-        />
+        <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium bg-slate-950/60 border border-slate-800 px-3 py-1 rounded-xl">
+          <span className="text-slate-500">Allotted:</span>
+          <span className="font-bold text-white">~{estimatedDuration} mins</span>
+        </div>
       </div>
 
       {/* Client RAM Live Service Progress Bar & Overtime Monitor */}
