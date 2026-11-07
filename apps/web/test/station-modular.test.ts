@@ -247,7 +247,9 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
       expect(html).toContain("101");
       expect(html).toContain("Aman Sharma");
       expect(html).toContain("In Chair (Customer Arrived)");
-      expect(html).toContain("WAIT (Not Here - Hold &amp; Call Next)");
+      expect(html).toContain("Pause Spot");
+      expect(html).toContain("Grace Hold");
+      expect(html).toContain("No-Show");
     });
   });
 });

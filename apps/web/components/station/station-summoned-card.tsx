@@ -75,20 +75,20 @@ export function StationSummonedCard({
           className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg h-14 rounded-xl gap-2 shadow-lg shadow-emerald-600/20"
         >
           <UserCheck className="h-6 w-6" />
-          <span>💺 In Chair (Customer Arrived)</span>
+          <span>In Chair (Customer Arrived)</span>
         </Button>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <Button
             size="sm"
             variant="outline"
             onClick={onPauseAndCallNext}
             disabled={processingAction}
-            className="border-blue-500/50 bg-blue-950/20 text-blue-300 hover:bg-blue-900/40 font-bold h-11 rounded-xl gap-1.5 text-xs"
-            title="Holds their seniority and excludes them from calling rotation until they report back"
+            className="border-2 border-sky-400/80 bg-sky-950/80 text-sky-100 hover:bg-sky-900 hover:border-sky-300 font-bold h-12 rounded-xl gap-2 text-xs flex items-center justify-center shadow-md shadow-sky-950/40 transition-all select-none"
+            title="Holds ticket on pause while customer runs errand, and calls next client"
           >
-            <Coffee className="h-4 w-4 text-amber-400" />
-            <span>☕ Away / Pause & Next</span>
+            <Coffee className="h-4 w-4 text-sky-300 shrink-0" />
+            <span className="tracking-wide">Pause Spot</span>
           </Button>
 
           <Button
@@ -96,10 +96,11 @@ export function StationSummonedCard({
             variant="outline"
             onClick={onHoldAndCallNext}
             disabled={processingAction}
-            className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10 font-bold h-11 rounded-xl gap-1.5 text-xs"
+            className="border-2 border-amber-400/80 bg-amber-950/80 text-amber-100 hover:bg-amber-900 hover:border-amber-300 font-bold h-12 rounded-xl gap-2 text-xs flex items-center justify-center shadow-md shadow-amber-950/40 transition-all select-none"
+            title="3-minute grace period hold and calls next client"
           >
-            <Clock className="h-4 w-4 text-amber-400" />
-            <span>⏳ WAIT (Not Here - Hold & Call Next)</span>
+            <Clock className="h-4 w-4 text-amber-300 shrink-0" />
+            <span className="tracking-wide">Grace Hold</span>
           </Button>
 
           <Button
@@ -107,10 +108,11 @@ export function StationSummonedCard({
             variant="outline"
             onClick={onNoShow}
             disabled={processingAction}
-            className="border-rose-500/40 text-rose-300 hover:bg-rose-950/40 font-bold h-11 rounded-xl gap-1.5 text-xs"
+            className="border-2 border-rose-400/80 bg-rose-950/80 text-rose-100 hover:bg-rose-900 hover:border-rose-300 font-bold h-12 rounded-xl gap-2 text-xs flex items-center justify-center shadow-md shadow-rose-950/40 transition-all select-none"
+            title="Mark customer as no-show and remove from active queue"
           >
-            <UserX className="h-4 w-4 text-rose-400" />
-            <span>✕ Mark No-Show</span>
+            <UserX className="h-4 w-4 text-rose-300 shrink-0" />
+            <span className="tracking-wide">No-Show</span>
           </Button>
         </div>
       </div>
