@@ -31,6 +31,7 @@ export async function initDatabase(): Promise<boolean> {
       queueLimit: 0,
       enableKeepAlive: true,
       keepAliveInitialDelay: 10000,
+      timezone: 'Z',
     });
 
     // 3. Ensure tables exist

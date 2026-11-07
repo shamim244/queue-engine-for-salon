@@ -119,7 +119,13 @@ export function toMySqlDatetime(val?: string | Date | null): string | null {
 export function toIsoStringSafe(val?: string | Date | null): string | null {
   if (!val) return null;
   if (val instanceof Date) return val.toISOString();
-  return String(val);
+  const s = String(val).trim();
+  if (!s) return null;
+  // If MySQL DATETIME string like '2026-11-07 15:58:09' without timezone offset or Z
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(s)) {
+    return s.replace(' ', 'T') + 'Z';
+  }
+  return s;
 }
 
 export function seedDemoData() {

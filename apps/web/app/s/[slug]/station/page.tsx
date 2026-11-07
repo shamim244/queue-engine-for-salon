@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, use } from "react";
+import { parseTimestampMs } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { Salon, Ticket, Stylist } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
@@ -134,7 +135,8 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       return;
     }
     const started = (currentlyServing as any).startedTime || (currentlyServing as any).seatedAt || currentlyServing.createdAt;
-    const startMs = started ? new Date(started).getTime() : Date.now();
+    const parsedStart = parseTimestampMs(started);
+    const startMs = !isNaN(parsedStart) ? parsedStart : Date.now();
 
     const interval = setInterval(() => {
       setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));

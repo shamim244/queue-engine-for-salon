@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Clock, AlertTriangle } from "lucide-react";
+import { parseTimestampMs } from "@/lib/utils";
 
 export interface LiveTimerStats {
   elapsedSeconds: number;
@@ -30,9 +31,7 @@ export function calculateLiveTimerStats(
     };
   }
 
-  const startMs = typeof startedTime === "number"
-    ? startedTime
-    : new Date(startedTime).getTime();
+  const startMs = parseTimestampMs(startedTime);
 
   if (isNaN(startMs)) {
     return {

@@ -36,3 +36,21 @@ export function generateUpiUri(params: {
 
   return `upi://pay?pa=${encodeURIComponent(cleanUpiId)}&pn=${encodeURIComponent(cleanPayee)}&am=${formattedAmount}&cu=INR&tn=${encodeURIComponent(cleanNote)}`;
 }
+
+/**
+ * Robust cross-timezone timestamp parser.
+ * Handles MySQL DATETIME strings ('YYYY-MM-DD HH:mm:ss'), ISO strings, Date objects, and epoch timestamps.
+ * Prevents UTC/IST local timezone offset double-shift (e.g., false +5h 30m / 330m overtime).
+ */
+export function parseTimestampMs(time?: string | Date | number | null): number {
+  if (!time) return NaN;
+  if (typeof time === "number") return time;
+  if (time instanceof Date) return time.getTime();
+  let s = String(time).trim();
+  if (!s) return NaN;
+  // If MySQL DATETIME string like '2026-11-07 15:58:09' without timezone offset or Z
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(s)) {
+    s = s.replace(' ', 'T') + 'Z';
+  }
+  return new Date(s).getTime();
+}

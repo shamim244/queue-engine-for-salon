@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import { calculateLiveTimerStats } from '../components/live-service-timer';
+import { parseTimestampMs } from '../lib/utils';
 
 describe('Client-Side Live Service Timer Math', () => {
   it('formats elapsed time MM:SS accurately from anchor timestamp', () => {
@@ -56,6 +57,24 @@ describe('Client-Side Live Service Timer Math', () => {
 
     expect(stats.elapsedSeconds).toBe(0);
     expect(stats.formattedElapsed).toBe('00:00');
+    expect(stats.isOvertime).toBe(false);
+  });
+
+  it('correctly normalizes MySQL DATETIME strings preventing 5h 30m IST timezone shift glitch', () => {
+    // Suppose ticket was seated 15 seconds ago at UTC 15:58:00
+    const seatedIso = '2026-11-07T15:58:00.000Z';
+    const nowMs = new Date('2026-11-07T15:58:15.000Z').getTime();
+
+    // MySQL returns DATETIME as 'YYYY-MM-DD HH:mm:ss' (without Z)
+    const rawMysqlString = '2026-11-07 15:58:00';
+
+    const parsedMs = parseTimestampMs(rawMysqlString);
+    expect(parsedMs).toBe(new Date(seatedIso).getTime());
+
+    // calculateLiveTimerStats must report 15 seconds elapsed, NOT 330 minutes (5h 30m)!
+    const stats = calculateLiveTimerStats(rawMysqlString, 20, nowMs);
+    expect(stats.elapsedSeconds).toBe(15);
+    expect(stats.formattedElapsed).toBe('00:15');
     expect(stats.isOvertime).toBe(false);
   });
 });
