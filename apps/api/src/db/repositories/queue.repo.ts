@@ -241,6 +241,50 @@ export const queueRepo = {
     return ticket;
   },
 
+  async updateTicketServices(
+    ticketId: string,
+    params: {
+      serviceId?: string;
+      serviceName?: string;
+      selectedAddOns: Array<{ id: string; name: string; price: number; durationMinutes: number }>;
+      totalPrice: number;
+      totalDurationMinutes: number;
+    }
+  ): Promise<QueueTicket | null> {
+    const ticket = await this.getTicketById(ticketId);
+    if (!ticket) return null;
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query(
+        `UPDATE queue_tickets 
+         SET service_id = COALESCE(?, service_id),
+             service_name = COALESCE(?, service_name),
+             selected_add_ons = ?,
+             total_price = ?,
+             total_duration_minutes = ?
+         WHERE id = ?`,
+        [
+          params.serviceId || null,
+          params.serviceName || null,
+          JSON.stringify(params.selectedAddOns),
+          params.totalPrice,
+          params.totalDurationMinutes,
+          ticketId,
+        ]
+      );
+    }
+
+    if (params.serviceId) ticket.serviceId = params.serviceId;
+    if (params.serviceName) ticket.serviceName = params.serviceName;
+    ticket.selectedAddOns = params.selectedAddOns;
+    ticket.totalPrice = params.totalPrice;
+    ticket.totalDurationMinutes = params.totalDurationMinutes;
+
+    memoryStore.tickets.set(ticketId, ticket);
+    return ticket;
+  },
+
   async updateTicketWaitTime(ticketId: string, estimatedMinutes: number): Promise<void> {
     if (isMySqlConnected) {
       const db = getDb();

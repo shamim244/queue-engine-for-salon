@@ -410,6 +410,52 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   })
 
   // 8.6 Mark No-Show (Barber / Staff marks customer absent)
+  // 8.7 Update Ticket Services & Add-Ons Mid-Queue (Self-Service Upsell & Recalculation)
+  .post('/update-services', async ({ body, headers, cookie: { engine_session }, set }) => {
+    try {
+      const { ticketId, addOnIds, serviceId } = body as { ticketId: string; addOnIds: string[]; serviceId?: string };
+      const existing = await repository.getTicketById(ticketId);
+      if (!existing) {
+        set.status = 404;
+        return { success: false, message: 'Ticket not found' };
+      }
+
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && auth.role === 'CUSTOMER') {
+          const userDigits = (auth.phone || '').replace(/[^0-9]/g, '');
+          const ticketDigits = (existing.customerPhone || '').replace(/[^0-9]/g, '');
+          const isOwner =
+            (userDigits && ticketDigits && (userDigits.endsWith(ticketDigits.slice(-10)) || ticketDigits.endsWith(userDigits.slice(-10)))) ||
+            auth.username === existing.customerName ||
+            auth.fullName === existing.customerName;
+          if (!isOwner) {
+            set.status = 403;
+            return { success: false, message: 'Forbidden: Customers can only modify their own queue ticket' };
+          }
+        }
+      }
+
+      const updated = await queueEngine.updateTicketServices(ticketId, {
+        addOnIds,
+        serviceId,
+      });
+      return { success: true, ticket: updated };
+    } catch (err: any) {
+      console.error('[queueRoutes:update-services] Error:', err);
+      set.status = 400;
+      return { success: false, message: err.message || 'Failed to update ticket services' };
+    }
+  }, {
+    body: t.Object({
+      ticketId: t.String(),
+      addOnIds: t.Array(t.String()),
+      serviceId: t.Optional(t.String()),
+    })
+  })
+
+  // 8.6 Mark No-Show (Barber / Staff marks customer absent)
   .post('/no-show', async ({ body, headers, cookie: { engine_session }, set }) => {
     try {
       const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);

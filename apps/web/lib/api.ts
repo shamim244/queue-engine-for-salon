@@ -134,6 +134,8 @@ export interface Ticket {
   seatedAt?: string | null;
   completedAt?: string | null;
   totalPrice?: number;
+  totalDurationMinutes?: number;
+  selectedAddOns?: Array<{ id: string; name: string; price: number; durationMinutes: number }>;
   paymentStatus?: "UNPAID" | "CASH_PAID" | "ONLINE_PAID";
   createdAt: string;
   checkInTime?: string;
@@ -683,6 +685,12 @@ export const api = {
       request<{ success: boolean; ticket: Ticket }>("/api/queue/switch-preference", {
         method: "POST",
         body: JSON.stringify({ ticketId, stylistId }),
+      }),
+
+    updateServices: (ticketId: string, addOnIds: string[], serviceId?: string) =>
+      request<{ success: boolean; ticket: Ticket }>("/api/queue/update-services", {
+        method: "POST",
+        body: JSON.stringify({ ticketId, addOnIds, serviceId }),
       }),
 
     pause: (ticketId: string, reason?: string) =>

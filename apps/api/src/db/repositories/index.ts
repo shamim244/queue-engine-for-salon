@@ -70,6 +70,10 @@ export const repository = {
   ) => queueRepo.updateTicketStatus(ticketId, status, metadata),
   updateTicketStylist: (ticketId: string, stylistId: string | null) =>
     queueRepo.updateTicketStylist(ticketId, stylistId),
+  updateTicketServices: (
+    ticketId: string,
+    params: Parameters<typeof queueRepo.updateTicketServices>[1]
+  ) => queueRepo.updateTicketServices(ticketId, params),
   updateTicketWaitTime: (ticketId: string, estimatedMinutes: number) =>
     queueRepo.updateTicketWaitTime(ticketId, estimatedMinutes),
   updateTicketWaitTimesBatch: (updates: Parameters<typeof queueRepo.updateTicketWaitTimesBatch>[0]) =>

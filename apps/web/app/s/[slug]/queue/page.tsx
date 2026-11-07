@@ -38,6 +38,7 @@ import {
   User as UserIcon,
   AlertCircle,
   Coffee,
+  Plus,
 } from "lucide-react";
 
 export default function DedicatedQueuePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -124,6 +125,58 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
       showToast("Failed to resume spot: " + (err as Error).message, "error");
     } finally {
       setResumingTicket(false);
+    }
+  };
+
+  // Mid-Queue Add-On Services State
+  const [isAddServicesModalOpen, setIsAddServicesModalOpen] = useState(false);
+  const [selectedAddOnIds, setSelectedAddOnIds] = useState<string[]>([]);
+  const [isUpdatingServices, setIsUpdatingServices] = useState(false);
+
+  const handleConfirmUpdateServices = async () => {
+    if (!myTicket) return;
+    setIsUpdatingServices(true);
+    try {
+      // Optimistic in-memory calculation for instant 0ms mobile responsiveness
+      const baseService = salon?.services?.find((s) => s.id === myTicket.serviceId) || {
+        basePrice: myTicket.totalPrice || 100,
+        estimatedDurationMinutes: myTicket.totalDurationMinutes || 20,
+      };
+      const addOns = (salon?.services || [])
+        .filter((s) => selectedAddOnIds.includes(s.id))
+        .map((s) => ({
+          id: s.id,
+          name: s.name,
+          price: s.basePrice,
+          durationMinutes: s.estimatedDurationMinutes,
+        }));
+      const newTotalPrice = baseService.basePrice + addOns.reduce((sum, a) => sum + a.price, 0);
+      const newTotalDuration = baseService.estimatedDurationMinutes + addOns.reduce((sum, a) => sum + a.durationMinutes, 0);
+
+      setMyTicket((prev) =>
+        prev
+          ? {
+              ...prev,
+              selectedAddOns: addOns,
+              totalPrice: newTotalPrice,
+              totalDurationMinutes: newTotalDuration,
+            }
+          : prev
+      );
+
+      const resp = await api.queue.updateServices(myTicket.id, selectedAddOnIds);
+      if (resp.ticket) {
+        setMyTicket(resp.ticket);
+        showToast("Services updated! Your bill & wait time have been adjusted.", "success");
+      }
+      setIsAddServicesModalOpen(false);
+      fetchSalonAndQueue();
+    } catch (err: any) {
+      console.error("Update services error:", err);
+      showToast(err.message || "Failed to update services", "error");
+      fetchSalonAndQueue();
+    } finally {
+      setIsUpdatingServices(false);
     }
   };
 
@@ -524,8 +577,16 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs text-slate-500 block">Service</span>
+                  <span className="text-xs text-slate-500 block">Service & Bill</span>
                   <span className="text-sm font-bold text-amber-400">{myTicket.serviceName}</span>
+                  {myTicket.selectedAddOns && myTicket.selectedAddOns.length > 0 && (
+                    <span className="text-[10px] text-slate-400 block max-w-[150px] truncate">
+                      +{myTicket.selectedAddOns.map((a: any) => a.name).join(", ")}
+                    </span>
+                  )}
+                  <span className="text-xs font-bold text-emerald-400 block mt-0.5 font-mono">
+                    ₹{myTicket.totalPrice || 0}
+                  </span>
                 </div>
               </div>
             </CardHeader>
@@ -567,21 +628,37 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
                   </Badge>
                 </div>
 
-                {(myTicket.status === "WAITING" || myTicket.status === "SOFT_BUMPED") && (
+                {(myTicket.status === "WAITING" || myTicket.status === "SOFT_BUMPED" || myTicket.status === "PAUSED") && (
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <Button
                       size="sm"
                       variant="outline"
                       type="button"
-                      onClick={handlePauseMyTicket}
-                      disabled={pausingTicket}
-                      className="h-8 px-3 text-[11px] border-blue-500/40 text-blue-300 hover:bg-blue-500/10 font-bold shrink-0 rounded-lg gap-1"
+                      onClick={() => {
+                        setSelectedAddOnIds((myTicket.selectedAddOns || []).map((a: any) => a.id));
+                        setIsAddServicesModalOpen(true);
+                      }}
+                      className="h-8 px-3 text-[11px] border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 font-bold shrink-0 rounded-lg gap-1"
                     >
-                      <Coffee className="h-3.5 w-3.5 text-amber-400" />
-                      <span>Pause Spot (Step Out)</span>
+                      <Plus className="h-3.5 w-3.5 text-emerald-400" />
+                      <span>+ Add Services</span>
                     </Button>
 
-                    {salon?.stylists && salon.stylists.length > 0 && (
+                    {myTicket.status !== "PAUSED" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        type="button"
+                        onClick={handlePauseMyTicket}
+                        disabled={pausingTicket}
+                        className="h-8 px-3 text-[11px] border-blue-500/40 text-blue-300 hover:bg-blue-500/10 font-bold shrink-0 rounded-lg gap-1"
+                      >
+                        <Coffee className="h-3.5 w-3.5 text-amber-400" />
+                        <span>Pause Spot</span>
+                      </Button>
+                    )}
+
+                    {salon?.stylists && salon.stylists.length > 0 && myTicket.status !== "PAUSED" && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -1117,6 +1194,125 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
               className="flex-1 min-h-[44px] rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
             >
               {isSwitchingPref ? "Updating..." : "Update Preference"}
+            </Button>
+          </DialogFooter>
+        </div>
+      </Dialog>
+
+      {/* 6.8 MID-QUEUE ADD-ON SERVICES DIALOG (SELF-SERVICE UPSELL & RECALCULATION) */}
+      <Dialog open={isAddServicesModalOpen} onOpenChange={setIsAddServicesModalOpen}>
+        <DialogClose onClose={() => setIsAddServicesModalOpen(false)} />
+        <div className="space-y-4">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-emerald-400" />
+              <span>Add Services & Grooming</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-400 mt-1">
+              Customize your grooming session while you wait. Your barber will be prepared, and your queue wait time updates automatically.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Current Base Service Card */}
+          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-bold">Primary Service</span>
+              <span className="text-xs font-bold text-white">{myTicket?.serviceName}</span>
+            </div>
+            <Badge variant="outline" className="text-[11px] border-emerald-500/30 text-emerald-400 font-bold">
+              Base Service
+            </Badge>
+          </div>
+
+          {/* Available Add-Ons List */}
+          <div className="space-y-2 max-h-[45vh] overflow-y-auto pr-1">
+            <span className="text-[11px] text-slate-400 font-bold block uppercase tracking-wider">Available Add-Ons</span>
+            {(salon?.services || [])
+              .filter((s) => s.id !== myTicket?.serviceId)
+              .map((svc) => {
+                const isSelected = selectedAddOnIds.includes(svc.id);
+                return (
+                  <button
+                    key={svc.id}
+                    type="button"
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedAddOnIds((prev) => prev.filter((id) => id !== svc.id));
+                      } else {
+                        setSelectedAddOnIds((prev) => [...prev, svc.id]);
+                      }
+                    }}
+                    className={`w-full p-3 rounded-xl border text-left flex items-center justify-between transition-all min-h-[48px] ${
+                      isSelected
+                        ? "bg-emerald-500/15 border-emerald-500 text-white ring-1 ring-emerald-500/50"
+                        : "bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
+                          isSelected ? "bg-emerald-500 border-emerald-500 text-slate-950" : "border-slate-700 bg-slate-900"
+                        }`}
+                      >
+                        {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold block text-white">{svc.name}</span>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                          +{svc.estimatedDurationMinutes || 15} mins duration
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-400 font-mono">
+                      +{formatCurrency(svc.basePrice)}
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+
+          {/* Dynamic Price & Time Summary Preview */}
+          {(() => {
+            const baseService = salon?.services?.find((s) => s.id === myTicket?.serviceId);
+            const basePrice = baseService?.basePrice || myTicket?.totalPrice || 100;
+            const baseDuration = baseService?.estimatedDurationMinutes || myTicket?.totalDurationMinutes || 20;
+            const addOns = (salon?.services || []).filter((s) => selectedAddOnIds.includes(s.id));
+            const addOnsPrice = addOns.reduce((sum, a) => sum + a.basePrice, 0);
+            const addOnsDuration = addOns.reduce((sum, a) => sum + (a.estimatedDurationMinutes || 0), 0);
+            const previewTotal = basePrice + addOnsPrice;
+            const previewDuration = baseDuration + addOnsDuration;
+
+            return (
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>Updated Total Duration:</span>
+                  <span className="font-bold text-slate-200">~{previewDuration} mins</span>
+                </div>
+                <div className="flex items-center justify-between text-sm font-bold pt-1 border-t border-slate-800">
+                  <span className="text-white">Updated Total Bill:</span>
+                  <span className="text-emerald-400 font-mono text-base">{formatCurrency(previewTotal)}</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          <DialogFooter className="flex items-center gap-2 pt-2">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setIsAddServicesModalOpen(false)}
+              disabled={isUpdatingServices}
+              className="flex-1 min-h-[44px] rounded-xl border-slate-700 text-slate-300"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmUpdateServices}
+              disabled={isUpdatingServices}
+              className="flex-1 min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold"
+            >
+              {isUpdatingServices ? "Saving..." : "Confirm & Update"}
             </Button>
           </DialogFooter>
         </div>

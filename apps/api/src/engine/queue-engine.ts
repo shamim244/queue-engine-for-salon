@@ -536,6 +536,76 @@ export const queueEngine = {
     return updated;
   },
 
+  // 8.9 Update Ticket Services & Add-Ons Mid-Queue (Self-Service Upsell & Recalculation)
+  async updateTicketServices(
+    ticketId: string,
+    params: {
+      addOnIds: string[];
+      serviceId?: string;
+    }
+  ): Promise<QueueTicket> {
+    const ticket = await repository.getTicketById(ticketId);
+    if (!ticket) {
+      throw new Error('Ticket not found');
+    }
+
+    if (ticket.status !== 'WAITING' && ticket.status !== 'SOFT_BUMPED' && ticket.status !== 'PAUSED') {
+      throw new Error(`Cannot modify services while ticket is in status: ${ticket.status}`);
+    }
+
+    const salon = await repository.getSalonById(ticket.salonId);
+    if (!salon) {
+      throw new Error('Salon not found');
+    }
+
+    const targetServiceId = params.serviceId || ticket.serviceId;
+    const baseService = salon.services.find((s) => s.id === targetServiceId);
+    if (!baseService) {
+      throw new Error('Base service not found');
+    }
+
+    // Resolve add-ons from salon catalog
+    const selectedAddOns = (params.addOnIds || [])
+      .map((id) => salon.services.find((s) => s.id === id))
+      .filter((s): s is NonNullable<typeof s> => !!s)
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        price: s.basePrice,
+        durationMinutes: s.estimatedDurationMinutes,
+      }));
+
+    const totalPrice = baseService.basePrice + selectedAddOns.reduce((sum, a) => sum + a.price, 0);
+    const totalDurationMinutes = baseService.estimatedDurationMinutes + selectedAddOns.reduce((sum, a) => sum + a.durationMinutes, 0);
+
+    const updated = await repository.updateTicketServices(ticketId, {
+      serviceId: baseService.id,
+      serviceName: baseService.name,
+      selectedAddOns,
+      totalPrice,
+      totalDurationMinutes,
+    });
+
+    if (!updated) {
+      throw new Error('Failed to update ticket services');
+    }
+
+    // Recalculate wait times for all downstream active clients in salon
+    const activeTickets = await this.recalculateQueue(ticket.salonId);
+    const refreshed = activeTickets.find((t) => t.id === ticketId) || updated;
+
+    // Broadcast WebSocket update to station desk, waiting lounge TV, and customer pocket tickets
+    websocketHub.broadcastToSalon(ticket.salonId, {
+      type: 'TICKET_UPDATED',
+      salonId: ticket.salonId,
+      ticket: refreshed,
+      activeQueueCount: activeTickets.length,
+      timestamp: new Date().toISOString(),
+    });
+
+    return refreshed;
+  },
+
   // 9. Recalculate dynamic wait times for all active tickets (serialized per salon)
   async recalculateQueue(salonId: string): Promise<QueueTicket[]> {
     const previous = recalculationQueues.get(salonId) || Promise.resolve([] as QueueTicket[]);
