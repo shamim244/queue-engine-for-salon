@@ -388,6 +388,56 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
     ? (myTicket?.estimatedWaitMinutes || Math.max(5, (myIndex + 1) * 15))
     : 0;
 
+  // Real-Time Local Device Clock for Exact Clock-Time Window (Rule 1: Client-Compute Architecture)
+  const [currentTimeMs, setCurrentTimeMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTimeMs(Date.now());
+    }, 10000); // Client-side tick every 10s without network calls
+    return () => clearInterval(timer);
+  }, []);
+
+  const estimatedEtaWindow = useMemo(() => {
+    if (!myTicket || estimatedWaitMin <= 0) {
+      return {
+        clockText: "Ready Now · Step In",
+        exactTarget: "Now",
+        tipText: "Please step directly up to your station chair.",
+        isReady: true,
+      };
+    }
+
+    const formatTime = (date: Date) => {
+      let hours = date.getHours();
+      const minutes = date.getMinutes();
+      const ampm = hours >= 12 ? "PM" : "AM";
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      const minsStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
+      return `${hours}:${minsStr} ${ampm}`;
+    };
+
+    const targetDate = new Date(currentTimeMs + estimatedWaitMin * 60000);
+    const windowStartDate = new Date(currentTimeMs + Math.max(0, estimatedWaitMin - 2) * 60000);
+    const windowEndDate = new Date(currentTimeMs + (estimatedWaitMin + 3) * 60000);
+
+    const clockText = `${formatTime(windowStartDate)} – ${formatTime(windowEndDate)}`;
+    const exactTarget = formatTime(targetDate);
+
+    let tipText = `Relax nearby! Plan to be back at salon by ${formatTime(new Date(currentTimeMs + Math.max(0, estimatedWaitMin - 3) * 60000))}.`;
+    if (estimatedWaitMin <= 4) {
+      tipText = "You are up next! Please remain seated in the waiting lounge.";
+    }
+
+    return {
+      clockText,
+      exactTarget,
+      tipText,
+      isReady: false,
+    };
+  }, [currentTimeMs, estimatedWaitMin, myTicket]);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950">
       {/* 1. TOP NAVBAR */}
@@ -581,25 +631,41 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
                   variant="customer"
                 />
               ) : (
-                <div className="grid grid-cols-2 gap-3 py-2">
-                  <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-center">
-                    <span className="text-xs text-slate-400 block font-medium">
-                      {myTicket.stylistId ? "In Barber's Line" : "People Ahead"}
-                    </span>
-                    <span className="text-3xl sm:text-4xl font-black text-white">
-                      {myTicket.stylistId ? myBarberSpecificAhead : peopleAhead}
-                    </span>
-                    {myTicket.stylistId && (
-                      <span className="text-[10px] text-slate-500 block mt-0.5">
-                        ({peopleAhead} in whole shop)
+                <>
+                  <div className="grid grid-cols-2 gap-3 py-2">
+                    <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-center">
+                      <span className="text-xs text-slate-400 block font-medium">
+                        {myTicket.stylistId ? "In Barber's Line" : "People Ahead"}
                       </span>
-                    )}
+                      <span className="text-3xl sm:text-4xl font-black text-white">
+                        {myTicket.stylistId ? myBarberSpecificAhead : peopleAhead}
+                      </span>
+                      {myTicket.stylistId && (
+                        <span className="text-[10px] text-slate-500 block mt-0.5">
+                          ({peopleAhead} in whole shop)
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-center">
+                      <span className="text-xs text-slate-400 block font-medium">Est. Wait</span>
+                      <span className="text-3xl sm:text-4xl font-black text-amber-400">~{estimatedWaitMin}m</span>
+                    </div>
                   </div>
-                  <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-center">
-                    <span className="text-xs text-slate-400 block font-medium">Est. Wait</span>
-                    <span className="text-3xl sm:text-4xl font-black text-amber-400">~{estimatedWaitMin}m</span>
+
+                  {/* Wall-Clock Arrival Target Banner (Eliminates Mental Math) */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-slate-900 to-amber-500/10 border border-amber-500/30 text-center space-y-1 shadow-lg">
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-amber-400 font-bold uppercase tracking-wider">
+                      <Clock className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Exact Arrival Target (Clock Time)</span>
+                    </div>
+                    <div className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                      {estimatedEtaWindow.clockText}
+                    </div>
+                    <p className="text-xs text-slate-300 font-medium">
+                      {estimatedEtaWindow.tipText}
+                    </p>
                   </div>
-                </div>
+                </>
               )}
 
               {/* Cancel Button */}

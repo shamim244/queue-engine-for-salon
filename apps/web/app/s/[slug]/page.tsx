@@ -177,6 +177,12 @@ export default function CustomerStorefrontPage({ params }: { params: Promise<{ s
                     ({waitingSequence.length} waiting)
                   </span>
                 </div>
+                {totalWaitMinutes > 0 && (
+                  <span className="text-[11px] text-amber-300/80 font-medium flex items-center gap-1 mt-1">
+                    <Clock className="h-3 w-3 text-amber-400 inline shrink-0" />
+                    <span>Expected chair turn if you join now: ~{new Date(Date.now() + totalWaitMinutes * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-800/80">
