@@ -143,27 +143,8 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     return () => clearInterval(interval);
   }, [currentlyServing]);
 
-  // PIN Input Handling
-  const handlePinDigit = (digit: string) => {
-    if (enteredPin.length >= 4) return;
-    const newPin = enteredPin + digit;
-    setEnteredPin(newPin);
-    if (newPin.length === 4) {
-      verifyPinSubmission(newPin);
-    }
-  };
-
-  const handleClearPin = () => {
-    setEnteredPin("");
-    setPinError("");
-  };
-
-  const handleBackspace = () => {
-    setEnteredPin((prev) => prev.slice(0, -1));
-    setPinError("");
-  };
-
-  const verifyPinSubmission = async (pin: string) => {
+  // PIN Input Handling & Verification
+  const verifyPinSubmission = useCallback(async (pin: string) => {
     if (!salon || !activeStylist) return;
     try {
       const resp = await api.auth.pinSwitch(salon.id, activeStylist.id, pin);
@@ -182,7 +163,28 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         setEnteredPin("");
       }
     }
-  };
+  }, [salon, activeStylist]);
+
+  const handlePinDigit = useCallback((digit: string) => {
+    setEnteredPin((prev) => {
+      if (prev.length >= 4) return prev;
+      const newPin = prev + digit;
+      if (newPin.length === 4) {
+        verifyPinSubmission(newPin);
+      }
+      return newPin;
+    });
+  }, [verifyPinSubmission]);
+
+  const handleClearPin = useCallback(() => {
+    setEnteredPin("");
+    setPinError("");
+  }, []);
+
+  const handleBackspace = useCallback(() => {
+    setEnteredPin((prev) => prev.slice(0, -1));
+    setPinError("");
+  }, []);
 
   // Station Queue Actions
   const handleCallNext = async () => {

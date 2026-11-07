@@ -212,6 +212,7 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
       expect(html).toContain("Vikram Stylist&#x27;s Chair");
       expect(html).toContain("Enter 4-Digit Mirror PIN");
       expect(html).toContain("Clear");
+      expect(html).toContain("Physical keyboard, numpad &amp; touch supported");
     });
   });
 

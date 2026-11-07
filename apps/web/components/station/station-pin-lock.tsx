@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import type { Stylist, Salon } from "@/lib/api";
-import { Armchair, Delete } from "lucide-react";
+import { Armchair, Delete, Keyboard } from "lucide-react";
 
 interface StationPinLockProps {
   salon: Salon | null;
@@ -23,6 +23,76 @@ export function StationPinLock({
   onBackspace,
   onOpenSwitchChair,
 }: StationPinLockProps) {
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+
+  // Physical Keyboard & Numpad Event Listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if an explicit input/textarea has focus elsewhere
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+
+      // Check numeric keys 0-9 (standard number row & numpad)
+      let digit: string | null = null;
+      if (e.key >= "0" && e.key <= "9") {
+        digit = e.key;
+      } else if (e.code && e.code.startsWith("Numpad") && e.code.length === 7) {
+        const num = e.code.slice(6);
+        if (num >= "0" && num <= "9") {
+          digit = num;
+        }
+      }
+
+      if (digit !== null) {
+        e.preventDefault();
+        setActiveKey(digit);
+        setTimeout(() => setActiveKey(null), 150);
+        onPinDigit(digit);
+        return;
+      }
+
+      // Backspace
+      if (e.key === "Backspace") {
+        e.preventDefault();
+        setActiveKey("backspace");
+        setTimeout(() => setActiveKey(null), 150);
+        onBackspace();
+        return;
+      }
+
+      // Clear (Escape, Delete, or C/c)
+      if (e.key === "Escape" || e.key === "Delete" || e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        setActiveKey("clear");
+        setTimeout(() => setActiveKey(null), 150);
+        onClearPin();
+        return;
+      }
+    };
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const text = e.clipboardData?.getData("text") || "";
+      const digits = text.replace(/\D/g, "");
+      if (digits.length > 0) {
+        e.preventDefault();
+        onClearPin();
+        const toAdd = digits.slice(0, 4);
+        for (const d of toAdd) {
+          onPinDigit(d);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("paste", handlePaste);
+    };
+  }, [onPinDigit, onBackspace, onClearPin]);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-6 text-center animate-in fade-in duration-300">
@@ -57,23 +127,34 @@ export function StationPinLock({
 
         {pinError && <p className="text-xs text-rose-400 font-semibold animate-shake">{pinError}</p>}
 
-        {/* Tactile Touch Keypad */}
+        {/* Tactile Touch & Physical Keyboard Keypad */}
         <div className="grid grid-cols-3 gap-3 max-w-[280px] mx-auto">
-          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
-            <button
-              key={digit}
-              type="button"
-              onClick={() => onPinDigit(digit)}
-              className="h-16 rounded-2xl bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 active:scale-95 text-2xl font-bold text-white transition-all shadow-md select-none"
-            >
-              {digit}
-            </button>
-          ))}
+          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => {
+            const isKeyActive = activeKey === digit;
+            return (
+              <button
+                key={digit}
+                type="button"
+                onClick={() => onPinDigit(digit)}
+                className={`h-16 rounded-2xl border transition-all shadow-md select-none text-2xl font-bold ${
+                  isKeyActive
+                    ? "bg-amber-500/25 border-amber-400 text-amber-300 scale-95 ring-2 ring-amber-400/50"
+                    : "bg-slate-900 border-slate-800 hover:bg-slate-800 hover:border-slate-700 active:scale-95 text-white"
+                }`}
+              >
+                {digit}
+              </button>
+            );
+          })}
 
           <button
             type="button"
             onClick={onClearPin}
-            className="h-16 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:bg-slate-800 active:scale-95 text-xs uppercase font-bold text-slate-400 transition-all select-none"
+            className={`h-16 rounded-2xl border transition-all select-none text-xs uppercase font-bold ${
+              activeKey === "clear"
+                ? "bg-slate-700 border-slate-600 text-white scale-95"
+                : "bg-slate-900/60 border-slate-800/80 hover:bg-slate-800 active:scale-95 text-slate-400"
+            }`}
           >
             Clear
           </button>
@@ -81,7 +162,11 @@ export function StationPinLock({
           <button
             type="button"
             onClick={() => onPinDigit("0")}
-            className="h-16 rounded-2xl bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 active:scale-95 text-2xl font-bold text-white transition-all shadow-md select-none"
+            className={`h-16 rounded-2xl border transition-all shadow-md select-none text-2xl font-bold ${
+              activeKey === "0"
+                ? "bg-amber-500/25 border-amber-400 text-amber-300 scale-95 ring-2 ring-amber-400/50"
+                : "bg-slate-900 border-slate-800 hover:bg-slate-800 hover:border-slate-700 active:scale-95 text-white"
+            }`}
           >
             0
           </button>
@@ -89,14 +174,24 @@ export function StationPinLock({
           <button
             type="button"
             onClick={onBackspace}
-            className="h-16 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:bg-slate-800 active:scale-95 flex items-center justify-center text-slate-300 transition-all select-none"
+            className={`h-16 rounded-2xl border transition-all select-none flex items-center justify-center ${
+              activeKey === "backspace"
+                ? "bg-slate-700 border-slate-600 text-white scale-95"
+                : "bg-slate-900/60 border-slate-800/80 hover:bg-slate-800 active:scale-95 text-slate-300"
+            }`}
             aria-label="Delete last digit"
           >
             <Delete className="h-6 w-6" />
           </button>
         </div>
 
-        <div className="pt-4 space-y-2">
+        {/* Physical Keyboard Helper Indicator */}
+        <p className="text-[11px] text-slate-500 flex items-center justify-center gap-1.5 pt-1">
+          <Keyboard className="h-3.5 w-3.5 text-slate-400" />
+          <span>Physical keyboard, numpad &amp; touch supported</span>
+        </p>
+
+        <div className="pt-2 space-y-2">
           {salon?.stylists && salon.stylists.length > 1 && (
             <div>
               <button
