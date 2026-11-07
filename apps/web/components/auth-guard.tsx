@@ -31,6 +31,21 @@ export function getRoleDestination(role?: string, defaultSalonSlug = "ramesh-bar
   }
 }
 
+export function getLoginRedirectForPath(pathname: string | null | undefined): string {
+  const clean = pathname ? pathname.trim() : "/";
+  const encoded = encodeURIComponent(clean);
+  if (clean.startsWith("/admin")) {
+    return `/admin/login?redirect=${encoded}`;
+  }
+  if (clean.startsWith("/owner")) {
+    return `/partner/login?redirect=${encoded}`;
+  }
+  if (clean.startsWith("/staff") || clean.includes("/station")) {
+    return `/partner/login?tab=staff&redirect=${encoded}`;
+  }
+  return `/login?redirect=${encoded}`;
+}
+
 export function resolveAuthRedirect(
   redirectParam: string | null | undefined,
   role?: string,
@@ -145,7 +160,7 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const redirectUrl = `/login?redirect=${encodeURIComponent(pathname || "/")}`;
+  const redirectUrl = getLoginRedirectForPath(pathname);
 
   useEffect(() => {
     if (!isLoading && !user) {

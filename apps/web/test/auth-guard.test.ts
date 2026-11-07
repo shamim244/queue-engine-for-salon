@@ -350,8 +350,8 @@ describe("Enterprise Unified Authentication & Protected Route Guard System", () 
     });
   });
 
-  describe("Unified Login View (LoginPage)", () => {
-    it("should render clean enterprise login page with 1-click auto-login and credential autofill button", () => {
+  describe("Dedicated Consumer Login View (LoginPage)", () => {
+    it("should render clean dedicated consumer login page with phone entry and registration tab", () => {
       const mockAuth = createMockAuthContext({
         isLoading: false,
         user: null,
@@ -364,16 +364,13 @@ describe("Enterprise Unified Authentication & Protected Route Guard System", () 
       );
 
       const html = renderToString(tree);
-      expect(html).toContain("Engine Que Enterprise Access");
-      expect(html).toContain("Sign In to Platform");
-      expect(html).toContain("Platform Administrator");
-      expect(html).toContain("Salon Owner / Storefront");
-      expect(html).toContain("Staff Stylist");
-      expect(html).toContain("Instant 1-Click Authentication");
-      expect(html).toContain("Standard Credentials Login");
-      expect(html).toContain("Show &amp; Fill Credentials");
-      expect(html).toContain("Remember this workstation / mirror session");
-      expect(html).toContain("Sign In to Platform");
+      expect(html).toContain("Customer Sign In");
+      expect(html).toContain("Customer Lounge");
+      expect(html).toContain("New Customer");
+      expect(html).toContain("Mobile Phone or Username");
+      expect(html).toContain("Go to Partner Portal");
+      expect(html).toContain("/partner/login");
+      expect(html).toContain("/admin/login");
     });
   });
 

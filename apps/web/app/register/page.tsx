@@ -29,7 +29,7 @@ function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Mode: "customer" vs "owner"
+  // Mode: "customer" vs "owner" (supports both with mode switcher)
   const [accountType, setAccountType] = useState<"customer" | "owner">(
     searchParams.get("role") === "customer" || searchParams.get("type") === "customer"
       ? "customer"

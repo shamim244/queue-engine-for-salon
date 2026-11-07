@@ -4,467 +4,370 @@ import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { resolveAuthRedirect } from "@/components/auth-guard";
-import {
-  Lock,
-  User,
-  Eye,
-  EyeOff,
-  ArrowRight,
-  AlertCircle,
-  Crown,
-  Store,
-  Loader2,
-  KeyRound,
-  ShieldCheck,
-  Check,
-  CheckCircle2,
-  Sparkles,
-  Scissors,
-} from "lucide-react";
+import { api, setAuthToken } from "@/lib/api";
+import { AuthCardLayout } from "@/components/auth/auth-card-layout";
+import { AuthPasswordInput } from "@/components/auth/auth-password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  User,
+  Phone,
+  Ticket,
+  Sparkles,
+  Loader2,
+  ArrowRight,
+  ShieldAlert,
+  CheckCircle2,
+  UserPlus,
+  LogIn,
+} from "lucide-react";
 
-interface CredentialPreset {
-  role: "SUPER_ADMIN" | "SALON_OWNER" | "STAFF";
-  title: string;
-  badge: string;
-  badgeVariant: "purple" | "default" | "success" | "warning";
-  identifier: string;
-  secret: string;
-  targetDesc: string;
-}
-
-const AVAILABLE_PRESETS: CredentialPreset[] = [
-  {
-    role: "SUPER_ADMIN",
-    title: "Platform Administrator",
-    badge: "SuperAdmin",
-    badgeVariant: "purple",
-    identifier: "admin",
-    secret: "Admin@123",
-    targetDesc: "Governance HQ & Tenants (/admin)",
-  },
-  {
-    role: "SALON_OWNER",
-    title: "Salon Owner / Storefront",
-    badge: "Owner Hub",
-    badgeVariant: "default",
-    identifier: "owner",
-    secret: "Owner@123",
-    targetDesc: "Chairs, Queue & Salon Hub (/owner)",
-  },
-  {
-    role: "STAFF",
-    title: "Staff Stylist",
-    badge: "Staff Desk",
-    badgeVariant: "warning",
-    identifier: "ramesh",
-    secret: "Ramesh@123",
-    targetDesc: "Chair Control & Queue Station (/staff)",
-  },
-];
-
-function LoginForm() {
+function ConsumerLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get("redirect");
-  const salonParam = searchParams.get("salon");
+  const initialMode = searchParams.get("tab") === "register" ? "register" : "login";
 
-  const { login, user, salon } = useAuth();
+  const { login, logout, user } = useAuth();
+  const [mode, setMode] = useState<"login" | "register">(initialMode);
 
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberDevice, setRememberDevice] = useState(true);
+  // Login state
+  const [loginIdentifier, setLoginIdentifier] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+
+  // Registration state
+  const [regFullName, setRegFullName] = useState("");
+  const [regPhone, setRegPhone] = useState("");
+  const [regUsername, setRegUsername] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+
   const [isLoading, setIsLoading] = useState(false);
-  const [activeAutoRole, setActiveAutoRole] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showCredentialsBox, setShowCredentialsBox] = useState(false);
-  const [selectedCredRole, setSelectedCredRole] = useState<"SUPER_ADMIN" | "SALON_OWNER" | "STAFF">("SUPER_ADMIN");
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const getContextSalonSlug = (overrideSalon?: string | null): string => {
-    if (overrideSalon) return overrideSalon;
-    if (salonParam) return salonParam;
-    if (redirectParam) {
-      const qMatch = redirectParam.match(/[?&]salon=([a-zA-Z0-9-_]+)/);
-      if (qMatch) return qMatch[1];
-      const pMatch = redirectParam.match(/^\/s\/([a-zA-Z0-9-_]+)/);
-      if (pMatch) return pMatch[1];
-    }
-    return salon?.slug || "ramesh-barber";
-  };
-
+  // Auto-route if already logged in as CUSTOMER
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("engine_remembered_identifier");
-      if (saved) {
-        setIdentifier(saved);
+    if (user) {
+      if (user.role === "CUSTOMER") {
+        router.push(redirectParam || "/me");
       }
     }
-  }, []);
+  }, [user, redirectParam, router]);
 
-  // Redirect if user is already authenticated
-  useEffect(() => {
-    if (user && !isLoading) {
-      const effectiveSlug = getContextSalonSlug(salon?.slug);
-      const target = resolveAuthRedirect(redirectParam, user.role, effectiveSlug);
-      router.push(target);
-    }
-  }, [user, isLoading, redirectParam, salonParam, salon, router]);
-
-  const handleStandardSubmit = async (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!identifier.trim() || !password.trim()) {
-      setErrorMessage("Please enter your identifier and password.");
+    setErrorMessage(null);
+
+    if (!loginIdentifier.trim() || !loginPassword.trim()) {
+      setErrorMessage("Please enter your phone number or username and password.");
       return;
     }
 
-    setErrorMessage(null);
     setIsLoading(true);
-
     try {
-      if (rememberDevice) {
-        localStorage.setItem("engine_remembered_identifier", identifier.trim());
+      const resp = await login(loginIdentifier.trim(), loginPassword);
+      if (resp.user && resp.user.role === "CUSTOMER") {
+        router.push(redirectParam || "/me");
       } else {
-        localStorage.removeItem("engine_remembered_identifier");
+        // Strict boundary: Admins and Partners cannot login on consumer portal
+        await logout();
+        if (resp.user?.role === "SUPER_ADMIN") {
+          setErrorMessage("Administrator accounts must sign in at the dedicated portal: /admin/login");
+        } else if (resp.user?.role === "SALON_OWNER" || resp.user?.role === "STAFF") {
+          setErrorMessage("Salon owners and barbers must sign in at the partner portal: /partner/login");
+        } else {
+          setErrorMessage("Access denied: This portal is for consumers only.");
+        }
       }
-
-      const resp = await login(identifier.trim(), password);
-      const role = resp?.user?.role;
-      const effectiveSlug = getContextSalonSlug(resp?.salon?.slug);
-      const target = resolveAuthRedirect(redirectParam, role, effectiveSlug);
-      router.push(target);
     } catch (err: any) {
-      setErrorMessage(
-        err.message || "Invalid credentials. Please verify your username, email, or password."
-      );
+      setErrorMessage(err?.message || "Invalid customer credentials. Please check your phone/username and password.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAutoLogin = async (preset: CredentialPreset) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setErrorMessage(null);
-    setActiveAutoRole(preset.role);
+    setSuccessMessage(null);
+
+    if (!regFullName.trim()) {
+      setErrorMessage("Please enter your full name.");
+      return;
+    }
+    if (!regPhone.trim()) {
+      setErrorMessage("Please enter your mobile phone number.");
+      return;
+    }
+    if (!regPassword.trim() || regPassword.length < 6) {
+      setErrorMessage("Password must be at least 6 characters.");
+      return;
+    }
+
     setIsLoading(true);
-
     try {
-      const resp = await login(preset.identifier, preset.secret);
-      const role = resp?.user?.role || preset.role;
-      const effectiveSlug = getContextSalonSlug(resp?.salon?.slug);
-      const target = resolveAuthRedirect(redirectParam, role, effectiveSlug);
-      router.push(target);
+      const resp = await api.auth.registerCustomer({
+        name: regFullName.trim(),
+        phone: regPhone.trim(),
+        username: regUsername.trim() || regPhone.trim(),
+        password: regPassword,
+      });
+
+      if (resp.success) {
+        if (resp.token) {
+          setAuthToken(resp.token);
+        }
+        setSuccessMessage("Account created successfully! Redirecting...");
+        setTimeout(() => {
+          router.push(redirectParam || "/me");
+        }, 1200);
+      } else {
+        setErrorMessage(resp.message || "Failed to create customer account.");
+      }
     } catch (err: any) {
-      setErrorMessage(
-        err.message || `Failed to sign in as ${preset.title}. Please verify backend status.`
-      );
+      setErrorMessage(err?.message || "Registration failed. This phone or username may already be registered.");
     } finally {
       setIsLoading(false);
-      setActiveAutoRole(null);
     }
-  };
-
-  const handleFillCredentials = (preset: CredentialPreset) => {
-    setSelectedCredRole(preset.role);
-    setShowCredentialsBox(true);
-    setIdentifier(preset.identifier);
-    setPassword(preset.secret);
-    setErrorMessage(null);
   };
 
   return (
-    <div className="w-full max-w-md mx-auto space-y-6">
-      {/* Header Branding */}
-      <div className="text-center space-y-2">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300 text-xs font-semibold tracking-wide shadow-sm">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>Engine Que Enterprise Access</span>
+    <AuthCardLayout
+      theme="blue"
+      badge={
+        <Badge variant="default" className="px-3 py-1 text-xs gap-1.5 font-medium shadow-sm bg-blue-500/20 text-blue-300 border-blue-500/30">
+          <Sparkles className="w-3.5 h-3.5" />
+          Customer Lounge
+        </Badge>
+      }
+      icon={
+        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-2">
+          <Ticket className="w-6 h-6" />
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-          Sign In to Platform
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-400">
-          Unified authentication for Governance, Salon Operations & Queues
-        </p>
-
-        {redirectParam && (
-          <div className="pt-1">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 border border-slate-800 text-[11px] text-slate-300">
-              <span className="text-slate-500">Destination:</span>
-              <strong className="text-amber-400 font-mono">{redirectParam}</strong>
-            </span>
+      }
+      title={mode === "login" ? "Customer Sign In" : "Create Customer Account"}
+      description={
+        mode === "login"
+          ? "Track your live haircut wait times, redeem rewards, and view salon visits."
+          : "Sign up in 30 seconds to join lines remotely and track your salon chair."
+      }
+      footer={
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+            <span className="text-slate-400">Are you a Salon Owner or Stylist?</span>
+            <Link
+              href="/partner/login"
+              className="text-amber-400 hover:text-amber-300 font-semibold inline-flex items-center gap-1 transition-colors"
+            >
+              Go to Partner Portal
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
-        )}
+          <div className="text-slate-500 text-[11px]">
+            Platform Administrator?{" "}
+            <Link href="/admin/login" className="text-purple-400 hover:underline">
+              HQ Sign In
+            </Link>
+          </div>
+        </div>
+      }
+    >
+      {/* Tab Switcher: Sign In vs Register */}
+      <div className="flex rounded-xl bg-slate-900/90 p-1 border border-slate-800 mb-6">
+        <button
+          type="button"
+          onClick={() => {
+            setMode("login");
+            setErrorMessage(null);
+            setSuccessMessage(null);
+          }}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold transition-all min-h-[44px] ${
+            mode === "login"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <LogIn className="w-4 h-4" />
+          <span>Sign In</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setMode("register");
+            setErrorMessage(null);
+            setSuccessMessage(null);
+          }}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold transition-all min-h-[44px] ${
+            mode === "register"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <UserPlus className="w-4 h-4" />
+          <span>New Customer</span>
+        </button>
       </div>
 
-      {/* Unified Enterprise Authentication Card */}
-      <Card className="border-slate-800 bg-slate-900/85 backdrop-blur-xl shadow-2xl rounded-2xl overflow-hidden">
-        {/* 1-Click Fast-Access Bar */}
-        <div className="px-6 pt-5 pb-4 border-b border-slate-800/80 bg-slate-950/40">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-              <span>Instant 1-Click Authentication</span>
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                const target = AVAILABLE_PRESETS.find((p) => p.role === selectedCredRole) || AVAILABLE_PRESETS[0];
-                handleFillCredentials(target);
-              }}
-              className="h-7 px-2.5 text-[11px] gap-1.5 text-amber-300 hover:text-amber-200 hover:bg-amber-950/30 border border-amber-500/20"
-            >
-              <KeyRound className="w-3 h-3 text-amber-400" />
-              <span>Show & Fill Credentials</span>
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            {AVAILABLE_PRESETS.map((preset) => {
-              const isThisLoading = activeAutoRole === preset.role;
-              const isSuperAdmin = preset.role === "SUPER_ADMIN";
-              const isStaff = preset.role === "STAFF";
-              return (
-                <button
-                  key={preset.role}
-                  type="button"
-                  disabled={isLoading}
-                  onClick={() => handleAutoLogin(preset)}
-                  className={`px-3 py-2.5 rounded-xl border text-left transition-all relative flex items-center justify-between group ${
-                    isSuperAdmin
-                      ? "border-purple-500/30 bg-purple-950/20 hover:bg-purple-950/40 hover:border-purple-500/50"
-                      : isStaff
-                      ? "border-amber-500/30 bg-amber-950/20 hover:bg-amber-950/40 hover:border-amber-500/50"
-                      : "border-blue-500/30 bg-blue-950/20 hover:bg-blue-950/40 hover:border-blue-500/50"
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    {isSuperAdmin ? (
-                      <Crown className="w-4 h-4 text-purple-400" />
-                    ) : isStaff ? (
-                      <Scissors className="w-4 h-4 text-amber-400" />
-                    ) : (
-                      <Store className="w-4 h-4 text-blue-400" />
-                    )}
-                    <span>
-                      <span className="block font-bold text-white text-xs">{preset.title}</span>
-                      <span className="block text-[10px] text-slate-400">1-Tap Direct &rarr;</span>
-                    </span>
-                  </span>
-                  {isThisLoading ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-300" />
-                  ) : (
-                    <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
+      {errorMessage && (
+        <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2 mb-4 animate-in fade-in">
+          <ShieldAlert className="w-4 h-4 flex-shrink-0 text-rose-400 mt-0.5" />
+          <div className="leading-relaxed">{errorMessage}</div>
         </div>
+      )}
 
-        {/* Standard Form Authentication */}
-        <form onSubmit={handleStandardSubmit}>
-          <div className="px-6 pt-4 pb-1">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-blue-400" />
-              <span>Standard Credentials Login</span>
-            </h2>
-          </div>
-          <CardContent className="space-y-4 px-6 pt-3 pb-5">
-            {/* Active Credentials Preview Box */}
-            {showCredentialsBox && (
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-amber-500/30 text-xs space-y-2.5 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-amber-400 font-bold uppercase tracking-wider text-[11px]">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Credentials Populated Into Form</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowCredentialsBox(false)}
-                    className="text-slate-500 hover:text-slate-300 text-[11px]"
-                  >
-                    Dismiss
-                  </button>
-                </div>
+      {successMessage && (
+        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2 mb-4 animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-400 mt-0.5" />
+          <div className="leading-relaxed">{successMessage}</div>
+        </div>
+      )}
 
-                <div className="grid grid-cols-2 gap-2">
-                  {AVAILABLE_PRESETS.map((p) => {
-                    const isSelected = selectedCredRole === p.role;
-                    return (
-                      <button
-                        key={p.role}
-                        type="button"
-                        onClick={() => handleFillCredentials(p)}
-                        className={`p-2.5 rounded-lg border text-left transition-all ${
-                          isSelected
-                            ? "border-amber-500/60 bg-amber-500/10 text-white"
-                            : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200"
-                        }`}
-                      >
-                        <span className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-[11px] text-slate-200">{p.title}</span>
-                          {isSelected && <Check className="w-3 h-3 text-amber-400" />}
-                        </span>
-                        <span className="block font-mono text-[10px] space-y-0.5 text-slate-400">
-                          <span className="block">User: <strong className="text-slate-200">{p.identifier}</strong></span>
-                          <span className="block">Pass: <strong className="text-slate-200">{p.secret}</strong></span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+      {mode === "login" ? (
+        <form onSubmit={handleLoginSubmit} className="space-y-4">
+          <div className="space-y-1.5 text-left">
+            <label htmlFor="customer-identifier" className="block text-xs font-semibold text-slate-300">
+              Mobile Phone or Username
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Phone className="w-4 h-4" />
               </div>
-            )}
-
-            {errorMessage && (
-              <div
-                role="alert"
-                className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5 animate-in fade-in"
-              >
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-semibold">Authentication Failed</p>
-                  <p className="text-rose-400/90 mt-0.5">{errorMessage}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Identifier Input */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="login-identifier"
-                className="text-xs font-medium text-slate-300 flex items-center gap-1.5"
-              >
-                <User className="w-3.5 h-3.5 text-slate-400" />
-                <span>Identifier (Username, Phone, or Email)</span>
-              </label>
               <Input
-                id="login-identifier"
+                id="customer-identifier"
                 type="text"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="admin, owner, or phone number"
-                className="bg-slate-950 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-blue-500 h-10"
+                autoComplete="username"
+                placeholder="e.g. 9876543210 or username"
+                value={loginIdentifier}
+                onChange={(e) => setLoginIdentifier(e.target.value)}
                 disabled={isLoading}
-                required
+                className="pl-10 h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
             </div>
+          </div>
 
-            {/* Password Input */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="login-password"
-                className="text-xs font-medium text-slate-300 flex items-center justify-between"
-              >
-                <span className="flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Security Password</span>
-                </span>
-              </label>
-              <div className="relative">
-                <Input
-                  id="login-password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your security password"
-                  className="bg-slate-950 border-slate-700 text-white placeholder:text-slate-500 pr-10 focus-visible:ring-blue-500 h-10"
-                  disabled={isLoading}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4 text-slate-400" />
-                  ) : (
-                    <Eye className="w-4 h-4 text-slate-400" />
-                  )}
-                </button>
-              </div>
-            </div>
+          <AuthPasswordInput
+            id="customer-password"
+            label="Password"
+            autoComplete="current-password"
+            placeholder="••••••••••••"
+            value={loginPassword}
+            onChange={(e) => setLoginPassword(e.target.value)}
+            disabled={isLoading}
+          />
 
-            {/* Device Persistence Checkbox */}
-            <div className="flex items-center justify-between pt-1">
-              <label
-                htmlFor="remember-device"
-                className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none"
-              >
-                <input
-                  id="remember-device"
-                  type="checkbox"
-                  checked={rememberDevice}
-                  onChange={(e) => setRememberDevice(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900"
-                />
-                <span>Remember this workstation / mirror session</span>
-              </label>
-            </div>
-          </CardContent>
-
-          <CardFooter className="flex flex-col space-y-3 pt-1 px-6 pb-6">
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-lg shadow-blue-600/20 h-10 transition-all text-xs sm:text-sm"
-            >
-              {isLoading && activeAutoRole === null ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Signing In...</span>
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  <span>Sign In to Platform</span>
-                  <ArrowRight className="w-4 h-4" />
-                </span>
-              )}
-            </Button>
-
-            <div className="flex items-center justify-between w-full text-[11px] text-slate-500 px-1 pt-1">
-              <Link
-                href={redirectParam && redirectParam.startsWith("/") ? redirectParam : "/"}
-                className="hover:text-blue-400 transition-colors"
-              >
-                &larr; {redirectParam ? `Return to ${redirectParam}` : "Return to Home"}
-              </Link>
-              <span>Zero-Trust Enterprise Portal</span>
-            </div>
-          </CardFooter>
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-blue-600/25 transition-all flex items-center justify-center gap-2 min-h-[48px]"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Entering Lounge...</span>
+              </>
+            ) : (
+              <>
+                <span>Sign In</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </Button>
         </form>
-      </Card>
-    </div>
+      ) : (
+        <form onSubmit={handleRegisterSubmit} className="space-y-4">
+          <div className="space-y-1.5 text-left">
+            <label htmlFor="reg-fullname" className="block text-xs font-semibold text-slate-300">
+              Full Name
+            </label>
+            <Input
+              id="reg-fullname"
+              type="text"
+              placeholder="e.g. Rohan Verma"
+              value={regFullName}
+              onChange={(e) => setRegFullName(e.target.value)}
+              disabled={isLoading}
+              className="h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="space-y-1.5 text-left">
+            <label htmlFor="reg-phone" className="block text-xs font-semibold text-slate-300">
+              10-Digit Mobile Phone
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Phone className="w-4 h-4" />
+              </div>
+              <Input
+                id="reg-phone"
+                type="tel"
+                placeholder="98765 43210"
+                value={regPhone}
+                onChange={(e) => setRegPhone(e.target.value)}
+                disabled={isLoading}
+                className="pl-10 h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5 text-left">
+            <label htmlFor="reg-username" className="block text-xs font-semibold text-slate-300">
+              Username (Optional)
+            </label>
+            <Input
+              id="reg-username"
+              type="text"
+              placeholder="e.g. rohanv"
+              value={regUsername}
+              onChange={(e) => setRegUsername(e.target.value)}
+              disabled={isLoading}
+              className="h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          <AuthPasswordInput
+            id="reg-password"
+            label="Create Password (min. 6 characters)"
+            placeholder="••••••••••••"
+            value={regPassword}
+            onChange={(e) => setRegPassword(e.target.value)}
+            disabled={isLoading}
+          />
+
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-blue-600/25 transition-all flex items-center justify-center gap-2 min-h-[48px]"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Creating Account...</span>
+              </>
+            ) : (
+              <>
+                <span>Complete Customer Registration</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </Button>
+        </form>
+      )}
+    </AuthCardLayout>
   );
 }
 
-function LoginLoadingSkeleton() {
+export default function ConsumerLoginPage() {
   return (
-    <div className="w-full max-w-md mx-auto space-y-6 animate-pulse p-4">
-      <div className="text-center space-y-3">
-        <div className="h-6 w-32 bg-slate-800 rounded-full mx-auto" />
-        <div className="h-8 w-48 bg-slate-800 rounded-xl mx-auto" />
-        <div className="h-4 w-64 bg-slate-800 rounded mx-auto" />
-      </div>
-      <div className="h-96 bg-slate-900/90 rounded-2xl border border-slate-800" />
-    </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8 selection:bg-blue-600 selection:text-white">
-      <Suspense fallback={<LoginLoadingSkeleton />}>
-        <LoginForm />
-      </Suspense>
-    </div>
+    <Suspense
+      fallback={
+        <div className="min-h-[80vh] flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+        </div>
+      }
+    >
+      <ConsumerLoginForm />
+    </Suspense>
   );
 }
