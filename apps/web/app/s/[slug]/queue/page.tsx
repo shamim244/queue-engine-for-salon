@@ -18,6 +18,7 @@ import { LiveServiceTimer } from "@/components/live-service-timer";
 import { ConnectionPill } from "@/components/connection-pill";
 import {
   Scissors,
+  Shuffle,
   Clock,
   Users,
   CheckCircle2,
@@ -59,6 +60,33 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
   const [submitting, setSubmitting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+
+  // Dynamic Mid-Queue Preference Switching State
+  const [isSwitchPrefModalOpen, setIsSwitchPrefModalOpen] = useState(false);
+  const [newPreferenceStylistId, setNewPreferenceStylistId] = useState<string | null>(null);
+  const [isSwitchingPref, setIsSwitchingPref] = useState(false);
+
+  const handleConfirmSwitchPreference = async () => {
+    if (!myTicket) return;
+    setIsSwitchingPref(true);
+    try {
+      const resp = await api.queue.switchPreference(myTicket.id, newPreferenceStylistId);
+      if (resp.ticket) {
+        setMyTicket(resp.ticket);
+        setIsSwitchPrefModalOpen(false);
+        const name = newPreferenceStylistId
+          ? salon?.stylists?.find((s) => s.id === newPreferenceStylistId)?.name || "Barber"
+          : "Fastest Available Chair";
+        showToast(`Preference updated to ${name}! Your fair place in line is preserved.`, "success");
+        playChime();
+        fetchSalonAndQueue();
+      }
+    } catch (err) {
+      showToast("Failed to switch preference: " + (err as Error).message, "error");
+    } finally {
+      setIsSwitchingPref(false);
+    }
+  };
 
   // Notification Toast
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
@@ -436,19 +464,35 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
               )}
 
               {/* Progress Timer or Waiting Stats */}
-              <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-xs flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Scissors className="h-4 w-4 text-amber-400" />
+              <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Scissors className="h-4 w-4 text-amber-400 shrink-0" />
                   <span className="text-slate-400">Queue Routing:</span>
                   <span className="font-bold text-white">
                     {myTicket.stylistId
                       ? (salon?.stylists?.find((s) => s.id === myTicket.stylistId)?.name || "Dedicated Barber")
                       : "Fastest Available Chair"}
                   </span>
+                  <Badge variant="outline" className="text-[10px] border-slate-700 text-slate-300">
+                    {myTicket.stylistId ? "Locked-In Chair" : "Universal Pool"}
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="text-[10px] border-slate-700 text-slate-300">
-                  {myTicket.stylistId ? "Locked-In Chair" : "Universal Pool"}
-                </Badge>
+
+                {(myTicket.status === "WAITING" || myTicket.status === "SOFT_BUMPED") && salon?.stylists && salon.stylists.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    onClick={() => {
+                      setNewPreferenceStylistId(myTicket.stylistId || null);
+                      setIsSwitchPrefModalOpen(true);
+                    }}
+                    className="h-8 px-3 text-[11px] border-amber-500/40 text-amber-300 hover:bg-amber-500/10 font-bold shrink-0 self-start sm:self-auto rounded-lg"
+                  >
+                    <Shuffle className="h-3.5 w-3.5 mr-1" />
+                    <span>Change Barber</span>
+                  </Button>
+                )}
               </div>
 
               {myTicket.status === "IN_SERVICE" || myTicket.status === "IN_CHAIR" ? (
@@ -837,6 +881,101 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
           </CardContent>
         </Card>
       </main>
+
+      {/* 6.5 DYNAMIC MID-QUEUE PREFERENCE SWITCHING DIALOG */}
+      <Dialog open={isSwitchPrefModalOpen} onOpenChange={setIsSwitchPrefModalOpen}>
+        <DialogClose onClose={() => setIsSwitchPrefModalOpen(false)} />
+        <div className="space-y-4">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
+              <Shuffle className="h-5 w-5 text-amber-400" />
+              <span>Change Barber Preference</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-400 mt-1">
+              Switch to a specific barber or back to the fastest chair anytime. Your original arrival time is preserved so you keep your fair place in line!
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1">
+            {/* Option A: Fastest Available */}
+            <button
+              type="button"
+              onClick={() => setNewPreferenceStylistId(null)}
+              className={`w-full p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                newPreferenceStylistId === null
+                  ? "bg-amber-500/15 border-amber-500 text-white ring-1 ring-amber-500/50 shadow-md"
+                  : "bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700"
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-amber-400" />
+                  <span className="text-xs font-bold">Fastest Available Chair (Auto-Assign)</span>
+                </div>
+                <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 font-bold">
+                  ~{queueLoadMetrics.automated.estWaitMin}m Wait
+                </Badge>
+              </div>
+              <span className="text-[11px] text-slate-400 mt-1.5">
+                Automatically places you into whichever of the {queueLoadMetrics.activeChairs} chairs opens first.
+              </span>
+            </button>
+
+            {/* Option B: Specific Stylists */}
+            {salon?.stylists?.map((st) => {
+              const metric = queueLoadMetrics.byStylist[st.id] || { waitingCount: 0, estWaitMin: 20, isFreeNow: true };
+              const isSelected = newPreferenceStylistId === st.id;
+
+              return (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => setNewPreferenceStylistId(st.id)}
+                  className={`w-full p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                    isSelected
+                      ? "bg-amber-500/15 border-amber-500 text-white ring-1 ring-amber-500/50 shadow-md"
+                      : "bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700"
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2 truncate">
+                      <Scissors className="h-4 w-4 text-slate-400 shrink-0" />
+                      <span className="text-xs font-bold truncate">{st.name}</span>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-amber-400 shrink-0 ml-1">
+                      ~{metric.estWaitMin}m
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between w-full text-[11px] text-slate-400 mt-1.5">
+                    <span>{metric.waitingCount} waiting specifically for {st.name.split(" ")[0]}</span>
+                    {metric.isFreeNow && <span className="text-emerald-400 font-semibold">Chair Ready</span>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <DialogFooter className="flex items-center gap-2 pt-2">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setIsSwitchPrefModalOpen(false)}
+              disabled={isSwitchingPref}
+              className="flex-1 min-h-[44px] rounded-xl border-slate-700 text-slate-300"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmSwitchPreference}
+              disabled={isSwitchingPref}
+              className="flex-1 min-h-[44px] rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+            >
+              {isSwitchingPref ? "Updating..." : "Update Preference"}
+            </Button>
+          </DialogFooter>
+        </div>
+      </Dialog>
 
       {/* 7. CANCEL CONFIRMATION DIALOG */}
       <Dialog open={isCancelConfirmOpen} onOpenChange={setIsCancelConfirmOpen}>

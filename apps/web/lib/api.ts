@@ -135,6 +135,7 @@ export interface Ticket {
   totalPrice?: number;
   paymentStatus?: "UNPAID" | "CASH_PAID" | "ONLINE_PAID";
   createdAt: string;
+  checkInTime?: string;
 }
 
 export interface AuthUser {
@@ -673,6 +674,12 @@ export const api = {
 
     summon: (ticketId: string, stylistId?: string) =>
       request<{ success: boolean; ticket: Ticket }>("/api/queue/summon", {
+        method: "POST",
+        body: JSON.stringify({ ticketId, stylistId }),
+      }),
+
+    switchPreference: (ticketId: string, stylistId: string | null) =>
+      request<{ success: boolean; ticket: Ticket }>("/api/queue/switch-preference", {
         method: "POST",
         body: JSON.stringify({ ticketId, stylistId }),
       }),

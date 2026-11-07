@@ -405,6 +405,48 @@ export const queueEngine = {
     return updated;
   },
 
+  // 8.5 Switch Stylist Preference Mid-Queue (Strict FIFO Fairness Preserved)
+  async switchStylistPreference(ticketId: string, stylistId: string | null): Promise<QueueTicket> {
+    const ticket = await repository.getTicketById(ticketId);
+    if (!ticket) {
+      throw new Error('Ticket not found');
+    }
+
+    if (ticket.status !== 'WAITING' && ticket.status !== 'SOFT_BUMPED') {
+      throw new Error(`Cannot change barber preference while ticket is in status: ${ticket.status}`);
+    }
+
+    // Validate stylistId if provided
+    if (stylistId) {
+      const salon = await repository.getSalonById(ticket.salonId);
+      const stylistExists = salon?.stylists?.some((s) => s.id === stylistId);
+      if (!stylistExists) {
+        throw new Error('Selected barber does not exist in this salon');
+      }
+    }
+
+    // Update stylistId in repository (MySQL & memory)
+    const updated = await repository.updateTicketStylist(ticketId, stylistId);
+    if (!updated) {
+      throw new Error('Failed to update ticket stylist preference');
+    }
+
+    // Recalculate wait times and queue positions for the salon
+    const activeTickets = await this.recalculateQueue(ticket.salonId);
+    const refreshed = activeTickets.find((t) => t.id === ticketId) || updated;
+
+    // Broadcast WebSocket update so live TV, station desks, and customer pocket tickets refresh immediately
+    websocketHub.broadcastToSalon(ticket.salonId, {
+      type: 'TICKET_UPDATED',
+      salonId: ticket.salonId,
+      ticket: refreshed,
+      activeQueueCount: activeTickets.length,
+      timestamp: new Date().toISOString(),
+    });
+
+    return refreshed;
+  },
+
   // 9. Recalculate dynamic wait times for all active tickets (serialized per salon)
   async recalculateQueue(salonId: string): Promise<QueueTicket[]> {
     const previous = recalculationQueues.get(salonId) || Promise.resolve([] as QueueTicket[]);

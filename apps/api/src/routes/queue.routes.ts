@@ -287,6 +287,47 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
     })
   })
 
+  // 8.3 Switch Barber Preference Mid-Queue (Strict FIFO Fairness Preserved)
+  .post('/switch-preference', async ({ body, headers, cookie: { engine_session }, set }) => {
+    try {
+      const { ticketId, stylistId } = body as { ticketId: string; stylistId: string | null };
+      const existing = await repository.getTicketById(ticketId);
+      if (!existing) {
+        set.status = 404;
+        return { success: false, message: 'Ticket not found' };
+      }
+
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && auth.role === 'CUSTOMER') {
+          const userDigits = (auth.phone || '').replace(/[^0-9]/g, '');
+          const ticketDigits = (existing.customerPhone || '').replace(/[^0-9]/g, '');
+          const isOwner =
+            (userDigits && ticketDigits && (userDigits.endsWith(ticketDigits.slice(-10)) || ticketDigits.endsWith(userDigits.slice(-10)))) ||
+            auth.username === existing.customerName ||
+            auth.fullName === existing.customerName;
+          if (!isOwner) {
+            set.status = 403;
+            return { success: false, message: 'Forbidden: Customers can only modify their own queue ticket' };
+          }
+        }
+      }
+
+      const updated = await queueEngine.switchStylistPreference(ticketId, stylistId || null);
+      return { success: true, ticket: updated };
+    } catch (err: any) {
+      console.error('[queueRoutes:switch-preference] Error:', err);
+      set.status = 400;
+      return { success: false, message: err.message || 'Failed to update barber preference' };
+    }
+  }, {
+    body: t.Object({
+      ticketId: t.String(),
+      stylistId: t.Nullable(t.String()),
+    })
+  })
+
   // 9. Inspect WhatsApp Notifications Simulator
   .get('/notifications', ({ query }) => {
     return notificationService.getRecentNotifications(query.salonId as string | undefined);

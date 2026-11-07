@@ -224,6 +224,23 @@ export const queueRepo = {
     return ticket;
   },
 
+  async updateTicketStylist(ticketId: string, stylistId: string | null): Promise<QueueTicket | null> {
+    const ticket = await this.getTicketById(ticketId);
+    if (!ticket) return null;
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query(
+        'UPDATE queue_tickets SET stylist_id = ? WHERE id = ?',
+        [stylistId || null, ticketId]
+      );
+    }
+
+    ticket.stylistId = stylistId;
+    memoryStore.tickets.set(ticketId, ticket);
+    return ticket;
+  },
+
   async updateTicketWaitTime(ticketId: string, estimatedMinutes: number): Promise<void> {
     if (isMySqlConnected) {
       const db = getDb();
