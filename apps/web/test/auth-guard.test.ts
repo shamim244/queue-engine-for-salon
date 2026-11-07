@@ -367,7 +367,7 @@ describe("Enterprise Unified Authentication & Protected Route Guard System", () 
       expect(html).toContain("Customer Sign In");
       expect(html).toContain("Customer Lounge");
       expect(html).toContain("New Customer");
-      expect(html).toContain("Mobile Phone or Username");
+      expect(html).toContain("Email or Username");
       expect(html).toContain("Go to Partner Portal");
       expect(html).toContain("/partner/login");
       expect(html).toContain("/admin/login");

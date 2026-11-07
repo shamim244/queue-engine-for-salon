@@ -109,7 +109,7 @@ describe("Dedicated Portals: SSR Markup Verification", () => {
 
     expect(html).toContain("Customer Sign In");
     expect(html).toContain("New Customer");
-    expect(html).toContain("Mobile Phone or Username");
+    expect(html).toContain("Email or Username");
     expect(html).toContain("Go to Partner Portal");
     expect(html).toContain("/partner/login");
     // Must NOT contain admin presets

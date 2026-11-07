@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   User,
+  Mail,
   Phone,
   Ticket,
   Sparkles,
@@ -21,6 +22,7 @@ import {
   CheckCircle2,
   UserPlus,
   LogIn,
+  AtSign,
 } from "lucide-react";
 
 function ConsumerLoginForm() {
@@ -32,15 +34,16 @@ function ConsumerLoginForm() {
   const { login, logout, user } = useAuth();
   const [mode, setMode] = useState<"login" | "register">(initialMode);
 
-  // Login state
+  // Login state (Primary: Email or Username)
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
-  // Registration state
+  // Registration state (Primary: Email & Username; Secondary: Mobile Phone)
   const [regFullName, setRegFullName] = useState("");
-  const [regPhone, setRegPhone] = useState("");
+  const [regEmail, setRegEmail] = useState("");
   const [regUsername, setRegUsername] = useState("");
   const [regPassword, setRegPassword] = useState("");
+  const [regPhone, setRegPhone] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -60,7 +63,7 @@ function ConsumerLoginForm() {
     setErrorMessage(null);
 
     if (!loginIdentifier.trim() || !loginPassword.trim()) {
-      setErrorMessage("Please enter your phone number or username and password.");
+      setErrorMessage("Please enter your email or username and password.");
       return;
     }
 
@@ -81,7 +84,7 @@ function ConsumerLoginForm() {
         }
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || "Invalid customer credentials. Please check your phone/username and password.");
+      setErrorMessage(err?.message || "Invalid customer credentials. Please check your email/username and password.");
     } finally {
       setIsLoading(false);
     }
@@ -92,12 +95,16 @@ function ConsumerLoginForm() {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!regFullName.trim()) {
-      setErrorMessage("Please enter your full name.");
+    if (!regFullName.trim() || regFullName.trim().length < 2) {
+      setErrorMessage("Please enter your full name (minimum 2 characters).");
       return;
     }
-    if (!regPhone.trim()) {
-      setErrorMessage("Please enter your mobile phone number.");
+    if (!regEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail.trim())) {
+      setErrorMessage("Please enter a valid email address.");
+      return;
+    }
+    if (!regUsername.trim() || regUsername.trim().length < 3) {
+      setErrorMessage("Please choose a username (minimum 3 characters).");
       return;
     }
     if (!regPassword.trim() || regPassword.length < 6) {
@@ -105,13 +112,23 @@ function ConsumerLoginForm() {
       return;
     }
 
+    // Optional phone validation if provided
+    if (regPhone.trim()) {
+      const rawDigits = regPhone.replace(/[^0-9]/g, "");
+      if (rawDigits.length < 7 || rawDigits.length > 15) {
+        setErrorMessage("If provided, mobile phone must be between 7 and 15 digits.");
+        return;
+      }
+    }
+
     setIsLoading(true);
     try {
       const resp = await api.auth.registerCustomer({
         name: regFullName.trim(),
-        phone: regPhone.trim(),
-        username: regUsername.trim() || regPhone.trim(),
+        email: regEmail.trim().toLowerCase(),
+        username: regUsername.trim().toLowerCase(),
         password: regPassword,
+        phone: regPhone.trim() ? regPhone.trim() : undefined,
       });
 
       if (resp.success) {
@@ -126,7 +143,7 @@ function ConsumerLoginForm() {
         setErrorMessage(resp.message || "Failed to create customer account.");
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || "Registration failed. This phone or username may already be registered.");
+      setErrorMessage(err?.message || "Registration failed. This email or username may already be taken.");
     } finally {
       setIsLoading(false);
     }
@@ -150,7 +167,7 @@ function ConsumerLoginForm() {
       description={
         mode === "login"
           ? "Track your live haircut wait times, redeem rewards, and view salon visits."
-          : "Sign up in 30 seconds to join lines remotely and track your salon chair."
+          : "Sign up in 30 seconds with email & username to track lines and avoid wait times."
       }
       footer={
         <div className="space-y-3">
@@ -227,17 +244,17 @@ function ConsumerLoginForm() {
         <form onSubmit={handleLoginSubmit} className="space-y-4">
           <div className="space-y-1.5 text-left">
             <label htmlFor="customer-identifier" className="block text-xs font-semibold text-slate-300">
-              Mobile Phone or Username
+              Email or Username
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <Phone className="w-4 h-4" />
+                <Mail className="w-4 h-4" />
               </div>
               <Input
                 id="customer-identifier"
                 type="text"
                 autoComplete="username"
-                placeholder="e.g. 9876543210 or username"
+                placeholder="rohan@example.com or username"
                 value={loginIdentifier}
                 onChange={(e) => setLoginIdentifier(e.target.value)}
                 disabled={isLoading}
@@ -280,31 +297,16 @@ function ConsumerLoginForm() {
             <label htmlFor="reg-fullname" className="block text-xs font-semibold text-slate-300">
               Full Name
             </label>
-            <Input
-              id="reg-fullname"
-              type="text"
-              placeholder="e.g. Rohan Verma"
-              value={regFullName}
-              onChange={(e) => setRegFullName(e.target.value)}
-              disabled={isLoading}
-              className="h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-
-          <div className="space-y-1.5 text-left">
-            <label htmlFor="reg-phone" className="block text-xs font-semibold text-slate-300">
-              10-Digit Mobile Phone
-            </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <Phone className="w-4 h-4" />
+                <User className="w-4 h-4" />
               </div>
               <Input
-                id="reg-phone"
-                type="tel"
-                placeholder="98765 43210"
-                value={regPhone}
-                onChange={(e) => setRegPhone(e.target.value)}
+                id="reg-fullname"
+                type="text"
+                placeholder="Rohan Verma"
+                value={regFullName}
+                onChange={(e) => setRegFullName(e.target.value)}
                 disabled={isLoading}
                 className="pl-10 h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
@@ -312,18 +314,49 @@ function ConsumerLoginForm() {
           </div>
 
           <div className="space-y-1.5 text-left">
-            <label htmlFor="reg-username" className="block text-xs font-semibold text-slate-300">
-              Username (Optional)
-            </label>
-            <Input
-              id="reg-username"
-              type="text"
-              placeholder="e.g. rohanv"
-              value={regUsername}
-              onChange={(e) => setRegUsername(e.target.value)}
-              disabled={isLoading}
-              className="h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            />
+            <div className="flex items-center justify-between">
+              <label htmlFor="reg-email" className="block text-xs font-semibold text-slate-300">
+                Email Address
+              </label>
+              <span className="text-[11px] text-emerald-400 font-medium">Primary</span>
+            </div>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Mail className="w-4 h-4" />
+              </div>
+              <Input
+                id="reg-email"
+                type="email"
+                placeholder="rohan@example.com"
+                value={regEmail}
+                onChange={(e) => setRegEmail(e.target.value)}
+                disabled={isLoading}
+                className="pl-10 h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5 text-left">
+            <div className="flex items-center justify-between">
+              <label htmlFor="reg-username" className="block text-xs font-semibold text-slate-300">
+                Choose Username
+              </label>
+              <span className="text-[11px] text-emerald-400 font-medium">Primary</span>
+            </div>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <AtSign className="w-4 h-4" />
+              </div>
+              <Input
+                id="reg-username"
+                type="text"
+                placeholder="rohanv"
+                value={regUsername}
+                onChange={(e) => setRegUsername(e.target.value)}
+                disabled={isLoading}
+                className="pl-10 h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
           </div>
 
           <AuthPasswordInput
@@ -334,6 +367,32 @@ function ConsumerLoginForm() {
             onChange={(e) => setRegPassword(e.target.value)}
             disabled={isLoading}
           />
+
+          <div className="space-y-1.5 text-left pt-1">
+            <div className="flex items-center justify-between">
+              <label htmlFor="reg-phone" className="block text-xs font-semibold text-slate-300">
+                Mobile Phone
+              </label>
+              <span className="text-[11px] text-slate-400">Secondary (Optional)</span>
+            </div>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Phone className="w-4 h-4" />
+              </div>
+              <Input
+                id="reg-phone"
+                type="tel"
+                placeholder="+91 98765 43210 (Optional)"
+                value={regPhone}
+                onChange={(e) => setRegPhone(e.target.value)}
+                disabled={isLoading}
+                className="pl-10 h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 leading-normal">
+              Zero SMS waste: We use email &amp; in-app notifications by default.
+            </p>
+          </div>
 
           <Button
             type="submit"

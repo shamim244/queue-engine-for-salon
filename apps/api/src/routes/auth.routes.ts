@@ -452,7 +452,7 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
   .post('/customer/register', async ({ body, set, cookie: { engine_session } }) => {
     const { name, phone, username, email, password } = body as {
       name: string;
-      phone: string;
+      phone?: string;
       username?: string;
       email?: string;
       password?: string;
@@ -462,45 +462,68 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
       set.status = 400;
       return { success: false, message: 'Valid name is required (minimum 2 characters)' };
     }
-    if (!phone?.trim()) {
+
+    const cleanEmail = email?.trim().toLowerCase() || null;
+    if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       set.status = 400;
-      return { success: false, message: 'Valid phone number is required' };
+      return { success: false, message: 'Valid email address format is required' };
     }
 
-    const cleanPhone = phone.trim().replace(/[^0-9+]/g, '');
+    let cleanPhone: string | null = null;
+    const hasPhoneProvided = phone !== undefined && phone !== null && phone.trim().length > 0;
+    if (hasPhoneProvided) {
+      const sanitized = phone.trim().replace(/[^0-9+]/g, '');
+      const rawDigits = sanitized.replace(/[^0-9]/g, '');
+      if (!rawDigits || rawDigits.length < 7 || rawDigits.length > 15) {
+        set.status = 400;
+        return { success: false, message: 'Valid phone number with 7-15 digits is required' };
+      }
+      cleanPhone = sanitized;
+    }
+
+    if (!cleanPhone && !cleanEmail && !username?.trim()) {
+      set.status = 400;
+      return { success: false, message: 'Valid email, username, or phone number is required' };
+    }
+
     const cleanName = name.trim();
-    const rawDigits = cleanPhone.replace(/[^0-9]/g, '');
-    if (!rawDigits || rawDigits.length < 7 || rawDigits.length > 15) {
-      set.status = 400;
-      return { success: false, message: 'Valid phone number with 7-15 digits is required' };
-    }
+    const cleanUsername = (
+      username?.trim() ||
+      (cleanEmail ? cleanEmail.split('@')[0] : null) ||
+      (cleanPhone ? `cust_${cleanPhone.replace(/[^0-9]/g, '').slice(-6)}` : null) ||
+      `user_${Math.random().toString(36).substring(2, 7)}`
+    ).toLowerCase();
 
-    const cleanUsername = (username?.trim() || `cust_${rawDigits.slice(-6)}` || `user_${Math.random().toString(36).substring(2, 7)}`).toLowerCase();
     const finalPassword = password && password.length >= 6 ? password : 'Customer@123';
 
     try {
       // 1. Create User account with role 'CUSTOMER' (or retrieve if already exists)
-      let user = await authService.getUserByIdentifier(cleanPhone) || await authService.getUserByUsername(cleanUsername);
+      let user = null;
+      if (cleanEmail) user = await authService.getUserByIdentifier(cleanEmail);
+      if (!user && cleanPhone) user = await authService.getUserByIdentifier(cleanPhone);
+      if (!user && cleanUsername) user = await authService.getUserByUsername(cleanUsername);
+
       if (!user) {
         user = await authService.createUser({
           username: cleanUsername,
           password: finalPassword,
           fullName: cleanName,
-          phone: cleanPhone,
-          email: email?.trim().toLowerCase() || null,
+          phone: cleanPhone || '',
+          email: cleanEmail,
           role: 'CUSTOMER',
         });
       }
 
       // 2. Insert or update customers table
       const custId = 'cust-' + Math.random().toString(36).substring(2, 9);
+      const custPhone = cleanPhone || (cleanEmail ? cleanEmail.replace(/[@.]/g, '_').slice(0, 20) : `c_${custId.slice(-10)}`);
       if (isMySqlConnected) {
         const db = getDb();
         await db.query(
           `INSERT INTO customers (id, name, phone, password_hash)
            VALUES (?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE name = VALUES(name), password_hash = COALESCE(VALUES(password_hash), password_hash)`,
-          [custId, cleanName, cleanPhone, user.passwordHash]
+          [custId, cleanName, custPhone, user.passwordHash]
         );
       }
 
@@ -515,7 +538,7 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
       return {
         success: true,
         token: session.token,
-        customer: { id: custId, name: cleanName, phone: cleanPhone },
+        customer: { id: custId, name: cleanName, phone: cleanPhone || custPhone },
         user: {
           id: user.id,
           username: user.username,
@@ -533,7 +556,7 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
   }, {
     body: t.Object({
       name: t.String(),
-      phone: t.String(),
+      phone: t.Optional(t.String()),
       username: t.Optional(t.String()),
       email: t.Optional(t.String()),
       password: t.Optional(t.String()),

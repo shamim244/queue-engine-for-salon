@@ -462,9 +462,9 @@ export const api = {
 
     registerCustomer: (data: {
       name: string;
-      phone: string;
-      username?: string;
       email?: string;
+      username?: string;
+      phone?: string;
       password?: string;
     }) =>
       request<{
