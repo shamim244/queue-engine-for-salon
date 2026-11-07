@@ -13,13 +13,17 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export function maskPhone(phone: string): string {
+export function maskPhone(phone?: string | null): string {
   if (!phone) return "";
-  const cleaned = phone.replace(/\s+/g, "");
-  if (cleaned.length <= 4) return cleaned;
-  const start = cleaned.slice(0, Math.max(3, cleaned.length - 4));
-  const end = cleaned.slice(-2);
-  return `${cleaned.slice(0, 5)} *** ${end}`;
+  const cleaned = phone.replace(/[\s\-\+]/g, "");
+  // Ignore dummy placeholder phone numbers
+  if (/^0+$/.test(cleaned) || cleaned === "919876500000" || cleaned === "9876500000" || cleaned.length < 5) {
+    return "";
+  }
+  const rawWithPlus = phone.replace(/\s+/g, "");
+  const start = rawWithPlus.slice(0, 5);
+  const end = rawWithPlus.slice(-2);
+  return `${start} *** ${end}`;
 }
 
 export function generateUpiUri(params: {

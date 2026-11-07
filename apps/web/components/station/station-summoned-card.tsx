@@ -53,7 +53,7 @@ export function StationSummonedCard({
           <div>
             <h3 className="text-2xl font-black text-white">{summonedTicket.customerName}</h3>
             <p className="text-sm text-slate-400 mt-1">
-              {summonedTicket.customerPhone ? maskPhone(summonedTicket.customerPhone) : "Guest Walk-In"}
+              {maskPhone(summonedTicket.customerPhone) || "Walk-in Guest"}
             </p>
           </div>
         </div>

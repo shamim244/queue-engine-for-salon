@@ -599,7 +599,7 @@ export const api = {
     checkIn: (data: {
       salonSlug: string;
       customerName: string;
-      customerPhone: string;
+      customerPhone?: string;
       serviceId: string;
       addOnIds?: string[];
       stylistId?: string | null;

@@ -18,7 +18,7 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
     body: t.Object({
       salonSlug: t.String(),
       customerName: t.String(),
-      customerPhone: t.String(),
+      customerPhone: t.Optional(t.String()),
       serviceId: t.String(),
       addOnIds: t.Optional(t.Array(t.String())),
       stylistId: t.Optional(t.Nullable(t.String())),

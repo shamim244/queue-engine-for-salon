@@ -297,7 +297,7 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
       const resp = await api.queue.checkIn({
         salonSlug: slug,
         customerName: customerName.trim(),
-        customerPhone: customerPhone.trim() || "+91 98765 00000",
+        customerPhone: customerPhone.trim(),
         serviceId: selectedServiceId,
         stylistId: selectedStylistId,
       });
@@ -345,7 +345,7 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
     (t) => t.status === "IN_CHAIR" || t.status === "IN_SERVICE"
   );
   const waitingSequence = activeTickets.filter(
-    (t) => t.status === "WAITING" || t.status === "SUMMONED" || t.status === "CALLED"
+    (t) => t.status === "WAITING" || t.status === "SUMMONED" || t.status === "CALLED" || t.status === "SOFT_BUMPED"
   );
 
   // Real-time Barber & Automated Queue Load Breakdown (Rule 1: Client-Compute Math)
@@ -357,7 +357,7 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
       (t) => t.status === "IN_CHAIR" || t.status === "IN_SERVICE"
     );
     const waitingTickets = activeTickets.filter(
-      (t) => t.status === "WAITING" || t.status === "SUMMONED" || t.status === "CALLED"
+      (t) => t.status === "WAITING" || t.status === "SUMMONED" || t.status === "CALLED" || t.status === "SOFT_BUMPED"
     );
 
     const totalWaitingCount = waitingTickets.length;
@@ -437,8 +437,10 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
     return idx >= 0 ? idx : 0;
   }, [myTicket, waitingSequence, peopleAhead]);
 
-  const estimatedWaitMin = myIndex >= 0 
-    ? (myTicket?.estimatedWaitMinutes || Math.max(5, (myIndex + 1) * 15))
+  const estimatedWaitMin = myTicket
+    ? (typeof myTicket.estimatedWaitMinutes === "number"
+        ? myTicket.estimatedWaitMinutes
+        : myIndex >= 0 ? Math.max(5, (myIndex + 1) * 15) : 0)
     : 0;
 
   // Real-Time Local Device Clock for Exact Clock-Time Window (Rule 1: Client-Compute Architecture)
@@ -573,7 +575,10 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
                     Ticket #{myTicket.ticketNumber}
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    For <span className="text-white font-semibold">{myTicket.customerName}</span> ({maskPhone(myTicket.customerPhone)})
+                    For <span className="text-white font-semibold">{myTicket.customerName}</span>
+                    {myTicket.customerPhone && maskPhone(myTicket.customerPhone) && (
+                      <span className="text-slate-400 font-normal"> ({maskPhone(myTicket.customerPhone)})</span>
+                    )}
                   </p>
                 </div>
                 <div className="text-right">
@@ -1084,14 +1089,23 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
                           isMe ? "bg-amber-500/10 text-amber-300 font-bold" : "text-slate-300"
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono font-bold text-slate-400">#{t.ticketNumber}</span>
-                          <span className="font-semibold">{isMe ? `${t.customerName} (You)` : maskPhone(t.customerPhone)}</span>
+                        <div className="flex items-center gap-2.5 min-w-0 truncate">
+                          <span className="font-mono font-bold text-slate-400 shrink-0">#{t.ticketNumber}</span>
+                          <span className="font-semibold truncate">
+                            {isMe ? `${t.customerName} (You)` : t.customerName || `Guest #${t.ticketNumber}`}
+                          </span>
+                          {t.customerPhone && maskPhone(t.customerPhone) && !isMe && (
+                            <span className="text-[10px] text-slate-500 font-normal shrink-0">
+                              ({maskPhone(t.customerPhone)})
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           <span className="text-[11px] text-slate-400">{t.serviceName}</span>
                           <Badge variant={isMe ? "warning" : "secondary"} className="text-[10px]">
-                            {idx === 0 ? "Next Up" : `${(idx + 1) * 15}m wait`}
+                            {idx === 0 || t.estimatedWaitMinutes === 0
+                              ? "Next Up"
+                              : `~${t.estimatedWaitMinutes || (idx + 1) * 15}m wait`}
                           </Badge>
                         </div>
                       </div>

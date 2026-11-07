@@ -59,7 +59,7 @@ export function StationInServiceCard({
           <div>
             <h3 className="text-3xl font-black text-white">{currentlyServing.customerName}</h3>
             <p className="text-sm text-slate-400 mt-1">
-              {currentlyServing.customerPhone ? maskPhone(currentlyServing.customerPhone) : "Walk-in Guest"}
+              {maskPhone(currentlyServing.customerPhone) || "Walk-in Guest"}
             </p>
           </div>
         </div>

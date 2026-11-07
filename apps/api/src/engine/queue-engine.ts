@@ -81,21 +81,25 @@ export const queueEngine = {
     // Retrieve updated ticket with calculated wait time directly from activeTickets
     const updatedTicket = activeTickets.find((t) => t.id === ticketId) || ticket;
 
-    // Asynchronously dispatch WhatsApp confirmation via background worker
-    jobQueue.enqueue(
-      'SEND_WHATSAPP',
-      {
-        salonId: salon.id,
-        salonName: salon.name,
-        ticketId: updatedTicket.id,
-        recipientPhone: updatedTicket.customerPhone,
-        recipientName: updatedTicket.customerName,
-        type: 'TICKET_CONFIRMATION',
-        ticketNumber: updatedTicket.ticketNumber,
-        estimatedWaitMinutes: updatedTicket.estimatedWaitMinutes,
-      },
-      { salonId: salon.id }
-    ).then(() => jobQueue.processNextJob().catch(() => {}));
+    // Asynchronously dispatch WhatsApp confirmation via background worker if real phone provided
+    const digitsOnly = (updatedTicket.customerPhone || '').replace(/[^0-9]/g, '');
+    const isRealPhone = digitsOnly.length >= 10 && !/^0+$/.test(digitsOnly) && digitsOnly !== '9876500000' && digitsOnly !== '919876500000';
+    if (isRealPhone) {
+      jobQueue.enqueue(
+        'SEND_WHATSAPP',
+        {
+          salonId: salon.id,
+          salonName: salon.name,
+          ticketId: updatedTicket.id,
+          recipientPhone: updatedTicket.customerPhone,
+          recipientName: updatedTicket.customerName,
+          type: 'TICKET_CONFIRMATION',
+          ticketNumber: updatedTicket.ticketNumber,
+          estimatedWaitMinutes: updatedTicket.estimatedWaitMinutes,
+        },
+        { salonId: salon.id }
+      ).then(() => jobQueue.processNextJob().catch(() => {}));
+    }
 
     websocketHub.broadcastToSalon(salon.id, {
       type: 'TICKET_CREATED',
@@ -125,7 +129,7 @@ export const queueEngine = {
     return this.checkIn({
       salonSlug: params.salonSlug,
       customerName: params.customerName || 'Walk-in Client',
-      customerPhone: params.customerPhone || '0000000000',
+      customerPhone: params.customerPhone || '',
       serviceId: defaultService.id,
       source: 'BARBER_QUICK_ADD',
     });

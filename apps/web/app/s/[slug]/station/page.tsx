@@ -360,7 +360,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       const resp = await api.queue.quickAdd({
         salonSlug: slug,
         customerName: quickAddName.trim() || "Walk-in Guest",
-        customerPhone: quickAddPhone.trim() || "0000000000",
+        customerPhone: quickAddPhone.trim() || undefined,
         serviceId: quickAddServiceId || salon.services?.[0]?.id,
       });
       if (resp.ticket) {
