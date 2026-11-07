@@ -71,17 +71,25 @@ function PartnerLoginForm() {
     try {
       const resp = await login(ownerIdentifier.trim(), ownerPassword);
       if (resp.user?.role === "SALON_OWNER") {
-        router.push(redirectParam?.startsWith("/owner") ? redirectParam : "/owner");
+        // Verify owner's assigned salon branch
+        const activeSalonSlug = resp.salon?.slug || (resp.branches && resp.branches.length > 0 ? resp.branches[0].slug : null);
+        if (activeSalonSlug) {
+          router.push(redirectParam?.startsWith("/owner") ? redirectParam : `/owner?salon=${activeSalonSlug}`);
+        } else {
+          // If unassigned: route directly to salon onboarding wizard
+          router.push("/register?role=owner");
+        }
       } else if (resp.user?.role === "STAFF") {
-        router.push(
-          redirectParam?.startsWith("/staff") || redirectParam?.includes("/station")
-            ? redirectParam
-            : "/staff"
-        );
+        const staffSalon = resp.salon?.slug || (resp.staff?.salonId ? resp.branches?.find(b => b.id === resp.staff?.salonId)?.slug : null) || resp.user?.salonId;
+        if (staffSalon) {
+          router.push(`/s/${staffSalon}/station`);
+        } else {
+          router.push("/staff");
+        }
       } else {
         await logout();
         if (resp.user?.role === "SUPER_ADMIN") {
-          setErrorMessage("Platform Administrators please use the dedicated portal at /admin/login.");
+          setErrorMessage("Platform Administrators please use the dedicated portal at /hq/login.");
         } else {
           setErrorMessage("This portal is strictly for Salon Partners. Consumers please sign in at /login.");
         }
@@ -106,13 +114,16 @@ function PartnerLoginForm() {
     try {
       const resp = await login(staffIdentifier.trim(), staffPassword);
       if (resp.user?.role === "STAFF") {
-        router.push(
-          redirectParam?.startsWith("/staff") || redirectParam?.includes("/station")
-            ? redirectParam
-            : "/staff"
-        );
+        // Resolve exact salon branch for this stylist
+        const staffSalon = resp.salon?.slug || (resp.staff?.salonId ? resp.branches?.find(b => b.id === resp.staff?.salonId)?.slug : null) || resp.user?.salonId;
+        if (staffSalon) {
+          router.push(`/s/${staffSalon}/station`);
+        } else {
+          router.push("/staff");
+        }
       } else if (resp.user?.role === "SALON_OWNER") {
-        router.push(redirectParam?.startsWith("/owner") ? redirectParam : "/owner");
+        const activeSalonSlug = resp.salon?.slug || (resp.branches && resp.branches.length > 0 ? resp.branches[0].slug : null);
+        router.push(activeSalonSlug ? `/owner?salon=${activeSalonSlug}` : "/register?role=owner");
       } else {
         await logout();
         setErrorMessage("Access denied: Stylist / Staff credentials required. Consumers please visit /login.");
