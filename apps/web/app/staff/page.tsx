@@ -107,9 +107,12 @@ export default function StaffDashboardPage() {
     fetchQueueData();
   });
 
-  // Current client in chair for this staff member (or unassigned in chair)
+  // Current client strictly seated in chair for this authenticated staff member
   const myInChairTicket = activeTickets.find(
-    (t) => (t.status === "IN_CHAIR" || t.status === "IN_SERVICE") && (!t.stylistId || t.stylistId === stylistId)
+    (t) =>
+      (t.status === "IN_CHAIR" || t.status === "IN_SERVICE") &&
+      stylistId &&
+      (t.stylistId === stylistId || t.servedByStylistId === stylistId)
   );
 
   // Sync custom duration when ticket in chair updates
@@ -120,14 +123,19 @@ export default function StaffDashboardPage() {
     }
   }, [myInChairTicket]);
 
-  // Summoned ticket
+  // Summoned ticket strictly summoned to this authenticated staff chair
   const mySummonedTicket = activeTickets.find(
-    (t) => (t.status === "SUMMONED" || t.status === "CALLED") && (!t.stylistId || t.stylistId === stylistId)
+    (t) =>
+      (t.status === "SUMMONED" || t.status === "CALLED") &&
+      stylistId &&
+      (t.stylistId === stylistId || t.servedByStylistId === stylistId)
   );
 
-  // Waiting clients
+  // Waiting clients eligible for this staff chair (universal unassigned OR requested this stylist)
   const waitingTickets = activeTickets.filter(
-    (t) => t.status === "WAITING" && (!t.stylistId || t.stylistId === stylistId)
+    (t) =>
+      (t.status === "WAITING" || t.status === "SOFT_BUMPED") &&
+      (!t.stylistId || (stylistId && t.stylistId === stylistId))
   );
 
   // Actions

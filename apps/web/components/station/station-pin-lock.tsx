@@ -11,6 +11,7 @@ interface StationPinLockProps {
   onClearPin: () => void;
   onBackspace: () => void;
   onOpenSwitchChair: () => void;
+  onLogout?: () => void;
 }
 
 export function StationPinLock({
@@ -22,6 +23,7 @@ export function StationPinLock({
   onClearPin,
   onBackspace,
   onOpenSwitchChair,
+  onLogout,
 }: StationPinLockProps) {
   const [activeKey, setActiveKey] = useState<string | null>(null);
 
@@ -192,6 +194,17 @@ export function StationPinLock({
         </p>
 
         <div className="pt-2 space-y-2">
+          {onLogout && (
+            <div>
+              <button
+                type="button"
+                onClick={onLogout}
+                className="text-xs text-slate-400 hover:text-white"
+              >
+                ← Sign Out / Switch Staff Account
+              </button>
+            </div>
+          )}
           {salon?.stylists && salon.stylists.length > 1 && (
             <div>
               <button

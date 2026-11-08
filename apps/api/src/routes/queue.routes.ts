@@ -72,15 +72,19 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   .post('/call-next', async ({ body, headers, cookie: { engine_session }, set }) => {
     try {
       const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      let effectiveStylistId = (body as { salonId: string; stylistId?: string }).stylistId;
       if (token) {
         const auth = await authService.validateSession(token);
         if (auth && auth.role === 'CUSTOMER') {
           set.status = 403;
           return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
         }
+        if (auth && auth.role === 'STAFF' && !effectiveStylistId && auth.staffId) {
+          effectiveStylistId = auth.staffId;
+        }
       }
-      const { salonId, stylistId } = body as { salonId: string; stylistId?: string };
-      const ticket = await queueEngine.callNext(salonId, stylistId);
+      const { salonId } = body as { salonId: string; stylistId?: string };
+      const ticket = await queueEngine.callNext(salonId, effectiveStylistId);
       if (!ticket) {
         return { success: false, message: 'No waiting clients in queue' };
       }
@@ -101,15 +105,19 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   .post('/seat', async ({ body, headers, cookie: { engine_session }, set }) => {
     try {
       const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      let effectiveStylistId = (body as { ticketId: string; stylistId?: string }).stylistId;
       if (token) {
         const auth = await authService.validateSession(token);
         if (auth && auth.role === 'CUSTOMER') {
           set.status = 403;
           return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
         }
+        if (auth && auth.role === 'STAFF' && !effectiveStylistId && auth.staffId) {
+          effectiveStylistId = auth.staffId;
+        }
       }
-      const { ticketId, stylistId } = body as { ticketId: string; stylistId?: string };
-      const ticket = await queueEngine.seatCustomer(ticketId, stylistId);
+      const { ticketId } = body as { ticketId: string; stylistId?: string };
+      const ticket = await queueEngine.seatCustomer(ticketId, effectiveStylistId);
       if (!ticket) {
         set.status = 404;
         return { success: false, message: 'Ticket not found' };

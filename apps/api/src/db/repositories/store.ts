@@ -204,6 +204,16 @@ export function seedDemoData() {
     currentTicketId: null,
   };
 
+  const sureshStylist: Stylist = {
+    id: 'stylist-suresh-02',
+    salonId: ruralSalon.id,
+    name: 'Suresh Verma',
+    phone: '+91 98765 43211',
+    isActive: true,
+    historicalAvgDurationMinutes: 25,
+    currentTicketId: null,
+  };
+
   const ruralServices: ServiceDefinition[] = [
     { id: 'srv-r-1', salonId: ruralSalon.id, name: 'Haircut (बाल कटिंग)', basePrice: 80, estimatedDurationMinutes: 20, isAddOn: false, icon: '✂️' },
     { id: 'srv-r-2', salonId: ruralSalon.id, name: 'Clean Shave (दाढ़ी शेव)', basePrice: 40, estimatedDurationMinutes: 15, isAddOn: false, icon: '🪒' },

@@ -163,21 +163,24 @@ export const queueEngine = {
     if (!nextTicket) return null;
 
     const salon = await repository.getSalonById(salonId);
-    const assignedStylistId = stylistId || nextTicket.stylistId || salon?.stylists[0]?.id;
-    const stylist = salon?.stylists.find((s) => s.id === assignedStylistId) || salon?.stylists[0];
+    const assignedStylistId = stylistId || nextTicket.stylistId || (salon?.stylists && salon.stylists.length === 1 ? salon.stylists[0]?.id : undefined);
+    const stylist = assignedStylistId ? salon?.stylists.find((s) => s.id === assignedStylistId) : undefined;
 
     // If chair already had another SUMMONED ticket, gracefully soft-bump it to avoid stranded states
+    // Strictly isolate per chair/stylist: NEVER soft-bump another stylist's summoned ticket!
     const currentlySummoned = rawActive.filter(
       (t) =>
         (t.status === 'SUMMONED' || t.status === 'CALLED') &&
         t.id !== nextTicket!.id &&
-        (!stylist?.id || !t.stylistId || t.stylistId === stylist.id)
+        (assignedStylistId
+          ? t.stylistId === assignedStylistId
+          : (!salon?.stylists || salon.stylists.length <= 1))
     );
     for (const prev of currentlySummoned) {
       await repository.updateTicketStatus(prev.id, 'SOFT_BUMPED');
     }
 
-    const finalStylistId = stylistId || nextTicket.stylistId || stylist?.id;
+    const finalStylistId = stylistId || nextTicket.stylistId || assignedStylistId;
     const updated = await repository.updateTicketStatus(nextTicket.id, 'SUMMONED', {
       stylistId: finalStylistId,
       summonedTime: new Date().toISOString(),

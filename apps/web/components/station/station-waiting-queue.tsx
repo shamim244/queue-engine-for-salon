@@ -27,7 +27,7 @@ export function StationWaitingQueue({
   const [activeTab, setActiveTab] = useState<"YOURS" | "OTHER" | "PAUSED">("YOURS");
 
   const waitingTickets = allTickets.filter(
-    (t) => t.status === "WAITING" || t.status === "SOFT_BUMPED" || t.status === "CALLED" || t.status === "SUMMONED"
+    (t) => t.status === "WAITING" || t.status === "SOFT_BUMPED"
   );
 
   const pausedTickets = allTickets.filter((t) => t.status === "PAUSED");

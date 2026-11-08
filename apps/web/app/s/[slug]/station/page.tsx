@@ -5,9 +5,11 @@ import { parseTimestampMs } from "@/lib/utils";
 import { api, request, markTicketNoShow } from "@/lib/api";
 import type { Salon, Ticket, Stylist } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
-import { CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { CheckCircle2, AlertCircle, Sparkles, Armchair } from "lucide-react";
 
 // Modular Station Components
+import { StationStaffLogin } from "@/components/station/station-staff-login";
 import { StationPinLock } from "@/components/station/station-pin-lock";
 import { StationChairHeader } from "@/components/station/station-chair-header";
 import { StationSwitchChairModal } from "@/components/station/station-switch-chair-modal";
@@ -22,14 +24,15 @@ import { StationAddServicesModal } from "@/components/station/station-add-servic
 
 export default function StaffStationPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
+  const { user, staff: authStaff, login, logout, isLoading: authLoading } = useAuth();
 
   const [salon, setSalon] = useState<Salon | null>(null);
   const [activeTickets, setActiveTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Authentication & Stylist Lock State
+  // Authentication & Stylist Lock State (Username/Password is primary, PIN lock is optional screen lock)
   const [activeStylist, setActiveStylist] = useState<Stylist | null>(null);
-  const [isLocked, setIsLocked] = useState(true);
+  const [isLocked, setIsLocked] = useState(false);
   const [enteredPin, setEnteredPin] = useState("");
   const [pinError, setPinError] = useState("");
 
@@ -76,11 +79,24 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const fetchStationData = useCallback(async () => {
     try {
       const salonRes = await api.salons.get(slug);
+      let targetStylist = activeStylist;
+
       if (salonRes.salon) {
         setSalon(salonRes.salon);
-        if (!activeStylist && salonRes.salon.stylists?.length > 0) {
-          setActiveStylist(salonRes.salon.stylists[0]);
+
+        // Strict Session Binding: Match authenticated staff user to their specific chair
+        const matchedStylist = salonRes.salon.stylists?.find(
+          (s: Stylist) => s.id === user?.staffId || s.userId === user?.id || (authStaff && s.id === authStaff.id)
+        );
+
+        if (user?.role === "STAFF") {
+          targetStylist = matchedStylist || salonRes.salon.stylists?.[0] || null;
+          setActiveStylist(targetStylist);
+        } else if (!targetStylist && salonRes.salon.stylists?.length > 0) {
+          targetStylist = matchedStylist || salonRes.salon.stylists[0];
+          setActiveStylist(targetStylist);
         }
+
         if (!quickAddServiceId && salonRes.salon.services?.length > 0) {
           setQuickAddServiceId(salonRes.salon.services[0].id);
         }
@@ -90,26 +106,25 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       const tickets = queueRes.tickets || [];
       setActiveTickets(tickets);
 
-      const isSingleChair = !salonRes.salon?.stylists || salonRes.salon.stylists.length <= 1;
-
+      // Strict Chair Isolation: Only show ticket currently serving or called at THIS chair
       const inService =
         tickets.find(
           (t) =>
             (t.status === "IN_SERVICE" || t.status === "IN_CHAIR") &&
-            (!activeStylist || !t.stylistId || t.stylistId === activeStylist.id)
-        ) ||
-        (isSingleChair ? tickets.find((t) => t.status === "IN_SERVICE" || t.status === "IN_CHAIR") : null);
+            targetStylist &&
+            (t.stylistId === targetStylist.id || t.servedByStylistId === targetStylist.id)
+        ) || null;
 
       const called =
         tickets.find(
           (t) =>
             (t.status === "CALLED" || t.status === "SUMMONED") &&
-            (!activeStylist || !t.stylistId || t.stylistId === activeStylist.id)
-        ) ||
-        (isSingleChair ? tickets.find((t) => t.status === "CALLED" || t.status === "SUMMONED") : null);
+            targetStylist &&
+            (t.stylistId === targetStylist.id || t.servedByStylistId === targetStylist.id)
+        ) || null;
 
-      setCurrentlyServing(inService || null);
-      setSummonedTicket(called || null);
+      setCurrentlyServing(inService);
+      setSummonedTicket(called);
 
       if (inService && inService.totalPrice) {
         setEditableBill(inService.totalPrice);
@@ -121,7 +136,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     } finally {
       setLoading(false);
     }
-  }, [slug, activeStylist, quickAddServiceId]);
+  }, [slug, activeStylist, quickAddServiceId, user, authStaff]);
 
   useEffect(() => {
     fetchStationData();
@@ -417,7 +432,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const handleSelectStylistChair = (st: Stylist) => {
     setActiveStylist(st);
     setIsSwitchChairOpen(false);
-    setIsLocked(true);
+    setIsLocked(false);
     setEnteredPin("");
     setPinError("");
   };
@@ -429,7 +444,32 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       (t.status === "WAITING" || t.status === "SOFT_BUMPED")
   ).length;
 
-  // View 1: Locked PIN Keypad
+  // View 0A: Loading Auth State
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
+        <div className="h-16 w-16 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center animate-pulse text-amber-400 shadow-xl">
+          <Armchair className="h-8 w-8" />
+        </div>
+        <p className="mt-4 text-xs font-semibold text-slate-400">Loading Chair Station...</p>
+      </div>
+    );
+  }
+
+  // View 0B: Primary Authentication - Staff Account Login (Username/Phone/Email + Password)
+  if (!user) {
+    return (
+      <StationStaffLogin
+        salon={salon}
+        onLogin={async (id, pwd) => {
+          await login(id, pwd);
+        }}
+        isLoading={authLoading}
+      />
+    );
+  }
+
+  // View 1: Optional Locked Screen (Mirror Tablet Lock)
   if (isLocked) {
     return (
       <>
@@ -442,6 +482,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
           onClearPin={handleClearPin}
           onBackspace={handleBackspace}
           onOpenSwitchChair={() => setIsSwitchChairOpen(true)}
+          onLogout={logout}
         />
         <StationSwitchChairModal
           isOpen={isSwitchChairOpen}
@@ -460,12 +501,14 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       <StationChairHeader
         slug={slug}
         activeStylist={activeStylist}
-        hasMultipleStylists={(salon?.stylists?.length || 0) > 1}
+        hasMultipleStylists={user.role === "SALON_OWNER" || user.role === "SUPER_ADMIN"}
         socketStatus={status}
         reconnectAttempts={reconnectAttempts}
+        userName={user.fullName || user.username}
         onOpenSwitchChair={() => setIsSwitchChairOpen(true)}
         onOpenQuickAdd={() => setIsQuickAddOpen(true)}
         onLockChair={() => setIsLocked(true)}
+        onLogout={logout}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 space-y-6">
