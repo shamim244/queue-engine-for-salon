@@ -1,7 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { api } from "@/lib/api";
+import {
+  api,
+  getCompressionStatus,
+  updateCompressionSettings,
+  runCompressionBenchmark,
+  request,
+} from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -94,16 +100,68 @@ export function CompressionCenter() {
     loadCompressionData();
   }, []);
 
+  const fetchCompressionStatusSafe = async () => {
+    if (typeof api?.admin?.getCompressionStatus === "function") {
+      return await api.admin.getCompressionStatus();
+    }
+    if (typeof getCompressionStatus === "function") {
+      return await getCompressionStatus();
+    }
+    return await request<any>("/api/admin/compression");
+  };
+
+  const updateCompressionSafe = async (data: any) => {
+    if (typeof api?.admin?.updateCompressionSettings === "function") {
+      return await api.admin.updateCompressionSettings(data);
+    }
+    if (typeof updateCompressionSettings === "function") {
+      return await updateCompressionSettings(data);
+    }
+    return await request<any>("/api/admin/compression", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  };
+
+  const runBenchmarkSafe = async (payload?: string) => {
+    if (typeof api?.admin?.runCompressionBenchmark === "function") {
+      return await api.admin.runCompressionBenchmark(payload);
+    }
+    if (typeof runCompressionBenchmark === "function") {
+      return await runCompressionBenchmark(payload);
+    }
+    return await request<any>("/api/admin/compression/benchmark", {
+      method: "POST",
+      body: JSON.stringify({ payload }),
+    });
+  };
+
   const loadCompressionData = async () => {
     try {
       setLoading(true);
-      const res = await api.admin.getCompressionStatus();
-      if (res.success) {
-        setCapabilities(res.capabilities || []);
+      setErrorMessage(null);
+      const res = await fetchCompressionStatusSafe();
+      if (res && res.success) {
+        setCapabilities(res.capabilities || defaultCapabilities);
         if (res.settings) setSettings(res.settings);
         if (res.benchmark) setBenchmark(res.benchmark);
       }
     } catch (err: any) {
+      console.warn("Primary compression status fetch failed, trying direct fallback:", err);
+      try {
+        const raw = await fetch("/api/admin/compression");
+        if (raw.ok) {
+          const res = await raw.json();
+          if (res && res.success) {
+            setCapabilities(res.capabilities || defaultCapabilities);
+            if (res.settings) setSettings(res.settings);
+            if (res.benchmark) setBenchmark(res.benchmark);
+            return;
+          }
+        }
+      } catch (fallbackErr: any) {
+        console.error("Direct fetch fallback also failed:", fallbackErr);
+      }
       setErrorMessage("Failed to load compression status: " + (err.message || String(err)));
     } finally {
       setLoading(false);
@@ -116,8 +174,8 @@ export function CompressionCenter() {
       setSaving(true);
       setSuccessMessage(null);
       setErrorMessage(null);
-      const res = await api.admin.updateCompressionSettings(settings);
-      if (res.success) {
+      const res = await updateCompressionSafe(settings);
+      if (res && res.success) {
         setSuccessMessage("Compression configuration successfully synced across platform!");
         if (res.settings) setSettings(res.settings);
         setTimeout(() => setSuccessMessage(null), 4000);
@@ -132,8 +190,9 @@ export function CompressionCenter() {
   const handleRunBenchmark = async () => {
     try {
       setBenchmarking(true);
-      const res = await api.admin.runCompressionBenchmark();
-      if (res.success && res.benchmark) {
+      setErrorMessage(null);
+      const res = await runBenchmarkSafe();
+      if (res && res.success && res.benchmark) {
         setBenchmark(res.benchmark);
         setSuccessMessage("Real-time benchmark updated successfully!");
         setTimeout(() => setSuccessMessage(null), 3000);

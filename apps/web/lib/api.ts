@@ -374,6 +374,24 @@ export async function markTicketNoShow(ticketId: string, reason?: string) {
   });
 }
 
+export async function getCompressionStatus(): Promise<any> {
+  return request<any>("/api/admin/compression");
+}
+
+export async function updateCompressionSettings(settings: any): Promise<any> {
+  return request<any>("/api/admin/compression", {
+    method: "POST",
+    body: JSON.stringify(settings),
+  });
+}
+
+export async function runCompressionBenchmark(payload?: string): Promise<any> {
+  return request<any>("/api/admin/compression/benchmark", {
+    method: "POST",
+    body: JSON.stringify({ payload }),
+  });
+}
+
 export const api = {
   auth: {
     login: (identifier: string, password: string) =>
@@ -774,17 +792,9 @@ export const api = {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    getCompressionStatus: () => request<any>("/api/admin/compression"),
-    updateCompressionSettings: (settings: any) =>
-      request<any>("/api/admin/compression", {
-        method: "POST",
-        body: JSON.stringify(settings),
-      }),
-    runCompressionBenchmark: (payload?: string) =>
-      request<any>("/api/admin/compression/benchmark", {
-        method: "POST",
-        body: JSON.stringify({ payload }),
-      }),
+    getCompressionStatus: () => getCompressionStatus(),
+    updateCompressionSettings: (settings: any) => updateCompressionSettings(settings),
+    runCompressionBenchmark: (payload?: string) => runCompressionBenchmark(payload),
     testNotification: (phone?: string, message?: string) =>
       request<{ success: boolean; provider: string; notificationId?: string; timestamp?: string }>(
         "/api/admin/test-notification",
