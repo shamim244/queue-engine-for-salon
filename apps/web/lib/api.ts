@@ -367,6 +367,13 @@ export const apiClient = {
   request,
 };
 
+export async function markTicketNoShow(ticketId: string, reason?: string) {
+  return request<{ success: boolean; ticket: Ticket }>("/api/queue/no-show", {
+    method: "POST",
+    body: JSON.stringify({ ticketId, reason }),
+  });
+}
+
 export const api = {
   auth: {
     login: (identifier: string, password: string) =>
@@ -713,11 +720,7 @@ export const api = {
         body: JSON.stringify({ ticketId }),
       }),
 
-    noShow: (ticketId: string, reason?: string) =>
-      request<{ success: boolean; ticket: Ticket }>("/api/queue/no-show", {
-        method: "POST",
-        body: JSON.stringify({ ticketId, reason }),
-      }),
+    noShow: (ticketId: string, reason?: string) => markTicketNoShow(ticketId, reason),
 
     cancel: (ticketId: string, reason?: string) =>
       request<{ success: boolean; ticket: Ticket }>("/api/queue/cancel", {

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback, use } from "react";
 import { parseTimestampMs } from "@/lib/utils";
-import { api } from "@/lib/api";
+import { api, request, markTicketNoShow } from "@/lib/api";
 import type { Salon, Ticket, Stylist } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
 import { CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
@@ -277,7 +277,16 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     if (!summonedTicket || !salon) return;
     setProcessingAction(true);
     try {
-      await api.queue.noShow(summonedTicket.id, "Client did not show up");
+      if (typeof api?.queue?.noShow === "function") {
+        await api.queue.noShow(summonedTicket.id, "Client did not show up");
+      } else if (typeof markTicketNoShow === "function") {
+        await markTicketNoShow(summonedTicket.id, "Client did not show up");
+      } else {
+        await request<{ success: boolean; ticket: Ticket }>("/api/queue/no-show", {
+          method: "POST",
+          body: JSON.stringify({ ticketId: summonedTicket.id, reason: "Client did not show up" }),
+        });
+      }
       showToast(`Ticket #${summonedTicket.ticketNumber} marked as No-Show.`, "info");
       setSummonedTicket(null);
       const nextRes = await api.queue.callNext(salon.id, activeStylist?.id);
