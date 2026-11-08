@@ -22,6 +22,7 @@ import {
   Shield,
   ExternalLink,
   Check,
+  IndianRupee,
 } from "lucide-react";
 
 interface StationChairHeaderProps {
@@ -36,6 +37,9 @@ interface StationChairHeaderProps {
   isMirrorMode?: boolean;
   isFullscreen?: boolean;
   layoutMode?: "split" | "tabbed";
+  dailyEarningsTotal?: number;
+  dailyClientsCount?: number;
+  onOpenEarnings?: () => void;
   onToggleBreak?: () => void;
   onToggleMirrorMode?: () => void;
   onToggleFullscreen?: () => void;
@@ -58,6 +62,9 @@ export function StationChairHeader({
   isMirrorMode,
   isFullscreen,
   layoutMode = "split",
+  dailyEarningsTotal,
+  dailyClientsCount,
+  onOpenEarnings,
   onToggleBreak,
   onToggleMirrorMode,
   onToggleFullscreen,
@@ -220,6 +227,22 @@ export function StationChairHeader({
             <span>+ Walk-in</span>
           </Button>
 
+          {/* Barber Daily Shift Earnings */}
+          {onOpenEarnings && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onOpenEarnings}
+              className="border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-xs font-bold gap-1.5 h-9 rounded-xl transition-all shadow-sm"
+              title="Open Daily Earnings & Shift Summary"
+            >
+              <IndianRupee className="h-3.5 w-3.5 text-emerald-400" />
+              <span>
+                {dailyEarningsTotal !== undefined ? `₹${dailyEarningsTotal} Today` : "Earnings"}
+              </span>
+            </Button>
+          )}
+
           {/* TV Board */}
           <Link href={`/s/${slug}/tv`} target="_blank">
             <Button
@@ -272,14 +295,14 @@ export function StationChairHeader({
         </div>
 
         {/* Right Mobile Clean Header (Eliminates horizontal overflow on Android) */}
-        <div className="flex md:hidden items-center gap-2">
+        <div className="flex md:hidden items-center gap-1.5 sm:gap-2 shrink-0">
           <ConnectionPill status={socketStatus} reconnectAttempts={reconnectAttempts} />
 
           {onToggleBreak && (
             <button
               type="button"
               onClick={onToggleBreak}
-              className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-center min-h-[40px] min-w-[40px] transition-all ${
+              className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-center min-h-[40px] min-w-[40px] shrink-0 transition-all ${
                 isOnBreak
                   ? "bg-amber-500 border-amber-400 text-slate-950 font-black shadow-md shadow-amber-500/25"
                   : "bg-slate-800 border-slate-700 text-slate-300"
@@ -290,14 +313,15 @@ export function StationChairHeader({
             </button>
           )}
 
-          {/* Three-line Menu Button (Sandy's Hamburger Trigger) */}
+          {/* Three-line Menu Button with Text (Sandy's Hamburger Trigger - Unmissable on Android) */}
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(true)}
-            className="p-2 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 flex items-center justify-center min-h-[40px] min-w-[40px] transition-all active:scale-95"
+            className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/40 hover:bg-amber-500/25 text-amber-300 flex items-center gap-1.5 font-bold text-xs min-h-[40px] shrink-0 transition-all active:scale-95 shadow-sm"
             title="Open Station Menu & Preferences"
           >
-            <Menu className="h-5 w-5 text-amber-400" />
+            <Menu className="h-4 w-4 text-amber-400" />
+            <span>Menu</span>
           </button>
         </div>
       </header>
@@ -363,6 +387,38 @@ export function StationChairHeader({
                   </button>
                 )}
               </div>
+
+              {/* Barber Daily Shift & Earnings Summary Card */}
+              {onOpenEarnings && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onOpenEarnings();
+                  }}
+                  className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-slate-900 to-slate-900 border border-emerald-500/30 text-left hover:border-emerald-500/60 transition-all group shadow-sm active:scale-[0.98]"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-10 w-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center font-black">
+                        <IndianRupee className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white text-xs group-hover:text-emerald-300 transition-colors">
+                          Daily Earnings & Tips
+                        </h4>
+                        <p className="text-[11px] text-emerald-400 font-semibold font-mono">
+                          {dailyEarningsTotal !== undefined ? `₹${dailyEarningsTotal} Billing` : "View Report"}
+                          {dailyClientsCount !== undefined ? ` • ${dailyClientsCount} Served` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] font-bold">
+                      Summary
+                    </Badge>
+                  </div>
+                </button>
+              )}
 
               {/* Layout Preference Setting (Sandy's Setting Location) */}
               <div className="space-y-2">

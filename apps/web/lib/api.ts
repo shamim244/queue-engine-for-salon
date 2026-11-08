@@ -674,6 +674,16 @@ export const api = {
         completedTickets: any[];
       }>(`/api/queue/staff-report/${salonId}${stylistId ? `?stylistId=${stylistId}` : ""}`),
 
+    getStaffDailyReport: (salonId: string, stylistId?: string) =>
+      request<{
+        success: boolean;
+        totalServedToday: number;
+        totalRevenueToday: number;
+        avgActualMinutes: number;
+        servicesCountMap: Record<string, number>;
+        completedTickets: any[];
+      }>(`/api/queue/staff-report/${salonId}${stylistId ? `?stylistId=${stylistId}` : ""}`),
+
     getTicket: (ticketId: string) => request<Ticket>(`/api/queue/ticket/${ticketId}`),
 
     callNext: (salonId: string, stylistId?: string) =>

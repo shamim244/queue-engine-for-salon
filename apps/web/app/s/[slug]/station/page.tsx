@@ -21,6 +21,7 @@ import { StationQuickWalkinModal } from "@/components/station/station-quick-walk
 import { StationCheckoutModal } from "@/components/station/station-checkout-modal";
 import { StationNoShowModal } from "@/components/station/station-noshow-modal";
 import { StationAddServicesModal } from "@/components/station/station-add-services-modal";
+import { StationEarningsSummary, type StaffDailyReportData } from "@/components/station/station-earnings-summary";
 
 export default function StaffStationPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
@@ -43,6 +44,33 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const [isNoShowModalOpen, setIsNoShowModalOpen] = useState(false);
   const [isAddServicesOpen, setIsAddServicesOpen] = useState(false);
   const [isUpdatingServices, setIsUpdatingServices] = useState(false);
+  const [isEarningsOpen, setIsEarningsOpen] = useState(false);
+
+  // Daily Shift Earnings & Offline Resilience State
+  const [dailyReport, setDailyReport] = useState<StaffDailyReportData | null>(null);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+
+  // Immediate Optimistic Cache Hydration (Sub-50ms offline & initial load)
+  useEffect(() => {
+    try {
+      const cachedJson = localStorage.getItem(`station_offline_cache_${slug}`);
+      if (cachedJson) {
+        const cached = JSON.parse(cachedJson);
+        if (cached.salon) setSalon((prev) => prev || cached.salon);
+        if (cached.activeStylist) setActiveStylist((prev) => prev || cached.activeStylist);
+        if (Array.isArray(cached.tickets) && cached.tickets.length > 0) {
+          setActiveTickets((prev) => (prev.length === 0 ? cached.tickets : prev));
+          if (cached.currentlyServing) setCurrentlyServing((prev) => prev || cached.currentlyServing);
+          if (cached.summonedTicket) setSummonedTicket((prev) => prev || cached.summonedTicket);
+        }
+      }
+      const cachedReport = localStorage.getItem(`station_daily_summary_${slug}`);
+      if (cachedReport) {
+        setDailyReport(JSON.parse(cachedReport));
+      }
+    } catch {}
+  }, [slug]);
 
   // Android Mobile Segmented View (Low Scroll Cockpit)
   const [mobileTab, setMobileTab] = useState<"chair" | "queue">("chair");
@@ -203,12 +231,186 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       } else if (inService) {
         setEditableBill(150);
       }
+
+      // Persist offline cache snapshot for rural low-connectivity resilience
+      try {
+        const snapshot = {
+          salon: salonRes.salon,
+          tickets,
+          activeStylist: targetStylist,
+          currentlyServing: inService,
+          summonedTicket: called,
+          cachedAt: Date.now(),
+        };
+        localStorage.setItem(`station_offline_cache_${slug}`, JSON.stringify(snapshot));
+      } catch {}
+
+      // Fetch Staff Daily Shift & Earnings Report
+      if (salonRes.salon?.id) {
+        try {
+          const fetchReportFn = api?.queue?.getStaffReport || api?.queue?.getStaffDailyReport;
+          const reportRes = fetchReportFn
+            ? await fetchReportFn(salonRes.salon.id, targetStylist?.id)
+            : await request<any>(`/api/queue/staff-report/${salonRes.salon.id}${targetStylist?.id ? `?stylistId=${targetStylist.id}` : ""}`);
+          if (reportRes && reportRes.success) {
+            const calculatedTips = (reportRes.completedTickets || []).reduce((acc: number, t: any) => {
+              const diff = (t.paymentAmount || 0) - (t.totalPrice || 0);
+              return acc + (diff > 0 ? diff : 0) + (t.tipAmount || 0);
+            }, 0);
+
+            const todayDate = new Date().toISOString().split("T")[0];
+            const tipKey = `station_cash_tips_${slug}_${targetStylist?.id || "default"}_${todayDate}`;
+            let manualCash = 0;
+            try {
+              manualCash = Number(localStorage.getItem(tipKey) || 0);
+            } catch {}
+
+            const fullReport: StaffDailyReportData = {
+              ...reportRes,
+              totalTipsToday: calculatedTips + manualCash,
+              manualCashTips: manualCash,
+            };
+            setDailyReport(fullReport);
+            try {
+              localStorage.setItem(`station_daily_summary_${slug}`, JSON.stringify(fullReport));
+            } catch {}
+          }
+        } catch (repErr) {
+          console.warn("Could not fetch live staff report:", repErr);
+        }
+      }
+
+      setIsOffline(false);
     } catch (err) {
       console.error("Failed to load station data:", err);
+      // Rural offline resilience fallback: Load from local device cache
+      try {
+        const cachedJson = localStorage.getItem(`station_offline_cache_${slug}`);
+        if (cachedJson) {
+          const cached = JSON.parse(cachedJson);
+          if (cached.salon) setSalon((prev) => prev || cached.salon);
+          if (cached.activeStylist) setActiveStylist((prev) => prev || cached.activeStylist);
+          if (Array.isArray(cached.tickets)) {
+            setActiveTickets(cached.tickets);
+            const target = activeStylistRef.current || cached.activeStylist;
+            const inService = cached.tickets.find((t: any) =>
+              (t.status === "IN_SERVICE" || t.status === "IN_CHAIR") &&
+              target && (t.stylistId === target.id || t.servedByStylistId === target.id)
+            ) || null;
+            const called = cached.tickets.find((t: any) =>
+              (t.status === "CALLED" || t.status === "SUMMONED") &&
+              target && (t.stylistId === target.id || t.servedByStylistId === target.id)
+            ) || null;
+            setCurrentlyServing(inService);
+            setSummonedTicket(called);
+          }
+          setIsOffline(true);
+          showToast("Network unreachable. Working in offline cache mode.", "info");
+        }
+      } catch (cacheErr) {
+        console.error("Failed to restore from offline cache:", cacheErr);
+      }
     } finally {
       setLoading(false);
     }
   }, [slug, user?.id, user?.staffId, user?.role, authStaff?.id, quickAddServiceId]);
+
+  // Offline Resilience: Network Status Listeners
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      showToast("🟢 Internet connection restored! Station synchronized.", "success");
+      fetchStationData();
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+      showToast("⚪ Internet disconnected. Station running in offline cache mode.", "info");
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setIsOffline(true);
+    }
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [fetchStationData]);
+
+  // Daily Shift Earnings Helpers
+  const handleAddCashTip = (amount: number) => {
+    if (amount <= 0) return;
+    const todayDate = new Date().toISOString().split("T")[0];
+    const tipKey = `station_cash_tips_${slug}_${activeStylist?.id || "default"}_${todayDate}`;
+    let currentManual = 0;
+    try {
+      currentManual = Number(localStorage.getItem(tipKey) || 0);
+    } catch {}
+    const newManual = currentManual + amount;
+    try {
+      localStorage.setItem(tipKey, String(newManual));
+    } catch {}
+
+    setDailyReport((prev) => {
+      const base: StaffDailyReportData = prev || {
+        success: true,
+        salonId: salon?.id || "",
+        stylistId: activeStylist?.id,
+        totalServedToday: 0,
+        totalRevenueToday: 0,
+        avgActualMinutes: activeStylist?.avgDurationMinutes || 25,
+        servicesCountMap: {},
+        completedTickets: [],
+      };
+      const updated: StaffDailyReportData = {
+        ...base,
+        totalTipsToday: (base.totalTipsToday || 0) + amount,
+        manualCashTips: newManual,
+      };
+      try {
+        localStorage.setItem(`station_daily_summary_${slug}`, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleRefreshReport = async () => {
+    if (!salon) return;
+    setLoadingReport(true);
+    try {
+      const reportRes = await api.queue.getStaffDailyReport(salon.id, activeStylist?.id);
+      if (reportRes && reportRes.success) {
+        const calculatedTips = (reportRes.completedTickets || []).reduce((acc: number, t: any) => {
+          const diff = (t.paymentAmount || 0) - (t.totalPrice || 0);
+          return acc + (diff > 0 ? diff : 0) + (t.tipAmount || 0);
+        }, 0);
+        const todayDate = new Date().toISOString().split("T")[0];
+        const tipKey = `station_cash_tips_${slug}_${activeStylist?.id || "default"}_${todayDate}`;
+        let manualCash = 0;
+        try {
+          manualCash = Number(localStorage.getItem(tipKey) || 0);
+        } catch {}
+
+        const fullReport: StaffDailyReportData = {
+          ...reportRes,
+          totalTipsToday: calculatedTips + manualCash,
+          manualCashTips: manualCash,
+        };
+        setDailyReport(fullReport);
+        try {
+          localStorage.setItem(`station_daily_summary_${slug}`, JSON.stringify(fullReport));
+        } catch {}
+        showToast("Daily shift metrics updated!", "success");
+      }
+    } catch {
+      showToast("Could not refresh shift report (offline)", "info");
+    } finally {
+      setLoadingReport(false);
+    }
+  };
 
   useEffect(() => {
     fetchStationData();
@@ -746,7 +948,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         slug={slug}
         activeStylist={activeStylist}
         hasMultipleStylists={user.role === "SALON_OWNER" || user.role === "SUPER_ADMIN"}
-        socketStatus={status}
+        socketStatus={isOffline ? "offline" : status}
         reconnectAttempts={reconnectAttempts}
         userName={user.fullName || user.username}
         isOnBreak={isOnBreak}
@@ -754,6 +956,9 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         isMirrorMode={isMirrorMode}
         isFullscreen={isFullscreen}
         layoutMode={layoutMode}
+        dailyEarningsTotal={dailyReport?.totalRevenueToday}
+        dailyClientsCount={dailyReport?.totalServedToday}
+        onOpenEarnings={() => setIsEarningsOpen(true)}
         onToggleBreak={handleToggleBreak}
         onToggleMirrorMode={handleToggleMirrorMode}
         onToggleFullscreen={handleToggleFullscreen}
@@ -765,6 +970,28 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 space-y-6">
+        {/* Offline Cache Resilience Notice */}
+        {isOffline && (
+          <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 text-slate-300 text-xs flex items-center justify-between shadow-sm animate-in fade-in-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="h-2 w-2 rounded-full bg-slate-400 shrink-0" />
+              <div className="min-w-0">
+                <span className="font-bold text-slate-200">Offline Cache Active: </span>
+                <span className="text-slate-400">
+                  Network connection is unavailable. Operating on local station cache without disruption.
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={fetchStationData}
+              className="h-8 px-3 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 hover:text-white text-xs font-semibold shrink-0 transition-colors ml-2"
+            >
+              Retry Sync
+            </button>
+          </div>
+        )}
+
         {/* Toast Alerts */}
         {toast && (
           <div
@@ -973,6 +1200,19 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         ticket={currentlyServing}
         isUpdating={isUpdatingServices}
         onSave={handleSaveServices}
+      />
+
+      <StationEarningsSummary
+        isOpen={isEarningsOpen}
+        onClose={() => setIsEarningsOpen(false)}
+        activeStylist={activeStylist}
+        salonId={salon?.id || ""}
+        slug={slug}
+        report={dailyReport}
+        isLoading={loadingReport}
+        isOffline={isOffline}
+        onRefresh={handleRefreshReport}
+        onAddCashTip={handleAddCashTip}
       />
     </div>
   );

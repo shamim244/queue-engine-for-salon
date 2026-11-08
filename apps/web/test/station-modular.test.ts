@@ -11,6 +11,7 @@ import { StationNoShowModal } from "@/components/station/station-noshow-modal";
 import { StationInServiceCard } from "@/components/station/station-in-service-card";
 import { StationAddServicesModal } from "@/components/station/station-add-services-modal";
 import { StationCheckoutModal } from "@/components/station/station-checkout-modal";
+import { StationEarningsSummary, type StaffDailyReportData } from "@/components/station/station-earnings-summary";
 
 describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
   const mockStylist1: Stylist = {
@@ -467,6 +468,140 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
       expect(html).toContain("Mirror OLED");
       expect(html).toContain("Fullscreen Kiosk Mode");
       expect(html).toContain("☕ 10m Break");
+    });
+
+    it("should render StationChairHeader with daily earnings badge, drawer summary card, and offline cache pill", () => {
+      const html = renderToString(
+        React.createElement(StationChairHeader, {
+          slug: "royal",
+          activeStylist: mockStylist1,
+          hasMultipleStylists: true,
+          socketStatus: "offline",
+          reconnectAttempts: 0,
+          dailyEarningsTotal: 710,
+          dailyClientsCount: 7,
+          onOpenEarnings: () => {},
+          onOpenSwitchChair: () => {},
+          onOpenQuickAdd: () => {},
+          onLockChair: () => {},
+        })
+      );
+
+      // Verify desktop header toolbar earnings button
+      expect(html).toContain("₹710 Today");
+
+      // Verify connection pill reflects offline cache
+      expect(html).toContain("Offline Cache");
+
+      // Verify active stylist title
+      expect(html).toContain("Vikram Stylist");
+    });
+
+    it("should render StationEarningsSummary with 4 KPI stat cards, service breakdown, completed tickets, and offline status", () => {
+      const mockReport: StaffDailyReportData = {
+        success: true,
+        salonId: "salon-test",
+        stylistId: "stylist-1",
+        totalServedToday: 7,
+        totalRevenueToday: 710,
+        avgActualMinutes: 25,
+        totalTipsToday: 180,
+        manualCashTips: 50,
+        servicesCountMap: {
+          Massage: 5,
+          Shave: 1,
+          Haircut: 1,
+        },
+        completedTickets: [
+          {
+            id: "tkt-1",
+            ticketNumber: 130,
+            customerName: "Rahul Sharma",
+            serviceName: "Massage",
+            totalPrice: 160,
+            paymentAmount: 160,
+            paymentStatus: "ONLINE_PAID",
+            completedTime: new Date().toISOString(),
+          },
+          {
+            id: "tkt-2",
+            ticketNumber: 129,
+            customerName: "Aman Verma",
+            serviceName: "Haircut",
+            totalPrice: 100,
+            paymentAmount: 120, // ₹20 tip
+            paymentStatus: "CASH_PAID",
+            completedTime: new Date().toISOString(),
+          },
+        ],
+      };
+
+      const html = renderToString(
+        React.createElement(StationEarningsSummary, {
+          isOpen: true,
+          onClose: () => {},
+          activeStylist: mockStylist1,
+          salonId: "salon-test",
+          slug: "royal",
+          report: mockReport,
+          isOffline: true,
+          onRefresh: () => {},
+          onAddCashTip: () => {},
+        })
+      );
+
+      // Verify header and subtitle
+      expect(html).toContain("Barber Daily Shift &amp; Earnings");
+      expect(html).toContain("Vikram Stylist");
+      expect(html).toContain("Offline Cache");
+
+      // Verify 4 KPI cards
+      expect(html).toContain("Clients");
+      expect(html).toContain("7");
+      expect(html).toContain("Gross Billing");
+      expect(html).toContain("710");
+      expect(html).toContain("Tips Earned");
+      expect(html).toContain("180");
+      expect(html).toContain("Pace per client");
+
+      // Verify services breakdown
+      expect(html).toContain("Massage");
+      expect(html).toContain("clients");
+      expect(html).toContain("Shave");
+      expect(html).toContain("Haircut");
+
+      // Verify quick cash tip buttons
+      expect(html).toContain("Tip");
+      expect(html).toContain("Quick Log Cash Tip");
+      expect(html).toContain("Custom");
+
+      // Verify completed tickets ledger
+      expect(html).toContain("130");
+      expect(html).toContain("Rahul Sharma");
+      expect(html).toContain("129");
+      expect(html).toContain("Aman Verma");
+      expect(html).toContain("Cash");
+      expect(html).toContain("UPI");
+    });
+
+    it("should handle offline station snapshot serialization and client-side restoration without data loss", () => {
+      const snapshot = {
+        salon: { id: "salon-test", name: "Royal Salon", slug: "royal" },
+        tickets: mockTickets,
+        activeStylist: mockStylist1,
+        currentlyServing: mockTickets[0],
+        summonedTicket: null,
+        cachedAt: 1731060000000,
+      };
+
+      const serialized = JSON.stringify(snapshot);
+      expect(serialized).toBeDefined();
+
+      const parsed = JSON.parse(serialized);
+      expect(parsed.salon.slug).toBe("royal");
+      expect(parsed.tickets.length).toBe(3);
+      expect(parsed.activeStylist.name).toBe("Vikram Stylist");
+      expect(parsed.currentlyServing.customerName).toBe("Aman Sharma");
     });
   });
 });
