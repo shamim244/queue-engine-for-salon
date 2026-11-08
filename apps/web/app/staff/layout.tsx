@@ -5,9 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { AuthGuard } from "@/components/auth-guard";
+import { api } from "@/lib/api";
+import { useSalonSocket } from "@/lib/socket";
+import { triggerHaptic } from "@/lib/haptics";
 import {
   Armchair,
-  Sliders,
   Tv,
   LogOut,
   Scissors,
@@ -17,6 +19,12 @@ import {
   Sparkles,
   User as UserIcon,
   Settings,
+  Coffee,
+  Clock,
+  Radio,
+  Globe,
+  IndianRupee,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +33,13 @@ function StaffLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, staff, salon, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [dailyStats, setDailyStats] = useState<{ revenue: number; served: number } | null>(null);
+  const [isOnBreak, setIsOnBreak] = useState(false);
+  const [breakTimer, setBreakTimer] = useState<number | null>(null);
+
+  const effectiveSlug = salon?.slug || "ramesh-barber";
+  const effectiveSalonId = salon?.id || "salon-rural-01";
+  const stylistId = staff?.id || (user as any)?.staffId;
 
   // Close mobile drawer on route change
   useEffect(() => {
@@ -48,7 +63,74 @@ function StaffLayoutContent({ children }: { children: React.ReactNode }) {
     };
   }, [isMobileMenuOpen]);
 
-  const effectiveSlug = salon?.slug || "ramesh-barber";
+  // Fetch Daily Shift Performance for Sidebar Card
+  useEffect(() => {
+    if (!effectiveSalonId) return;
+    api.queue.getStaffReport(effectiveSalonId, stylistId)
+      .then((rep) => {
+        if (rep && rep.success) {
+          setDailyStats({
+            revenue: rep.totalRevenueToday || 0,
+            served: rep.totalServedToday || 0,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [effectiveSalonId, stylistId]);
+
+  // WebSocket Live Sync for Shift Telemetry
+  useSalonSocket(effectiveSalonId, () => {
+    api.queue.getStaffReport(effectiveSalonId, stylistId)
+      .then((rep) => {
+        if (rep && rep.success) {
+          setDailyStats({
+            revenue: rep.totalRevenueToday || 0,
+            served: rep.totalServedToday || 0,
+          });
+        }
+      })
+      .catch(() => {});
+  });
+
+  // Break countdown timer in client memory
+  useEffect(() => {
+    if (!isOnBreak || breakTimer === null || breakTimer <= 0) return;
+    const interval = setInterval(() => {
+      setBreakTimer((prev) => (prev && prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isOnBreak, breakTimer]);
+
+  const handleToggleBreak = async () => {
+    triggerHaptic("tap");
+    const next = !isOnBreak;
+    setIsOnBreak(next);
+    if (next) {
+      setBreakTimer(600); // 10 minutes
+    } else {
+      setBreakTimer(null);
+    }
+    if (stylistId) {
+      api.auth.updateStaffPreference({
+        staffId: stylistId,
+        isActive: !next,
+      }).catch(() => {});
+    }
+  };
+
+  const formatBreakTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
+
+  const displayName = staff?.name || user?.fullName || user?.username || "Master Stylist";
+  const initials = displayName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   const staffNavItems = [
     {
@@ -71,6 +153,193 @@ function StaffLayoutContent({ children }: { children: React.ReactNode }) {
     },
   ];
 
+  const quickTools = [
+    {
+      label: "Lounge TV Board",
+      href: `/s/${effectiveSlug}/tv`,
+      icon: Tv,
+      external: true,
+      color: "text-blue-400",
+    },
+    {
+      label: "Client Storefront",
+      href: `/s/${effectiveSlug}`,
+      icon: Globe,
+      external: true,
+      color: "text-purple-400",
+    },
+  ];
+
+  // Common Sidebar Body Component used in both Desktop Sidebar and Mobile Drawer
+  const renderSidebarContent = (isDrawer = false) => (
+    <div className="flex flex-col justify-between h-full space-y-5">
+      <div className="space-y-5 overflow-y-auto pr-1">
+        {/* 1. Brand Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/20 shrink-0">
+              <Scissors className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-extrabold text-white text-sm truncate">Staff Station</h2>
+              <div className="flex items-center gap-1.5 pt-0.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                <span className="text-[10px] text-emerald-400 font-semibold truncate">Live Synced</span>
+              </div>
+            </div>
+          </div>
+
+          {isDrawer && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
+        {/* 2. Assigned Branch Card */}
+        <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
+          <span className="text-[10px] uppercase font-bold text-slate-500 block">Assigned Branch</span>
+          <p className="text-xs font-bold text-white truncate">{salon?.name || "Ramesh Traditional Barber"}</p>
+          <p className="text-[10px] text-slate-400">Station / Chair #1</p>
+        </div>
+
+        {/* 3. Shift Status & 10-Minute Chai Break Controller */}
+        <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2.5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Working Status
+            </span>
+            <Badge
+              className={`text-[10px] px-2 py-0.5 font-bold ${
+                isOnBreak
+                  ? "bg-amber-500/20 text-amber-300 border-amber-500/30 animate-pulse"
+                  : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+              }`}
+            >
+              {isOnBreak ? `Break (${formatBreakTime(breakTimer || 0)})` : "On Duty"}
+            </Badge>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleToggleBreak}
+            className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm ${
+              isOnBreak
+                ? "bg-amber-500 text-slate-950 font-black shadow-amber-500/25"
+                : "border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+            }`}
+          >
+            <Coffee className="h-3.5 w-3.5" />
+            <span>{isOnBreak ? "Resume Duty (End Break)" : "10-Min Chai Break"}</span>
+          </button>
+        </div>
+
+        {/* 4. Today's Performance Mini-Card */}
+        <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/40 via-slate-950 to-slate-950 border border-emerald-500/30 space-y-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+            Today&apos;s Shift Billing
+          </span>
+          <div className="flex items-center justify-between">
+            <div className="text-base font-black text-emerald-400 font-mono flex items-center">
+              <IndianRupee className="h-4 w-4" />
+              <span>{dailyStats ? dailyStats.revenue : 0}</span>
+            </div>
+            <span className="text-xs text-slate-400 font-medium">
+              {dailyStats ? dailyStats.served : 0} cuts served
+            </span>
+          </div>
+        </div>
+
+        {/* 5. Core Operational Navigation Links */}
+        <div className="space-y-1">
+          <span className="text-[10px] uppercase font-bold text-slate-500 px-2 block">
+            Navigation
+          </span>
+          <nav className="space-y-1">
+            {staffNavItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => isDrawer && setIsMobileMenuOpen(false)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-colors ${
+                    item.active
+                      ? "bg-amber-500/15 text-amber-400 border border-amber-500/30 font-bold"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* 6. Quick Utility & Launch Shortcuts */}
+        <div className="space-y-1">
+          <span className="text-[10px] uppercase font-bold text-slate-500 px-2 block">
+            Quick Launch
+          </span>
+          <div className="space-y-1">
+            {quickTools.map((tool) => {
+              const Icon = tool.icon;
+              return (
+                <Link
+                  key={tool.href}
+                  href={tool.href}
+                  target="_blank"
+                  onClick={() => isDrawer && setIsMobileMenuOpen(false)}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between text-slate-300 hover:bg-slate-800 hover:text-white transition-colors group"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Icon className={`h-4 w-4 shrink-0 ${tool.color}`} />
+                    <span className="truncate">{tool.label}</span>
+                  </div>
+                  <ExternalLink className="h-3 w-3 text-slate-500 group-hover:text-slate-300" />
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* 7. Bottom Stylist Profile Mini-Footer */}
+      <div className="pt-3 border-t border-slate-800 space-y-2.5">
+        <div className="flex items-center gap-2.5 px-1">
+          <div className="h-8 w-8 rounded-full bg-cyan-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-sm">
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold text-white truncate">{displayName}</p>
+            <p className="text-[10px] text-amber-400 truncate">
+              Pace: ~{staff?.avgDurationMinutes || 25}m / cut
+            </p>
+          </div>
+        </div>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            triggerHaptic("tap");
+            logout();
+          }}
+          className="w-full text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-xl justify-start gap-2 h-9"
+        >
+          <LogOut className="h-4 w-4" />
+          <span>Sign Out</span>
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row">
       {/* 1. MOBILE TOP BAR (md:hidden) */}
@@ -81,7 +350,7 @@ function StaffLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
           <div>
             <h1 className="font-bold text-sm text-white leading-tight">Staff Station</h1>
-            <p className="text-[10px] text-amber-400 font-semibold">{staff?.name || user?.username || "Barber Desk"}</p>
+            <p className="text-[10px] text-amber-400 font-semibold">{displayName}</p>
           </div>
         </div>
 
@@ -104,137 +373,14 @@ function StaffLayoutContent({ children }: { children: React.ReactNode }) {
             onClick={() => setIsMobileMenuOpen(false)}
           />
           <aside className="relative flex-1 w-full max-w-xs bg-slate-900 border-r border-slate-800 p-5 flex flex-col justify-between shadow-2xl z-10 animate-in slide-in-from-left duration-200">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <div className="h-9 w-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
-                    <Scissors className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h2 className="font-extrabold text-white text-sm">Staff Station</h2>
-                    <p className="text-[10px] text-slate-400">{salon?.name || "Salon Engine"}</p>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="h-8 w-8 p-0 text-slate-400 hover:text-white"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Navigation Links (Touch target >= 48px) */}
-              <nav className="space-y-1.5">
-                {staffNavItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className={`min-h-[48px] px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-3 transition-colors ${
-                        item.active
-                          ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
-                          : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                      }`}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
-            </div>
-
-            {/* Logout button */}
-            <div className="pt-4 border-t border-slate-800">
-              <Button
-                variant="ghost"
-                onClick={() => logout()}
-                className="w-full min-h-[48px] text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-xl justify-start gap-2"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Sign Out</span>
-              </Button>
-            </div>
+            {renderSidebarContent(true)}
           </aside>
         </div>
       )}
 
       {/* 3. DESKTOP PERMANENT SIDEBAR (hidden md:flex) */}
       <aside className="hidden md:flex w-64 bg-slate-900/90 border-r border-slate-800/80 p-5 flex-col justify-between shrink-0 sticky top-0 h-screen">
-        <div className="space-y-6">
-          {/* Brand header */}
-          <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/20 shrink-0">
-              <Scissors className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="font-extrabold text-white text-sm truncate">Staff Station</h2>
-              <p className="text-xs text-amber-400 font-semibold truncate">
-                {staff?.name || user?.fullName || user?.username || "Master Stylist"}
-              </p>
-            </div>
-          </div>
-
-          {/* Salon Badge */}
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">Assigned Branch</span>
-            <p className="text-xs font-bold text-white truncate">{salon?.name || "Ramesh Traditional Barber"}</p>
-            <div className="flex items-center gap-1.5 pt-1 text-[11px] text-emerald-400">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Shift Active</span>
-            </div>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="space-y-1.5">
-            {staffNavItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`px-3.5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-3 transition-colors ${
-                    item.active
-                      ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
-                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                  }`}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* Footer profile & Sign out */}
-        <div className="space-y-3 pt-4 border-t border-slate-800">
-          <div className="flex items-center gap-2.5 px-2">
-            <div className="h-8 w-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-amber-400 shrink-0">
-              <UserIcon className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-white truncate">{user?.username}</p>
-              <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-400 py-0">
-                STAFF
-              </Badge>
-            </div>
-          </div>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => logout()}
-            className="w-full text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-xl justify-start gap-2"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Sign Out</span>
-          </Button>
-        </div>
+        {renderSidebarContent(false)}
       </aside>
 
       {/* 4. MAIN WORKSPACE CONTENT */}
