@@ -664,15 +664,23 @@ export const api = {
     getActive: (salonId: string) =>
       request<{ count: number; tickets: Ticket[] }>(`/api/queue/active/${salonId}`),
 
-    getStaffReport: (salonId: string, stylistId?: string) =>
+    getStaffReport: (salonId: string, stylistId?: string, timeframe?: string) =>
       request<{
         success: boolean;
+        timeframe?: string;
         totalServedToday: number;
         totalRevenueToday: number;
+        cashRevenue?: number;
+        onlineRevenue?: number;
         avgActualMinutes: number;
         servicesCountMap: Record<string, number>;
+        dailyTrends?: Array<{ date: string; served: number; revenue: number; cash: number; online: number }>;
         completedTickets: any[];
-      }>(`/api/queue/staff-report/${salonId}${stylistId ? `?stylistId=${stylistId}` : ""}`),
+      }>(
+        `/api/queue/staff-report/${salonId}?${stylistId ? `stylistId=${stylistId}&` : ""}${
+          timeframe ? `timeframe=${timeframe}` : ""
+        }`
+      ),
 
     getStaffDailyReport: (salonId: string, stylistId?: string) =>
       request<{

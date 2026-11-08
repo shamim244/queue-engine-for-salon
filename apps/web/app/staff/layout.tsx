@@ -25,6 +25,7 @@ import {
   Globe,
   IndianRupee,
   ChevronRight,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -138,6 +139,12 @@ function StaffLayoutContent({ children }: { children: React.ReactNode }) {
       href: "/staff",
       icon: Armchair,
       active: pathname === "/staff",
+    },
+    {
+      label: "Shift Analytics",
+      href: "/staff/analytics",
+      icon: BarChart3,
+      active: pathname === "/staff/analytics",
     },
     {
       label: "Mirror Tablet Station",

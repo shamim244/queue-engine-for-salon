@@ -45,17 +45,27 @@ export const analyticsRepo = {
     };
   },
 
-  async getStaffDailyReport(salonId: string, stylistId?: string) {
+  async getStaffDailyReport(salonId: string, stylistId?: string, timeframe: string = 'day') {
     let completedTickets: any[] = [];
     let totalServedToday = 0;
     let totalRevenueToday = 0;
+    let cashRevenue = 0;
+    let onlineRevenue = 0;
     let avgActualMinutes = 0;
     const servicesCountMap: Record<string, number> = {};
+    const dailyTrendsMap: Record<string, { date: string; served: number; revenue: number; cash: number; online: number }> = {};
 
     if (isMySqlConnected) {
       const db = getDb();
+      let dateFilter = `DATE(completed_time) = CURRENT_DATE()`;
+      if (timeframe === 'week') {
+        dateFilter = `completed_time >= DATE_SUB(NOW(), INTERVAL 7 DAY)`;
+      } else if (timeframe === 'month') {
+        dateFilter = `completed_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)`;
+      }
+
       let sql = `SELECT * FROM queue_tickets 
-                 WHERE salon_id = ? AND status = 'COMPLETED' AND DATE(completed_time) = CURRENT_DATE()`;
+                 WHERE salon_id = ? AND status = 'COMPLETED' AND ${dateFilter}`;
       const params: any[] = [salonId];
       if (stylistId) {
         sql += ` AND stylist_id = ?`;
@@ -83,15 +93,40 @@ export const analyticsRepo = {
         paymentAmount: r.payment_amount ? Number(r.payment_amount) : Number(r.total_price),
       }));
     } else {
+      const now = Date.now();
+      const cutoffMs = timeframe === 'month' ? 30 * 86400000 : timeframe === 'week' ? 7 * 86400000 : 86400000;
       completedTickets = Array.from(memoryStore.tickets.values()).filter((t) => {
-        const isToday = t.status === 'COMPLETED' && t.salonId === salonId;
-        const matchesStylist = !stylistId || t.stylistId === stylistId;
-        return isToday && matchesStylist;
+        if (t.status !== 'COMPLETED' || t.salonId !== salonId) return false;
+        if (stylistId && t.stylistId !== stylistId) return false;
+        if (!t.completedTime) return true;
+        const compTime = new Date(t.completedTime).getTime();
+        return (now - compTime) <= cutoffMs;
       });
     }
 
     totalServedToday = completedTickets.length;
-    totalRevenueToday = completedTickets.reduce((sum, t) => sum + (t.paymentAmount || t.totalPrice || 0), 0);
+    for (const t of completedTickets) {
+      const amount = Number(t.paymentAmount || t.totalPrice || 0);
+      totalRevenueToday += amount;
+      if (t.paymentStatus === 'CASH_PAID') {
+        cashRevenue += amount;
+      } else {
+        onlineRevenue += amount;
+      }
+
+      // Daily Trends Aggregation
+      const dateKey = t.completedTime ? t.completedTime.split('T')[0] : new Date().toISOString().split('T')[0];
+      if (!dailyTrendsMap[dateKey]) {
+        dailyTrendsMap[dateKey] = { date: dateKey, served: 0, revenue: 0, cash: 0, online: 0 };
+      }
+      dailyTrendsMap[dateKey].served += 1;
+      dailyTrendsMap[dateKey].revenue += amount;
+      if (t.paymentStatus === 'CASH_PAID') {
+        dailyTrendsMap[dateKey].cash += amount;
+      } else {
+        dailyTrendsMap[dateKey].online += amount;
+      }
+    }
 
     let totalDurationSum = 0;
     let durationCount = 0;
@@ -110,15 +145,21 @@ export const analyticsRepo = {
 
     avgActualMinutes = durationCount > 0 ? Math.round(totalDurationSum / durationCount) : 20;
 
+    const dailyTrends = Object.values(dailyTrendsMap).sort((a, b) => a.date.localeCompare(b.date));
+
     return {
       success: true,
       salonId,
       stylistId,
+      timeframe,
       totalServedToday,
       totalRevenueToday,
+      cashRevenue,
+      onlineRevenue,
       avgActualMinutes,
       servicesCountMap,
-      completedTickets: completedTickets.slice(0, 20),
+      dailyTrends,
+      completedTickets: completedTickets.slice(0, 50),
     };
   },
 

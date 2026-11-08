@@ -52,10 +52,11 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
     };
   })
 
-  // 3b. Get Staff Daily Work Report & Analytics
+  // 3b. Get Staff Daily/Weekly/Monthly Work Report & Analytics
   .get('/staff-report/:salonId', async ({ params, query }) => {
     const stylistId = (query as any)?.stylistId;
-    return await repository.getStaffDailyReport(params.salonId, stylistId);
+    const timeframe = (query as any)?.timeframe || 'day';
+    return await repository.getStaffDailyReport(params.salonId, stylistId, timeframe);
   })
 
   // 4. Get Ticket Details by ID
