@@ -145,13 +145,16 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     }
   };
 
+  const activeStylistRef = React.useRef<Stylist | null>(null);
+  activeStylistRef.current = activeStylist;
+
   const fetchStationData = useCallback(async () => {
     try {
       const salonRes = await api.salons.get(slug);
-      let targetStylist = activeStylist;
+      let targetStylist = activeStylistRef.current;
 
       if (salonRes.salon) {
-        setSalon(salonRes.salon);
+        setSalon((prev) => (prev?.id === salonRes.salon.id ? prev : salonRes.salon));
 
         // Strict Session Binding: Match authenticated staff user to their specific chair
         const matchedStylist = salonRes.salon.stylists?.find(
@@ -160,10 +163,10 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
 
         if (user?.role === "STAFF") {
           targetStylist = matchedStylist || salonRes.salon.stylists?.[0] || null;
-          setActiveStylist(targetStylist);
+          setActiveStylist((prev) => (prev?.id === targetStylist?.id ? prev : targetStylist));
         } else if (!targetStylist && salonRes.salon.stylists?.length > 0) {
           targetStylist = matchedStylist || salonRes.salon.stylists[0];
-          setActiveStylist(targetStylist);
+          setActiveStylist((prev) => (prev?.id === targetStylist?.id ? prev : targetStylist));
         }
 
         if (!quickAddServiceId && salonRes.salon.services?.length > 0) {
@@ -192,8 +195,8 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
             (t.stylistId === targetStylist.id || t.servedByStylistId === targetStylist.id)
         ) || null;
 
-      setCurrentlyServing(inService);
-      setSummonedTicket(called);
+      setCurrentlyServing((prev) => (prev?.id === inService?.id ? inService : inService));
+      setSummonedTicket((prev) => (prev?.id === called?.id ? called : called));
 
       if (inService && inService.totalPrice) {
         setEditableBill(inService.totalPrice);
@@ -205,17 +208,19 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     } finally {
       setLoading(false);
     }
-  }, [slug, activeStylist, quickAddServiceId, user, authStaff]);
+  }, [slug, user?.id, user?.staffId, user?.role, authStaff?.id, quickAddServiceId]);
 
   useEffect(() => {
     fetchStationData();
   }, [fetchStationData]);
 
-  // Real-time WebSocket synchronization
-  const { status, reconnectAttempts } = useSalonSocket(salon?.id, (event) => {
+  // Real-time WebSocket synchronization (memoized callback prevents reconnect churn)
+  const onSocketEvent = useCallback((event: any) => {
     console.log("[Station UI] WebSocket event:", event.type);
     fetchStationData();
-  });
+  }, [fetchStationData]);
+
+  const { status, reconnectAttempts } = useSalonSocket(salon?.id, onSocketEvent);
 
   // Client-Compute In-Chair Elapsed Timer
   useEffect(() => {

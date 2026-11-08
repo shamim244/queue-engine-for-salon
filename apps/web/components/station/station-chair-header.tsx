@@ -257,6 +257,18 @@ export function StationChairHeader({
               <span className="hidden lg:inline">Sign Out</span>
             </Button>
           )}
+
+          {/* Station Menu / Profile Drawer Trigger (Available on Desktop & Mobile) */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs font-bold gap-1.5 h-9 rounded-xl transition-all shadow-sm"
+            title="Open Station Menu & Profile Drawer"
+          >
+            <Menu className="h-4 w-4 text-amber-400" />
+            <span>Menu</span>
+          </Button>
         </div>
 
         {/* Right Mobile Clean Header (Eliminates horizontal overflow on Android) */}
