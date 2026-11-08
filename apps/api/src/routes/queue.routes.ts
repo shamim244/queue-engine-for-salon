@@ -56,7 +56,10 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   .get('/staff-report/:salonId', async ({ params, query }) => {
     const stylistId = (query as any)?.stylistId;
     const timeframe = (query as any)?.timeframe || 'day';
-    return await repository.getStaffDailyReport(params.salonId, stylistId, timeframe);
+    const date = (query as any)?.date;
+    const startDate = (query as any)?.startDate;
+    const endDate = (query as any)?.endDate;
+    return await repository.getStaffDailyReport(params.salonId, stylistId, timeframe, { date, startDate, endDate });
   })
 
   // 4. Get Ticket Details by ID

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
@@ -23,6 +23,8 @@ import {
   RefreshCw,
   Sparkles,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 
@@ -34,10 +36,11 @@ export default function StaffAnalyticsPage() {
   );
 }
 
-type Timeframe = "day" | "week" | "month";
+type Timeframe = "day" | "week" | "month" | "date";
 
 interface AnalyticsData {
   timeframe: string;
+  selectedDate?: string;
   totalServedToday: number;
   totalRevenueToday: number;
   cashRevenue: number;
@@ -48,22 +51,54 @@ interface AnalyticsData {
   completedTickets: any[];
 }
 
+function getLocalDateString(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatHumanDate(dateStr: string): string {
+  try {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString("en-US", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
 function StaffAnalyticsContent() {
   const { user, staff, salon } = useAuth();
+  const todayStr = useMemo(() => getLocalDateString(), []);
   const [timeframe, setTimeframe] = useState<Timeframe>("day");
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const effectiveSalonId = salon?.id || "salon-rural-01";
   const stylistId = staff?.id || (user as any)?.staffId;
 
-  const fetchAnalytics = useCallback(async (selectedTimeframe: Timeframe) => {
+  const fetchAnalytics = useCallback(async (selectedTimeframe: Timeframe, dateParam?: string) => {
     setLoading(true);
     try {
-      const rep = await api.queue.getStaffReport(effectiveSalonId, stylistId, selectedTimeframe);
+      const isDateMode = selectedTimeframe === "date";
+      const targetDate = isDateMode ? (dateParam || selectedDate) : undefined;
+      const rep = await api.queue.getStaffReport(
+        effectiveSalonId,
+        stylistId,
+        isDateMode ? "day" : selectedTimeframe,
+        targetDate ? { date: targetDate } : undefined
+      );
       if (rep && rep.success) {
         setData({
           timeframe: selectedTimeframe,
+          selectedDate: rep.selectedDate || targetDate,
           totalServedToday: rep.totalServedToday || 0,
           totalRevenueToday: rep.totalRevenueToday || 0,
           cashRevenue: rep.cashRevenue || 0,
@@ -79,15 +114,44 @@ function StaffAnalyticsContent() {
     } finally {
       setLoading(false);
     }
-  }, [effectiveSalonId, stylistId]);
+  }, [effectiveSalonId, stylistId, selectedDate]);
 
   useEffect(() => {
-    fetchAnalytics(timeframe);
-  }, [fetchAnalytics, timeframe]);
+    if (timeframe === "date") {
+      fetchAnalytics("date", selectedDate);
+    } else {
+      fetchAnalytics(timeframe);
+    }
+  }, [fetchAnalytics, timeframe, selectedDate]);
 
   const handleSelectTimeframe = (tf: Timeframe) => {
     triggerHaptic("tap");
     setTimeframe(tf);
+    if (tf === "date") {
+      fetchAnalytics("date", selectedDate);
+    } else {
+      fetchAnalytics(tf);
+    }
+  };
+
+  const handlePrevDay = () => {
+    triggerHaptic("tap");
+    const [y, m, d] = selectedDate.split("-").map(Number);
+    const prev = new Date(y, m - 1, d - 1);
+    const prevStr = getLocalDateString(prev);
+    setSelectedDate(prevStr);
+    fetchAnalytics("date", prevStr);
+  };
+
+  const handleNextDay = () => {
+    triggerHaptic("tap");
+    const [y, m, d] = selectedDate.split("-").map(Number);
+    const next = new Date(y, m - 1, d + 1);
+    const nextStr = getLocalDateString(next);
+    if (nextStr <= todayStr) {
+      setSelectedDate(nextStr);
+      fetchAnalytics("date", nextStr);
+    }
   };
 
   const totalRev = data?.totalRevenueToday || 0;
@@ -113,7 +177,11 @@ function StaffAnalyticsContent() {
           size="sm"
           onClick={() => {
             triggerHaptic("tap");
-            fetchAnalytics(timeframe);
+            if (timeframe === "date") {
+              fetchAnalytics("date", selectedDate);
+            } else {
+              fetchAnalytics(timeframe);
+            }
           }}
           disabled={loading}
           className="text-xs border-slate-700 bg-slate-900 text-slate-300 hover:text-white gap-1.5 h-8 self-start sm:self-auto"
@@ -123,7 +191,7 @@ function StaffAnalyticsContent() {
         </Button>
       </div>
 
-      {/* 2. Page Title & Timeframe Selector */}
+      {/* 2. Page Title & Timeframe Selector (English Only) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
@@ -135,43 +203,127 @@ function StaffAnalyticsContent() {
           </p>
         </div>
 
-        {/* Timeframe Switcher Tabs */}
-        <div className="inline-flex p-1 bg-slate-900 border border-slate-800 rounded-2xl shadow-inner shrink-0">
+        {/* Timeframe Switcher Tabs - English Only */}
+        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-2xl shadow-inner shrink-0">
           <button
             type="button"
             onClick={() => handleSelectTimeframe("day")}
-            className={`py-2 px-4 rounded-xl text-xs font-bold transition-all ${
+            className={`py-2 px-3.5 rounded-xl text-xs font-bold transition-all ${
               timeframe === "day"
                 ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20"
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            Today (दैनिक)
+            Today
           </button>
           <button
             type="button"
             onClick={() => handleSelectTimeframe("week")}
-            className={`py-2 px-4 rounded-xl text-xs font-bold transition-all ${
+            className={`py-2 px-3.5 rounded-xl text-xs font-bold transition-all ${
               timeframe === "week"
                 ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20"
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            This Week (साप्ताहिक)
+            This Week
           </button>
           <button
             type="button"
             onClick={() => handleSelectTimeframe("month")}
-            className={`py-2 px-4 rounded-xl text-xs font-bold transition-all ${
+            className={`py-2 px-3.5 rounded-xl text-xs font-bold transition-all ${
               timeframe === "month"
                 ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20"
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            This Month (मासिक)
+            This Month
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSelectTimeframe("date")}
+            className={`py-2 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              timeframe === "date"
+                ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Calendar className="h-3.5 w-3.5" />
+            <span>Specific Date</span>
           </button>
         </div>
       </div>
+
+      {/* 2b. Specific Date Picker Control (Active when Specific Date tab is selected) */}
+      {timeframe === "date" && (
+        <div className="p-4 rounded-2xl bg-slate-900/90 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg shadow-amber-500/5 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/20 flex items-center justify-center shrink-0">
+              <Calendar className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white flex items-center gap-2">
+                <span>Selected Date:</span>
+                <span className="text-amber-400 font-mono font-black">{formatHumanDate(selectedDate)}</span>
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Viewing shift statistics and ledger for this specific business day
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            <button
+              type="button"
+              onClick={handlePrevDay}
+              className="px-2.5 py-1.5 rounded-xl border border-slate-700 bg-slate-950 text-slate-300 hover:text-white hover:bg-slate-800 text-xs font-bold transition-colors flex items-center gap-1 active:scale-95"
+              title="Previous Day"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              <span>Prev</span>
+            </button>
+
+            <input
+              type="date"
+              value={selectedDate}
+              max={todayStr}
+              onChange={(e) => {
+                if (e.target.value) {
+                  triggerHaptic("tap");
+                  const newDate = e.target.value;
+                  setSelectedDate(newDate);
+                  fetchAnalytics("date", newDate);
+                }
+              }}
+              className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs font-mono font-medium focus:outline-none focus:border-amber-400 transition-colors cursor-pointer"
+            />
+
+            <button
+              type="button"
+              onClick={handleNextDay}
+              disabled={selectedDate >= todayStr}
+              className="px-2.5 py-1.5 rounded-xl border border-slate-700 bg-slate-950 text-slate-300 hover:text-white hover:bg-slate-800 text-xs font-bold transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+              title="Next Day"
+            >
+              <span>Next</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+
+            {selectedDate !== todayStr && (
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic("tap");
+                  setSelectedDate(todayStr);
+                  fetchAnalytics("date", todayStr);
+                }}
+                className="px-2.5 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-bold transition-colors active:scale-95"
+              >
+                Today
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 3. Core Metric Tiles (KPIs) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -185,7 +337,13 @@ function StaffAnalyticsContent() {
             {data ? data.totalServedToday : 0}
           </div>
           <p className="text-[11px] text-slate-400">
-            {timeframe === "day" ? "Completed today" : timeframe === "week" ? "Last 7 days total" : "Last 30 days total"}
+            {timeframe === "day"
+              ? "Completed today"
+              : timeframe === "week"
+              ? "Last 7 days total"
+              : timeframe === "month"
+              ? "Last 30 days total"
+              : `Completed on ${selectedDate}`}
           </p>
         </div>
 
@@ -198,7 +356,9 @@ function StaffAnalyticsContent() {
           <div className="text-2xl sm:text-3xl font-black text-amber-400 font-mono">
             ₹{data ? data.totalRevenueToday : 0}
           </div>
-          <p className="text-[11px] text-slate-400">Total service amount</p>
+          <p className="text-[11px] text-slate-400">
+            {timeframe === "date" ? `Total for ${selectedDate}` : "Total service amount"}
+          </p>
         </div>
 
         {/* Cash in Hand */}
@@ -261,14 +421,14 @@ function StaffAnalyticsContent() {
             />
           </div>
           <div className="flex justify-between text-[11px] text-slate-400">
-            <span>Cash Tender (हाथ में मिला कैश)</span>
-            <span>Digital QR (सैलून खाते में गया ऑनलाइन)</span>
+            <span>Physical Cash Tender</span>
+            <span>Online UPI / Digital QR</span>
           </div>
         </CardContent>
       </Card>
 
       {/* 5. Daily Trend Breakdown (Active when viewing Week or Month) */}
-      {timeframe !== "day" && data && data.dailyTrends.length > 0 && (
+      {(timeframe === "week" || timeframe === "month") && data && data.dailyTrends.length > 0 && (
         <Card className="border-slate-800 bg-slate-900/70 shadow-xl">
           <CardHeader className="pb-3 border-b border-slate-800">
             <CardTitle className="text-base text-white flex items-center gap-2">
@@ -325,7 +485,9 @@ function StaffAnalyticsContent() {
         </CardHeader>
         <CardContent className="p-4 sm:p-6">
           {(!data || Object.keys(data.servicesCountMap).length === 0) ? (
-            <p className="text-xs text-slate-500 italic">No services completed in this timeframe.</p>
+            <p className="text-xs text-slate-500 italic p-4 text-center">
+              No services completed for this selection.
+            </p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {Object.entries(data.servicesCountMap).map(([srvName, count]) => (
@@ -364,8 +526,10 @@ function StaffAnalyticsContent() {
         </CardHeader>
         <CardContent className="p-3 sm:p-6">
           {(!data || data.completedTickets.length === 0) ? (
-            <p className="text-xs text-slate-500 italic p-4 text-center">
-              No completed tickets recorded for this period.
+            <p className="text-xs text-slate-500 italic p-6 text-center">
+              {timeframe === "date"
+                ? `No completed tickets found for ${formatHumanDate(selectedDate)}.`
+                : "No completed tickets recorded for this period."}
             </p>
           ) : (
             <div className="divide-y divide-slate-800/80 rounded-xl bg-slate-950/60 border border-slate-800 overflow-hidden">

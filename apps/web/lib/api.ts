@@ -664,10 +664,23 @@ export const api = {
     getActive: (salonId: string) =>
       request<{ count: number; tickets: Ticket[] }>(`/api/queue/active/${salonId}`),
 
-    getStaffReport: (salonId: string, stylistId?: string, timeframe?: string) =>
-      request<{
+    getStaffReport: (
+      salonId: string,
+      stylistId?: string,
+      timeframe?: string,
+      options?: { date?: string; startDate?: string; endDate?: string }
+    ) => {
+      const queryParams = new URLSearchParams();
+      if (stylistId) queryParams.set("stylistId", stylistId);
+      if (timeframe) queryParams.set("timeframe", timeframe);
+      if (options?.date) queryParams.set("date", options.date);
+      if (options?.startDate) queryParams.set("startDate", options.startDate);
+      if (options?.endDate) queryParams.set("endDate", options.endDate);
+      const qs = queryParams.toString();
+      return request<{
         success: boolean;
         timeframe?: string;
+        selectedDate?: string;
         totalServedToday: number;
         totalRevenueToday: number;
         cashRevenue?: number;
@@ -676,11 +689,8 @@ export const api = {
         servicesCountMap: Record<string, number>;
         dailyTrends?: Array<{ date: string; served: number; revenue: number; cash: number; online: number }>;
         completedTickets: any[];
-      }>(
-        `/api/queue/staff-report/${salonId}?${stylistId ? `stylistId=${stylistId}&` : ""}${
-          timeframe ? `timeframe=${timeframe}` : ""
-        }`
-      ),
+      }>(`/api/queue/staff-report/${salonId}${qs ? `?${qs}` : ""}`);
+    },
 
     getStaffDailyReport: (salonId: string, stylistId?: string) =>
       request<{

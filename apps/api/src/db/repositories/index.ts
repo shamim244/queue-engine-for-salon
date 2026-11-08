@@ -85,7 +85,12 @@ export const repository = {
 
   // Analytics & Admin
   getSalonMetrics: (salonId: string) => analyticsRepo.getSalonMetrics(salonId),
-  getStaffDailyReport: (salonId: string, stylistId?: string) => analyticsRepo.getStaffDailyReport(salonId, stylistId),
+  getStaffDailyReport: (
+    salonId: string,
+    stylistId?: string,
+    timeframe: string = 'day',
+    options?: { date?: string; startDate?: string; endDate?: string }
+  ) => analyticsRepo.getStaffDailyReport(salonId, stylistId, timeframe, options),
   getPlatformMetrics: () => analyticsRepo.getPlatformMetrics(),
   getTotalTicketsToday: () => analyticsRepo.getTotalTicketsToday(),
   getAdminStats: () => analyticsRepo.getAdminStats(),

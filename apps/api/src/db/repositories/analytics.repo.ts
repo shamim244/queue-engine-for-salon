@@ -45,7 +45,12 @@ export const analyticsRepo = {
     };
   },
 
-  async getStaffDailyReport(salonId: string, stylistId?: string, timeframe: string = 'day') {
+  async getStaffDailyReport(
+    salonId: string,
+    stylistId?: string,
+    timeframe: string = 'day',
+    options?: { date?: string; startDate?: string; endDate?: string }
+  ) {
     let completedTickets: any[] = [];
     let totalServedToday = 0;
     let totalRevenueToday = 0;
@@ -55,10 +60,20 @@ export const analyticsRepo = {
     const servicesCountMap: Record<string, number> = {};
     const dailyTrendsMap: Record<string, { date: string; served: number; revenue: number; cash: number; online: number }> = {};
 
+    const targetDate = options?.date;
+
     if (isMySqlConnected) {
       const db = getDb();
       let dateFilter = `DATE(completed_time) = CURRENT_DATE()`;
-      if (timeframe === 'week') {
+      const queryDateParams: any[] = [];
+
+      if (targetDate) {
+        dateFilter = `DATE(completed_time) = ?`;
+        queryDateParams.push(targetDate);
+      } else if (options?.startDate && options?.endDate) {
+        dateFilter = `DATE(completed_time) BETWEEN ? AND ?`;
+        queryDateParams.push(options.startDate, options.endDate);
+      } else if (timeframe === 'week') {
         dateFilter = `completed_time >= DATE_SUB(NOW(), INTERVAL 7 DAY)`;
       } else if (timeframe === 'month') {
         dateFilter = `completed_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)`;
@@ -66,7 +81,7 @@ export const analyticsRepo = {
 
       let sql = `SELECT * FROM queue_tickets 
                  WHERE salon_id = ? AND status = 'COMPLETED' AND ${dateFilter}`;
-      const params: any[] = [salonId];
+      const params: any[] = [salonId, ...queryDateParams];
       if (stylistId) {
         sql += ` AND stylist_id = ?`;
         params.push(stylistId);
@@ -98,7 +113,15 @@ export const analyticsRepo = {
       completedTickets = Array.from(memoryStore.tickets.values()).filter((t) => {
         if (t.status !== 'COMPLETED' || t.salonId !== salonId) return false;
         if (stylistId && t.stylistId !== stylistId) return false;
-        if (!t.completedTime) return true;
+        if (!t.completedTime) return false;
+        const compDate = t.completedTime.split('T')[0];
+        if (targetDate) {
+          return compDate === targetDate;
+        }
+        if (timeframe === 'day') {
+          const today = new Date().toISOString().split('T')[0];
+          return compDate === today;
+        }
         const compTime = new Date(t.completedTime).getTime();
         return (now - compTime) <= cutoffMs;
       });
@@ -152,6 +175,7 @@ export const analyticsRepo = {
       salonId,
       stylistId,
       timeframe,
+      selectedDate: targetDate || (timeframe === 'day' ? new Date().toISOString().split('T')[0] : undefined),
       totalServedToday,
       totalRevenueToday,
       cashRevenue,
