@@ -7,6 +7,7 @@ import { StationChairHeader } from "@/components/station/station-chair-header";
 import { StationOpenChairCard } from "@/components/station/station-open-chair-card";
 import { StationSummonedCard } from "@/components/station/station-summoned-card";
 import { StationWaitingQueue } from "@/components/station/station-waiting-queue";
+import { StationNoShowModal } from "@/components/station/station-noshow-modal";
 
 describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
   const mockStylist1: Stylist = {
@@ -250,6 +251,26 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
       expect(html).toContain("Pause Spot");
       expect(html).toContain("Grace Hold");
       expect(html).toContain("No-Show");
+    });
+
+    it("should render StationNoShowModal with confirmation dialog and safety alerts", () => {
+      const summoned = mockTickets[0];
+      const html = renderToString(
+        React.createElement(StationNoShowModal, {
+          isOpen: true,
+          ticket: summoned,
+          processingAction: false,
+          onClose: () => {},
+          onConfirm: () => {},
+        })
+      );
+
+      expect(html).toContain("Confirm No-Show Removal");
+      expect(html).toContain("Aman Sharma");
+      expect(html).toContain("#101");
+      expect(html).toContain("permanently remove");
+      expect(html).toContain("Keep in Queue");
+      expect(html).toContain("Yes, Mark No-Show");
     });
   });
 });

@@ -17,6 +17,7 @@ import { StationInServiceCard } from "@/components/station/station-in-service-ca
 import { StationWaitingQueue } from "@/components/station/station-waiting-queue";
 import { StationQuickWalkinModal } from "@/components/station/station-quick-walkin-modal";
 import { StationCheckoutModal } from "@/components/station/station-checkout-modal";
+import { StationNoShowModal } from "@/components/station/station-noshow-modal";
 
 export default function StaffStationPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
@@ -35,6 +36,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const [isSwitchChairOpen, setIsSwitchChairOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isNoShowModalOpen, setIsNoShowModalOpen] = useState(false);
 
   // Currently Serving / Summoned Ticket
   const [currentlyServing, setCurrentlyServing] = useState<Ticket | null>(null);
@@ -289,6 +291,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       }
       showToast(`Ticket #${summonedTicket.ticketNumber} marked as No-Show.`, "info");
       setSummonedTicket(null);
+      setIsNoShowModalOpen(false);
       const nextRes = await api.queue.callNext(salon.id, activeStylist?.id);
       if (nextRes.ticket) {
         setSummonedTicket(nextRes.ticket);
@@ -485,7 +488,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                 onSeatInChair={handleSeatInChair}
                 onPauseAndCallNext={handlePauseAndCallNext}
                 onHoldAndCallNext={handleHoldAndCallNext}
-                onNoShow={handleNoShow}
+                onNoShow={() => setIsNoShowModalOpen(true)}
                 onReAnnounce={() =>
                   speakAnnouncement(
                     `Ticket Number ${summonedTicket.ticketNumber}, ${summonedTicket.customerName}, please step to chair!`
@@ -552,6 +555,14 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         activeStylistId={activeStylist?.id}
         onClose={() => setIsSwitchChairOpen(false)}
         onSelectStylist={handleSelectStylistChair}
+      />
+
+      <StationNoShowModal
+        isOpen={isNoShowModalOpen}
+        ticket={summonedTicket}
+        processingAction={processingAction}
+        onClose={() => setIsNoShowModalOpen(false)}
+        onConfirm={handleNoShow}
       />
     </div>
   );
