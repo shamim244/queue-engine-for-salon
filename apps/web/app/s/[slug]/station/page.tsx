@@ -44,6 +44,10 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const [isAddServicesOpen, setIsAddServicesOpen] = useState(false);
   const [isUpdatingServices, setIsUpdatingServices] = useState(false);
 
+  // 10-Minute Chai Break Mode
+  const [breakRemainingSeconds, setBreakRemainingSeconds] = useState<number | null>(null);
+  const isOnBreak = breakRemainingSeconds !== null && breakRemainingSeconds > 0;
+
   // Currently Serving / Summoned Ticket
   const [currentlyServing, setCurrentlyServing] = useState<Ticket | null>(null);
   const [summonedTicket, setSummonedTicket] = useState<Ticket | null>(null);
@@ -165,6 +169,39 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     return () => clearInterval(interval);
   }, [currentlyServing]);
 
+  // Client-Compute Chai Break Countdown & Notification Chime
+  useEffect(() => {
+    if (breakRemainingSeconds === null) return;
+    if (breakRemainingSeconds <= 0) {
+      setBreakRemainingSeconds(null);
+      showToast("10-Minute Chai Break completed! Chair is open and ready.", "info");
+      // Synthetic dual-tone chime (Web Audio API)
+      if (typeof window !== "undefined" && ("AudioContext" in window || "webkitAudioContext" in window)) {
+        try {
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.3);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.5);
+        } catch {}
+      }
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setBreakRemainingSeconds((prev) => (prev !== null && prev > 0 ? prev - 1 : null));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [breakRemainingSeconds]);
+
   // PIN Input Handling & Verification
   const verifyPinSubmission = useCallback(async (pin: string) => {
     if (!salon || !activeStylist) return;
@@ -211,6 +248,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   // Station Queue Actions
   const handleCallNext = async () => {
     if (!salon) return;
+    if (isOnBreak) setBreakRemainingSeconds(null);
     setProcessingAction(true);
     try {
       const res = await api.queue.callNext(salon.id, activeStylist?.id);
@@ -404,6 +442,72 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     }
   };
 
+  // 1-Tap Toggle Add-on Service Directly on Chair Card
+  const handleToggleAddOn = async (addonId: string) => {
+    if (!currentlyServing) return;
+    const currentAddOnIds =
+      currentlyServing.selectedAddOns?.map((a: any) => a.id) ||
+      currentlyServing.addOnIds ||
+      [];
+    const isAlreadySelected = currentAddOnIds.includes(addonId);
+    const newAddOnIds = isAlreadySelected
+      ? currentAddOnIds.filter((id: string) => id !== addonId)
+      : [...currentAddOnIds, addonId];
+
+    setIsUpdatingServices(true);
+    try {
+      const resp = await api.queue.updateServices(currentlyServing.id, newAddOnIds);
+      if (resp.ticket) {
+        setCurrentlyServing(resp.ticket);
+        setEditableBill(resp.ticket.totalPrice || editableBill);
+        showToast(
+          isAlreadySelected
+            ? `Removed add-on from #${resp.ticket.ticketNumber}`
+            : `Added add-on to #${resp.ticket.ticketNumber}! Total: ₹${resp.ticket.totalPrice}`,
+          "success"
+        );
+        fetchStationData();
+      }
+    } catch (err: any) {
+      showToast("Error updating add-ons: " + err.message, "error");
+    } finally {
+      setIsUpdatingServices(false);
+    }
+  };
+
+  // 1-Tap Direct Seat Client (Skipping Call Step if client already seated)
+  const handleDirectSeat = async (ticket: Ticket) => {
+    if (isOnBreak) setBreakRemainingSeconds(null);
+    setProcessingAction(true);
+    try {
+      await api.queue.seat(ticket.id, activeStylist?.id);
+      setCurrentlyServing(ticket);
+      setSummonedTicket(null);
+      setEditableBill(ticket.totalPrice || 150);
+      showToast(`Ticket #${ticket.ticketNumber} (${ticket.customerName}) seated directly!`, "success");
+      fetchStationData();
+    } catch (err: any) {
+      showToast("Error seating client: " + err.message, "error");
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  // 1-Tap 10-Minute Chai / Cleaning Break Toggle
+  const handleToggleBreak = () => {
+    if (isOnBreak) {
+      setBreakRemainingSeconds(null);
+      showToast("Break ended. Chair is active and ready!", "success");
+    } else {
+      if (currentlyServing) {
+        showToast("Please complete current service before taking a break.", "error");
+        return;
+      }
+      setBreakRemainingSeconds(600); // 10 minutes
+      showToast("☕ 10-minute Chai Break started. Lounge informed.", "info");
+    }
+  };
+
   const handleQuickAddWalkin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!salon) return;
@@ -437,12 +541,24 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     setPinError("");
   };
 
-  // Eligible waiting count for this chair (preferred + universal)
-  const eligibleTicketsCount = activeTickets.filter(
-    (t) =>
-      (!t.stylistId || (activeStylist && t.stylistId === activeStylist.id)) &&
-      (t.status === "WAITING" || t.status === "SOFT_BUMPED")
-  ).length;
+  // Eligible waiting pool for this chair (preferred + universal walk-ins)
+  const eligibleWaitingTickets = activeTickets
+    .filter(
+      (t) =>
+        (!t.stylistId || (activeStylist && t.stylistId === activeStylist.id)) &&
+        (t.status === "WAITING" || t.status === "SOFT_BUMPED")
+    )
+    .sort((a, b) => {
+      if (a.status === "SOFT_BUMPED" && b.status !== "SOFT_BUMPED") return -1;
+      if (b.status === "SOFT_BUMPED" && a.status !== "SOFT_BUMPED") return 1;
+      const timeA = new Date(a.checkInTime || (a as any).createdAt || 0).getTime();
+      const timeB = new Date(b.checkInTime || (b as any).createdAt || 0).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.ticketNumber || 0) - (b.ticketNumber || 0);
+    });
+
+  const eligibleTicketsCount = eligibleWaitingTickets.length;
+  const nextEligibleTicket = eligibleWaitingTickets[0] || null;
 
   // View 0A: Loading Auth State
   if (authLoading) {
@@ -505,6 +621,9 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         socketStatus={status}
         reconnectAttempts={reconnectAttempts}
         userName={user.fullName || user.username}
+        isOnBreak={isOnBreak}
+        breakRemainingSeconds={breakRemainingSeconds}
+        onToggleBreak={handleToggleBreak}
         onOpenSwitchChair={() => setIsSwitchChairOpen(true)}
         onOpenQuickAdd={() => setIsQuickAddOpen(true)}
         onLockChair={() => setIsLocked(true)}
@@ -545,7 +664,15 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
               <StationOpenChairCard
                 eligibleTicketsCount={eligibleTicketsCount}
                 processingAction={processingAction}
+                nextEligibleTicket={nextEligibleTicket}
+                activeStylist={activeStylist}
+                isOnBreak={isOnBreak}
+                breakRemainingSeconds={breakRemainingSeconds}
                 onCallNext={handleCallNext}
+                onDirectSeat={handleDirectSeat}
+                onResumeBreak={handleToggleBreak}
+                onStartBreak={handleToggleBreak}
+                onOpenQuickAdd={() => setIsQuickAddOpen(true)}
               />
             )}
 
@@ -570,6 +697,9 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                 currentlyServing={currentlyServing}
                 editableBill={editableBill}
                 processingAction={processingAction}
+                availableAddOns={salon?.services?.filter((s) => s.isAddOn) || []}
+                isUpdatingAddon={isUpdatingServices}
+                onToggleAddOn={handleToggleAddOn}
                 onProceedToCheckout={() => setIsCheckoutOpen(true)}
                 onOpenAddServices={() => setIsAddServicesOpen(true)}
               />

@@ -4,7 +4,7 @@ import type { Stylist } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConnectionPill, type ConnectionStatus } from "@/components/connection-pill";
-import { Armchair, RotateCcw, Tv, KeyRound, Sparkles, LogOut } from "lucide-react";
+import { Armchair, RotateCcw, Tv, KeyRound, Sparkles, LogOut, Coffee } from "lucide-react";
 
 interface StationChairHeaderProps {
   slug: string;
@@ -13,6 +13,9 @@ interface StationChairHeaderProps {
   socketStatus?: ConnectionStatus;
   reconnectAttempts: number;
   userName?: string;
+  isOnBreak?: boolean;
+  breakRemainingSeconds?: number | null;
+  onToggleBreak?: () => void;
   onOpenSwitchChair: () => void;
   onOpenQuickAdd: () => void;
   onLockChair: () => void;
@@ -26,11 +29,19 @@ export function StationChairHeader({
   socketStatus,
   reconnectAttempts,
   userName,
+  isOnBreak,
+  breakRemainingSeconds,
+  onToggleBreak,
   onOpenSwitchChair,
   onOpenQuickAdd,
   onLockChair,
   onLogout,
 }: StationChairHeaderProps) {
+  const formatBreakTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
   return (
     <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-4 sm:px-8 py-3 flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -47,11 +58,18 @@ export function StationChairHeader({
             </Badge>
           </div>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              Active Station
-            </span>
-            {hasMultipleStylists && (
+            {isOnBreak ? (
+              <span className="text-xs text-amber-400 font-semibold flex items-center gap-1.5 bg-amber-500/15 px-2 py-0.5 rounded-md border border-amber-500/30">
+                <Coffee className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+                <span>Chai Break ({formatBreakTime(breakRemainingSeconds || 0)})</span>
+              </span>
+            ) : (
+              <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                Active Station
+              </span>
+            )}
+            {hasMultipleStylists && !isOnBreak && (
               <button
                 type="button"
                 onClick={onOpenSwitchChair}
@@ -66,6 +84,23 @@ export function StationChairHeader({
 
       <div className="flex items-center gap-2 sm:gap-3">
         <ConnectionPill status={socketStatus} reconnectAttempts={reconnectAttempts} />
+
+        {onToggleBreak && (
+          <Button
+            variant={isOnBreak ? "default" : "outline"}
+            size="sm"
+            onClick={onToggleBreak}
+            className={`text-xs font-bold gap-1.5 h-9 rounded-xl transition-all ${
+              isOnBreak
+                ? "bg-amber-500 hover:bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-500/25"
+                : "border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300"
+            }`}
+            title={isOnBreak ? "End break and resume chair immediately" : "Take a 10-minute chai or tool-cleaning break"}
+          >
+            <Coffee className="h-3.5 w-3.5 text-amber-400" />
+            <span>{isOnBreak ? "Resume Work" : "☕ 10m Break"}</span>
+          </Button>
+        )}
 
         <Button
           variant="outline"
