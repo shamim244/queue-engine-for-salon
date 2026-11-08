@@ -774,6 +774,17 @@ export const api = {
         method: "POST",
         body: JSON.stringify(payload),
       }),
+    getCompressionStatus: () => request<any>("/api/admin/compression"),
+    updateCompressionSettings: (settings: any) =>
+      request<any>("/api/admin/compression", {
+        method: "POST",
+        body: JSON.stringify(settings),
+      }),
+    runCompressionBenchmark: (payload?: string) =>
+      request<any>("/api/admin/compression/benchmark", {
+        method: "POST",
+        body: JSON.stringify({ payload }),
+      }),
     testNotification: (phone?: string, message?: string) =>
       request<{ success: boolean; provider: string; notificationId?: string; timestamp?: string }>(
         "/api/admin/test-notification",

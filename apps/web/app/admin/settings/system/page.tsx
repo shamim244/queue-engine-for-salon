@@ -2,6 +2,7 @@
 
 import React, { Suspense, useState, useEffect } from "react";
 import { SettingsNav } from "@/components/admin/settings-nav";
+import { CompressionCenter } from "@/components/admin/compression-center";
 import { api } from "@/lib/api";
 import type { PlatformSettings } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -446,6 +447,9 @@ function SystemSettingsContent() {
           </CardFooter>
         </Card>
       </form>
+
+      {/* Multi-Tier Adaptive Response Compression Center */}
+      <CompressionCenter />
     </div>
   );
 }

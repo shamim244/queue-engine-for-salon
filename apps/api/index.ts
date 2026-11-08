@@ -15,6 +15,7 @@ import { salonRoutes } from './src/routes/salon.routes';
 import { queueRoutes } from './src/routes/queue.routes';
 import { authRoutes } from './src/routes/auth.routes';
 import { adminRoutes } from './src/routes/admin.routes';
+import { compressionManager } from './src/engine/compression-manager';
 
 console.log(`\n======================================================`);
 console.log(`🚀 ENGINE QUE SYSTEM FOR SALONS (BUN RUNTIME)`);
@@ -64,10 +65,8 @@ const app = new Elysia()
       maxAge: 86400,
     })
   )
-  // Native Gzip Response Compression Middleware (>1KB)
+  // Multi-Tier Adaptive Response Compression (zstd -> br -> gzip -> raw fallback)
   .mapResponse(({ response, request, set }) => {
-    const acceptEncoding = request.headers.get('accept-encoding') || '';
-    if (!acceptEncoding.includes('gzip')) return;
     if (response instanceof Response) return;
 
     let bodyStr: string;
@@ -81,18 +80,26 @@ const app = new Elysia()
       return;
     }
 
-    const byteLength = Buffer.byteLength(bodyStr, 'utf-8');
-    if (byteLength <= 1024) return;
+    const inputBuffer = Buffer.from(bodyStr, 'utf-8');
+    const minThreshold = compressionManager.getSettings().minThresholdBytes;
+    if (inputBuffer.byteLength <= minThreshold) return;
 
-    const compressed = Bun.gzipSync(Buffer.from(bodyStr, 'utf-8'));
-    const responseHeaders = new Headers(set.headers as HeadersInit);
+    const acceptEncoding = request.headers.get('accept-encoding') || '';
+    const result = compressionManager.compressWithFallback(inputBuffer, acceptEncoding);
+
+    if (!result.encoding) {
+      // Uncompressed raw response
+      return;
+    }
+
+    const responseHeaders = new Headers(set.headers as any);
     responseHeaders.set('Content-Type', (set.headers?.['content-type'] as string) || contentType);
-    responseHeaders.set('Content-Encoding', 'gzip');
+    responseHeaders.set('Content-Encoding', result.encoding);
     responseHeaders.set('Vary', 'Accept-Encoding');
-    responseHeaders.set('Content-Length', String(compressed.byteLength));
+    responseHeaders.set('Content-Length', String(result.compressedBytes));
 
-    return new Response(compressed, {
-      status: set.status || 200,
+    return new Response(result.data as any, {
+      status: (typeof set.status === 'number' ? set.status : 200),
       headers: responseHeaders,
     });
   })

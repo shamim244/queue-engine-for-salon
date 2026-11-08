@@ -4,6 +4,7 @@ import { notificationService } from '../notifications/whatsapp';
 import { authService } from '../auth/auth-service';
 import { jobQueue } from '../worker/job-queue';
 import { executeMidnightQueueReset } from '../worker/handlers/reset.handler';
+import { compressionManager } from '../engine/compression-manager';
 
 export const adminRoutes = new Elysia({ prefix: '/api/admin' })
   // 1. System Telemetry & Health Statistics
@@ -104,6 +105,31 @@ export const adminRoutes = new Elysia({ prefix: '/api/admin' })
       }),
     }
   )
+
+  // 5.1 Adaptive Compression Capabilities & Live Diagnostics
+  .get('/compression', () => {
+    return {
+      success: true,
+      capabilities: compressionManager.getCapabilities(),
+      settings: compressionManager.getSettings(),
+      benchmark: compressionManager.runBenchmark(),
+    };
+  })
+  .post('/compression', ({ body }) => {
+    const updated = compressionManager.updateSettings(body as any);
+    return {
+      success: true,
+      settings: updated,
+    };
+  })
+  .post('/compression/benchmark', ({ body }) => {
+    const payload = (body as any)?.payload;
+    const benchmark = compressionManager.runBenchmark(payload);
+    return {
+      success: true,
+      benchmark,
+    };
+  })
 
   // 6. Tenant Onboarding (Atomic salon, organization, stylists, services & owner account)
   .post(

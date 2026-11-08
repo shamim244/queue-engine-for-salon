@@ -19,6 +19,7 @@ import GeneralSettingsPage from "../app/admin/settings/page";
 import AppearanceSettingsPage from "../app/admin/settings/appearance/page";
 import SystemSettingsPage from "../app/admin/settings/system/page";
 import SecurityPage from "../app/admin/security/page";
+import { CompressionCenter } from "../components/admin/compression-center";
 
 describe("Admin Settings Suite & Security Center", () => {
   const mockSettings: PlatformSettings = {
@@ -206,6 +207,52 @@ describe("Admin Settings Suite & Security Center", () => {
         api.admin.toggleKillSwitch = originalKill;
       }
     });
+
+    it("should fetch compression status and run live benchmark via api.admin", async () => {
+      const originalGet = api.admin.getCompressionStatus;
+      const originalBenchmark = api.admin.runCompressionBenchmark;
+
+      api.admin.getCompressionStatus = mock(async () => ({
+        success: true,
+        capabilities: [
+          { algorithm: "zstd", label: "Zstandard", available: false, engine: "Not installed", native: false },
+          { algorithm: "br", label: "Brotli", available: true, engine: "node:zlib", native: true },
+          { algorithm: "gzip", label: "Gzip", available: true, engine: "Bun.gzipSync", native: true },
+        ],
+        settings: {
+          enabled: true,
+          minThresholdBytes: 1024,
+          priority: ["zstd", "br", "gzip"],
+          brotli: { enabled: true, quality: 4 },
+          gzip: { enabled: true, level: 6 },
+          zstd: { enabled: false },
+        },
+        benchmark: [
+          { algorithm: "Brotli (br)", status: "SUPPORTED", originalBytes: 2400, compressedBytes: 230, reductionPercentage: 90, durationMs: 0.4 },
+        ],
+      })) as any;
+
+      api.admin.runCompressionBenchmark = mock(async () => ({
+        success: true,
+        benchmark: [
+          { algorithm: "Brotli (br)", status: "SUPPORTED", originalBytes: 2400, compressedBytes: 230, reductionPercentage: 90, durationMs: 0.4 },
+        ],
+      })) as any;
+
+      try {
+        const status = await api.admin.getCompressionStatus();
+        expect(status.success).toBe(true);
+        expect(status.capabilities.length).toBe(3);
+        expect(status.settings.priority).toContain("br");
+
+        const benchmarkRes = await api.admin.runCompressionBenchmark();
+        expect(benchmarkRes.success).toBe(true);
+        expect(benchmarkRes.benchmark.length).toBe(1);
+      } finally {
+        api.admin.getCompressionStatus = originalGet;
+        api.admin.runCompressionBenchmark = originalBenchmark;
+      }
+    });
   });
 
   describe("Server-Side Rendering of Settings Pages", () => {
@@ -274,6 +321,15 @@ describe("Admin Settings Suite & Security Center", () => {
       expect(html).toContain("Action");
       expect(html).toContain("Actor");
       expect(html).toContain("Category");
+    });
+
+    it("should render CompressionCenter component with cascading fallback order", () => {
+      const html = renderToString(React.createElement(CompressionCenter));
+      expect(html).toContain("Multi-Tier Adaptive Response Compression");
+      expect(html).toContain("Zstandard");
+      expect(html).toContain("Brotli");
+      expect(html).toContain("Gzip");
+      expect(html).toContain("Raw");
     });
   });
 });
