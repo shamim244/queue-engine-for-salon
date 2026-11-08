@@ -25,13 +25,27 @@ export function StationAddServicesModal({
 }: StationAddServicesModalProps) {
   const [selectedAddOnIds, setSelectedAddOnIds] = useState<string[]>([]);
 
-  // Initialize selected add-ons from ticket when modal opens
+  // Initialize selected add-ons ONLY when modal opens
   useEffect(() => {
-    if (ticket) {
-      const existingIds = (ticket.selectedAddOns || []).map((a: any) => a.id);
+    if (isOpen && ticket) {
+      let rawList: any[] = [];
+      if (Array.isArray(ticket.selectedAddOns)) {
+        rawList = ticket.selectedAddOns;
+      } else if (typeof ticket.selectedAddOns === "string") {
+        try {
+          rawList = JSON.parse(ticket.selectedAddOns);
+        } catch {
+          rawList = [];
+        }
+      } else if (Array.isArray(ticket.addOnIds)) {
+        rawList = ticket.addOnIds;
+      }
+      const existingIds = rawList
+        .map((a: any) => (typeof a === "string" ? a : a?.id))
+        .filter(Boolean);
       setSelectedAddOnIds(existingIds);
     }
-  }, [ticket, isOpen]);
+  }, [isOpen]);
 
   if (!ticket) return null;
 
@@ -120,8 +134,12 @@ export function StationAddServicesModal({
                   <button
                     key={svc.id}
                     type="button"
-                    onClick={() => handleToggleAddOn(svc.id)}
-                    className={`w-full p-3.5 rounded-xl border text-left flex items-center justify-between transition-all min-h-[52px] select-none ${
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleToggleAddOn(svc.id);
+                    }}
+                    className={`w-full p-3.5 rounded-xl border text-left flex items-center justify-between transition-all min-h-[52px] select-none cursor-pointer ${
                       isSelected
                         ? "bg-emerald-500/15 border-emerald-500 text-white ring-1 ring-emerald-500/50 shadow-md shadow-emerald-950/30"
                         : "bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700"

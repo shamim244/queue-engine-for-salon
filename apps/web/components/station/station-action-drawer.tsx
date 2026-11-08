@@ -219,14 +219,29 @@ export function StationActionDrawer({
             <div className="space-y-2">
               <div className="flex flex-wrap gap-2">
                 {PRESET_GROOMING_TAGS.map((tag) => {
-                  const isTagActive = groomingTags.includes(tag.id);
+                  const safeTags = Array.isArray(groomingTags)
+                    ? groomingTags
+                    : typeof groomingTags === "string"
+                    ? (() => {
+                        try {
+                          return JSON.parse(groomingTags);
+                        } catch {
+                          return [];
+                        }
+                      })()
+                    : [];
+                  const isTagActive = safeTags.includes(tag.id);
                   return (
                     <button
                       key={tag.id}
                       type="button"
                       disabled={processingAction}
-                      onClick={() => onToggleGroomingTag && onToggleGroomingTag(tag.id)}
-                      className={`min-h-[46px] px-3.5 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 select-none active:scale-95 ${
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onToggleGroomingTag && onToggleGroomingTag(tag.id);
+                      }}
+                      className={`min-h-[46px] px-3.5 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 select-none active:scale-95 cursor-pointer ${
                         isTagActive
                           ? "bg-sky-500/25 border-sky-400 text-sky-200 ring-1 ring-sky-400/60 shadow-md shadow-sky-500/10"
                           : "bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white"

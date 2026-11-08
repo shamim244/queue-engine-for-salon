@@ -6,7 +6,7 @@ import { api, request, markTicketNoShow } from "@/lib/api";
 import type { Salon, Ticket, Stylist } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
 import { useAuth } from "@/lib/auth-context";
-import { CheckCircle2, AlertCircle, Sparkles, Armchair, Users } from "lucide-react";
+import { CheckCircle2, AlertCircle, Sparkles, Armchair, Users, Columns, Layers } from "lucide-react";
 
 // Modular Station Components
 import { StationStaffLogin } from "@/components/station/station-staff-login";
@@ -46,6 +46,36 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
 
   // Android Mobile Segmented View (Low Scroll Cockpit)
   const [mobileTab, setMobileTab] = useState<"chair" | "queue">("chair");
+
+  // Layout Preference (Side-by-Side Split vs Tabbed Cockpit)
+  const [layoutMode, setLayoutMode] = useState<"split" | "tabbed">("split");
+
+  useEffect(() => {
+    try {
+      const savedLayout = localStorage.getItem(`station_layout_pref_${slug}`);
+      if (savedLayout === "split" || savedLayout === "tabbed") {
+        setLayoutMode(savedLayout);
+      } else {
+        // Default: mobile screens default to tabbed for minimal scroll, PC/desktop defaults to split
+        if (typeof window !== "undefined" && window.innerWidth < 1024) {
+          setLayoutMode("tabbed");
+        } else {
+          setLayoutMode("split");
+        }
+      }
+    } catch {}
+  }, [slug]);
+
+  const handleSetLayoutMode = (mode: "split" | "tabbed") => {
+    setLayoutMode(mode);
+    try {
+      localStorage.setItem(`station_layout_pref_${slug}`, mode);
+    } catch {}
+  };
+
+  const handleToggleLayoutMode = () => {
+    handleSetLayoutMode(layoutMode === "split" ? "tabbed" : "split");
+  };
 
   // 10-Minute Chai Break Mode
   const [breakRemainingSeconds, setBreakRemainingSeconds] = useState<number | null>(null);
@@ -520,7 +550,19 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   // 1-Tap Toggle Client Grooming Preference Tag
   const handleToggleGroomingTag = async (tag: string) => {
     if (!currentlyServing) return;
-    const currentTags = currentlyServing.groomingTags || [];
+    const rawTags = currentlyServing.groomingTags;
+    const currentTags: string[] = Array.isArray(rawTags)
+      ? rawTags
+      : typeof rawTags === "string"
+      ? (() => {
+          try {
+            return JSON.parse(rawTags);
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+
     const isAlreadyTagged = currentTags.includes(tag);
     const newTags = isAlreadyTagged
       ? currentTags.filter((t: string) => t !== tag)
@@ -532,7 +574,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     try {
       const resp = await api.queue.updateNotes(currentlyServing.id, { groomingTags: newTags });
       if (resp.ticket) {
-        setCurrentlyServing((prev) => (prev ? { ...prev, ...resp.ticket } : resp.ticket));
+        setCurrentlyServing((prev) => (prev ? { ...prev, ...resp.ticket, groomingTags: newTags } : resp.ticket));
       }
     } catch (err: any) {
       showToast("Error updating grooming tag: " + err.message, "error");
@@ -706,9 +748,11 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         breakRemainingSeconds={breakRemainingSeconds}
         isMirrorMode={isMirrorMode}
         isFullscreen={isFullscreen}
+        layoutMode={layoutMode}
         onToggleBreak={handleToggleBreak}
         onToggleMirrorMode={handleToggleMirrorMode}
         onToggleFullscreen={handleToggleFullscreen}
+        onToggleLayoutMode={handleToggleLayoutMode}
         onOpenSwitchChair={() => setIsSwitchChairOpen(true)}
         onOpenQuickAdd={() => setIsQuickAddOpen(true)}
         onLockChair={() => setIsLocked(true)}
@@ -742,37 +786,75 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
           </div>
         )}
 
-        {/* Mobile View Segmented Switcher (Visible on Mobile screens only, lg:hidden) - Minimal Scroll for Android Barbers */}
-        <div className="grid grid-cols-2 gap-2 lg:hidden bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 shadow-md">
-          <button
-            type="button"
-            onClick={() => setMobileTab("chair")}
-            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 min-h-[48px] ${
-              mobileTab === "chair"
-                ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/25"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <Armchair className="h-4 w-4" />
-            <span>Chair Cockpit {currentlyServing ? `(#${currentlyServing.ticketNumber})` : ""}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileTab("queue")}
-            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 min-h-[48px] ${
-              mobileTab === "queue"
-                ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/25"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <Users className="h-4 w-4" />
-            <span>Waiting List ({eligibleTicketsCount})</span>
-          </button>
+        {/* Layout Preference Bar */}
+        <div className="flex items-center justify-between pb-1 text-xs">
+          <div className="flex items-center gap-2 text-slate-400 font-medium">
+            <span>Layout View:</span>
+            <span className="text-amber-400 font-bold">
+              {layoutMode === "split" ? "🖥️ Side-by-Side (Split)" : "📑 Tabbed (Minimal Scroll)"}
+            </span>
+          </div>
+          <div className="inline-flex rounded-xl bg-slate-900 border border-slate-800 p-0.5 text-xs shadow-sm">
+            <button
+              type="button"
+              onClick={() => handleSetLayoutMode("split")}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 min-h-[36px] ${
+                layoutMode === "split"
+                  ? "bg-amber-500 text-slate-950 shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Columns className="h-3.5 w-3.5" />
+              <span>Side-by-Side</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetLayoutMode("tabbed")}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 min-h-[36px] ${
+                layoutMode === "tabbed"
+                  ? "bg-amber-500 text-slate-950 shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span>Tabbed</span>
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left 2 Cols: Hero Work Surfaces */}
-          <div className={`lg:col-span-2 space-y-6 ${mobileTab !== "chair" ? "hidden lg:block" : ""}`}>
+        {/* Tabbed View Switcher (Active ONLY when layoutMode === "tabbed") */}
+        {layoutMode === "tabbed" && (
+          <div className="grid grid-cols-2 gap-2 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 shadow-md">
+            <button
+              type="button"
+              onClick={() => setMobileTab("chair")}
+              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 min-h-[48px] ${
+                mobileTab === "chair"
+                  ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/25"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Armchair className="h-4 w-4" />
+              <span>Chair Cockpit {currentlyServing ? `(#${currentlyServing.ticketNumber})` : ""}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileTab("queue")}
+              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 min-h-[48px] ${
+                mobileTab === "queue"
+                  ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/25"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Users className="h-4 w-4" />
+              <span>Waiting List ({eligibleTicketsCount})</span>
+            </button>
+          </div>
+        )}
+
+        <div className={layoutMode === "tabbed" ? "space-y-6" : "grid grid-cols-1 lg:grid-cols-3 gap-6"}>
+          {/* Left Hero Work Surfaces */}
+          <div className={`${layoutMode === "tabbed" ? (mobileTab !== "chair" ? "hidden" : "block") : "lg:col-span-2"} space-y-6`}>
             {!currentlyServing && !summonedTicket && (
               <StationOpenChairCard
                 eligibleTicketsCount={eligibleTicketsCount}
@@ -822,7 +904,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
           </div>
 
           {/* Right Col: Partitioned Waiting Queue */}
-          <div className={`space-y-4 ${mobileTab !== "queue" ? "hidden lg:block" : ""}`}>
+          <div className={`${layoutMode === "tabbed" ? (mobileTab !== "queue" ? "hidden" : "block") : ""} space-y-4`}>
             <StationWaitingQueue
               allTickets={activeTickets}
               activeStylist={activeStylist}
