@@ -4,7 +4,7 @@ import type { Stylist } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConnectionPill, type ConnectionStatus } from "@/components/connection-pill";
-import { Armchair, RotateCcw, Tv, KeyRound, Sparkles, LogOut, Coffee } from "lucide-react";
+import { Armchair, Tv, KeyRound, Sparkles, LogOut, Coffee, Moon, Maximize2, Minimize2 } from "lucide-react";
 
 interface StationChairHeaderProps {
   slug: string;
@@ -15,7 +15,11 @@ interface StationChairHeaderProps {
   userName?: string;
   isOnBreak?: boolean;
   breakRemainingSeconds?: number | null;
+  isMirrorMode?: boolean;
+  isFullscreen?: boolean;
   onToggleBreak?: () => void;
+  onToggleMirrorMode?: () => void;
+  onToggleFullscreen?: () => void;
   onOpenSwitchChair: () => void;
   onOpenQuickAdd: () => void;
   onLockChair: () => void;
@@ -31,7 +35,11 @@ export function StationChairHeader({
   userName,
   isOnBreak,
   breakRemainingSeconds,
+  isMirrorMode,
+  isFullscreen,
   onToggleBreak,
+  onToggleMirrorMode,
+  onToggleFullscreen,
   onOpenSwitchChair,
   onOpenQuickAdd,
   onLockChair,
@@ -42,8 +50,9 @@ export function StationChairHeader({
     const secs = seconds % 60;
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
+
   return (
-    <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-4 sm:px-8 py-3 flex items-center justify-between">
+    <header className={`border-b border-slate-800 ${isMirrorMode ? "bg-black" : "bg-slate-900/90"} backdrop-blur sticky top-0 z-40 px-4 sm:px-8 py-3 flex items-center justify-between transition-colors`}>
       <div className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-xl bg-amber-500 flex items-center justify-center font-black text-slate-950 shadow-md">
           <Armchair className="h-5 w-5" />
@@ -82,7 +91,7 @@ export function StationChairHeader({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-2 sm:gap-2.5">
         <ConnectionPill status={socketStatus} reconnectAttempts={reconnectAttempts} />
 
         {onToggleBreak && (
@@ -99,6 +108,37 @@ export function StationChairHeader({
           >
             <Coffee className="h-3.5 w-3.5 text-amber-400" />
             <span>{isOnBreak ? "Resume Work" : "☕ 10m Break"}</span>
+          </Button>
+        )}
+
+        {/* Feature 4: High-Contrast OLED Mirror Mode Toggle */}
+        {onToggleMirrorMode && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onToggleMirrorMode}
+            className={`text-xs font-bold gap-1.5 h-9 rounded-xl transition-all ${
+              isMirrorMode
+                ? "bg-purple-950/80 border-purple-400 text-purple-200 ring-1 ring-purple-400"
+                : "border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300"
+            }`}
+            title="Toggle OLED Deep Black Mirror Mode (anti-glare reflection)"
+          >
+            <Moon className="h-3.5 w-3.5 text-purple-400" />
+            <span className="hidden md:inline">{isMirrorMode ? "🪞 Mirror OLED" : "Mirror Mode"}</span>
+          </Button>
+        )}
+
+        {/* Fullscreen Kiosk Mode Toggle */}
+        {onToggleFullscreen && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleFullscreen}
+            className="h-9 w-9 text-slate-400 hover:text-white"
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Kiosk Mode"}
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
         )}
 

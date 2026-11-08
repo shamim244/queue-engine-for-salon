@@ -10,6 +10,7 @@ import { StationWaitingQueue } from "@/components/station/station-waiting-queue"
 import { StationNoShowModal } from "@/components/station/station-noshow-modal";
 import { StationInServiceCard } from "@/components/station/station-in-service-card";
 import { StationAddServicesModal } from "@/components/station/station-add-services-modal";
+import { StationCheckoutModal } from "@/components/station/station-checkout-modal";
 
 describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
   const mockStylist1: Stylist = {
@@ -403,6 +404,71 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
       expect(html).toContain("Sensitive Skin");
       expect(html).toContain("Low Fade");
       expect(html).toContain("Gentle neck shave");
+    });
+
+    it("should render StationCheckoutModal with wet-hands cash presets, change calculator and tip pills", () => {
+      const inChairTicket: Ticket = {
+        ...mockTickets[0],
+        status: "IN_CHAIR",
+        customerName: "Aman Sharma",
+        totalPrice: 120,
+      };
+
+      const html = renderToString(
+        React.createElement(StationCheckoutModal, {
+          isOpen: true,
+          salon: { id: "salon-1", name: "Ramesh Barber", slug: "ramesh-barber" } as any,
+          currentlyServing: inChairTicket,
+          editableBill: 120,
+          elapsedSeconds: 900,
+          processingAction: false,
+          onClose: () => {},
+          onBillChange: () => {},
+          onFinishCheckout: () => {},
+        })
+      );
+
+      // Check header and billing
+      expect(html).toContain("Wet-Hands Fast Checkout");
+      expect(html).toContain("101");
+      expect(html).toContain("Aman Sharma");
+      expect(html).toContain("Barber Tip / Gratuity");
+      expect(html).toContain("+ ₹20");
+      expect(html).toContain("+ ₹50");
+
+      // Check cash tender presets
+      expect(html).toContain("Cash Payment");
+      expect(html).toContain("Customer Tendered Currency");
+      expect(html).toContain("Exact (₹120)");
+      expect(html).toContain("₹200");
+      expect(html).toContain("₹500");
+
+      // Check exact cash banner
+      expect(html).toContain("Exact cash received");
+    });
+
+    it("should render StationChairHeader with Phase 4 Mirror OLED mode and Fullscreen kiosk toggles", () => {
+      const html = renderToString(
+        React.createElement(StationChairHeader, {
+          slug: "ramesh-barber",
+          activeStylist: mockStylist1,
+          hasMultipleStylists: true,
+          socketStatus: "connected",
+          reconnectAttempts: 0,
+          isMirrorMode: true,
+          isFullscreen: false,
+          onToggleBreak: () => {},
+          onToggleMirrorMode: () => {},
+          onToggleFullscreen: () => {},
+          onOpenSwitchChair: () => {},
+          onOpenQuickAdd: () => {},
+          onLockChair: () => {},
+        })
+      );
+
+      expect(html).toContain("Mirror OLED");
+      expect(html).toContain("Fullscreen Kiosk Mode");
+      expect(html).toContain("☕ 10m Break");
     });
   });
 });

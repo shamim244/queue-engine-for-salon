@@ -48,6 +48,38 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const [breakRemainingSeconds, setBreakRemainingSeconds] = useState<number | null>(null);
   const isOnBreak = breakRemainingSeconds !== null && breakRemainingSeconds > 0;
 
+  // Phase 4: Ambient Mirror Mode & Fullscreen Kiosk
+  const [isMirrorMode, setIsMirrorMode] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`station_mirror_mode_${slug}`);
+      if (saved === "true") setIsMirrorMode(true);
+    } catch {}
+  }, [slug]);
+
+  const handleToggleMirrorMode = () => {
+    setIsMirrorMode((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(`station_mirror_mode_${slug}`, String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleToggleFullscreen = () => {
+    if (typeof document === "undefined") return;
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen().catch(() => {});
+      setIsFullscreen(false);
+    }
+  };
+
   // Currently Serving / Summoned Ticket
   const [currentlyServing, setCurrentlyServing] = useState<Ticket | null>(null);
   const [summonedTicket, setSummonedTicket] = useState<Ticket | null>(null);
@@ -404,12 +436,19 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     }
   };
 
-  const handleFinishCheckout = async (paymentStatus: "CASH_PAID" | "ONLINE_PAID") => {
+  const handleFinishCheckout = async (
+    paymentStatus: "CASH_PAID" | "ONLINE_PAID",
+    finalAmount?: number
+  ) => {
     if (!currentlyServing) return;
     setProcessingAction(true);
+    const amountToCharge = finalAmount !== undefined ? finalAmount : editableBill;
     try {
-      await api.queue.finish(currentlyServing.id, paymentStatus, editableBill);
-      showToast(`Completed Ticket #${currentlyServing.ticketNumber} (${paymentStatus === "CASH_PAID" ? "Cash" : "UPI"})!`, "success");
+      await api.queue.finish(currentlyServing.id, paymentStatus, amountToCharge);
+      showToast(
+        `Completed Ticket #${currentlyServing.ticketNumber} (₹${amountToCharge} ${paymentStatus === "CASH_PAID" ? "Cash" : "UPI"})!`,
+        "success"
+      );
       setCurrentlyServing(null);
       setIsCheckoutOpen(false);
       fetchStationData();
@@ -652,7 +691,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
 
   // View 2: Unlocked Chair Operating Dashboard
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className={`min-h-screen ${isMirrorMode ? "bg-black text-white" : "bg-slate-950 text-slate-100"} flex flex-col transition-colors`}>
       <StationChairHeader
         slug={slug}
         activeStylist={activeStylist}
@@ -662,7 +701,11 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         userName={user.fullName || user.username}
         isOnBreak={isOnBreak}
         breakRemainingSeconds={breakRemainingSeconds}
+        isMirrorMode={isMirrorMode}
+        isFullscreen={isFullscreen}
         onToggleBreak={handleToggleBreak}
+        onToggleMirrorMode={handleToggleMirrorMode}
+        onToggleFullscreen={handleToggleFullscreen}
         onOpenSwitchChair={() => setIsSwitchChairOpen(true)}
         onOpenQuickAdd={() => setIsQuickAddOpen(true)}
         onLockChair={() => setIsLocked(true)}

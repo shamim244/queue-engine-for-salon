@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import type { Ticket, Salon } from "@/lib/api";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { generateUpiUri } from "@/lib/utils";
+import { generateUpiUri, formatCurrency } from "@/lib/utils";
 import QRCode from "qrcode";
-import { Smartphone, Banknote, CheckCircle2 } from "lucide-react";
+import { Smartphone, Banknote, CheckCircle2, Heart, ArrowRight, AlertCircle } from "lucide-react";
 
 interface StationCheckoutModalProps {
   isOpen: boolean;
@@ -17,7 +17,7 @@ interface StationCheckoutModalProps {
   processingAction: boolean;
   onClose: () => void;
   onBillChange: (val: number) => void;
-  onFinishCheckout: (paymentStatus: "CASH_PAID" | "ONLINE_PAID") => void;
+  onFinishCheckout: (paymentStatus: "CASH_PAID" | "ONLINE_PAID", finalAmount?: number) => void;
 }
 
 function formatElapsed(seconds: number): string {
@@ -25,6 +25,8 @@ function formatElapsed(seconds: number): string {
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
+
+const TIP_PRESETS = [0, 20, 50, 100];
 
 export function StationCheckoutModal({
   isOpen,
@@ -37,9 +39,21 @@ export function StationCheckoutModal({
   onBillChange,
   onFinishCheckout,
 }: StationCheckoutModalProps) {
-  const [paymentMethod, setPaymentMethod] = useState<"UPI" | "CASH">("UPI");
+  const [paymentMethod, setPaymentMethod] = useState<"UPI" | "CASH">("CASH");
+  const [tipAmount, setTipAmount] = useState<number>(0);
+  const [tenderedAmount, setTenderedAmount] = useState<number>(editableBill);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
   const [generatingQr, setGeneratingQr] = useState(false);
+
+  // Effective Total with Tip
+  const effectiveTotal = useMemo(() => {
+    return Math.max(0, (editableBill || 0) + tipAmount);
+  }, [editableBill, tipAmount]);
+
+  // Sync tendered amount when bill or tip changes
+  useEffect(() => {
+    setTenderedAmount(effectiveTotal);
+  }, [effectiveTotal, isOpen]);
 
   // Generate NPCI Dynamic UPI QR Code client-side
   useEffect(() => {
@@ -53,8 +67,8 @@ export function StationCheckoutModal({
     const upiUri = generateUpiUri({
       upiId,
       payeeName: salon.name || "Salon",
-      amount: editableBill,
-      note: `Ticket #${currentlyServing.ticketNumber} Haircut`,
+      amount: effectiveTotal,
+      note: `Ticket #${currentlyServing.ticketNumber} Haircut & Grooming`,
     });
 
     QRCode.toDataURL(upiUri, {
@@ -70,14 +84,30 @@ export function StationCheckoutModal({
         console.error("Failed to generate UPI QR:", err);
         setGeneratingQr(false);
       });
-  }, [isOpen, paymentMethod, editableBill, currentlyServing, salon]);
+  }, [isOpen, paymentMethod, effectiveTotal, currentlyServing, salon]);
+
+  // Change Return Calculation
+  const changeToReturn = tenderedAmount - effectiveTotal;
+  const isExactCash = changeToReturn === 0;
+  const hasChange = changeToReturn > 0;
+  const isShortage = changeToReturn < 0;
+
+  // Smart Currency Note Presets based on bill
+  const cashPresets = useMemo(() => {
+    const list = [effectiveTotal];
+    if (effectiveTotal < 100) list.push(100);
+    if (effectiveTotal < 200) list.push(200);
+    if (effectiveTotal < 500) list.push(500);
+    if (effectiveTotal >= 500 && effectiveTotal < 1000) list.push(1000);
+    return Array.from(new Set(list)).sort((a, b) => a - b);
+  }, [effectiveTotal]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogClose onClose={onClose} />
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2 text-xl font-black text-white">
-          <span>💳 Service Checkout</span>
+          <span>💳 Wet-Hands Fast Checkout</span>
           {currentlyServing && (
             <Badge variant="warning" className="text-xs">
               Ticket #{currentlyServing.ticketNumber}
@@ -85,17 +115,24 @@ export function StationCheckoutModal({
           )}
         </DialogTitle>
         <DialogDescription>
-          Confirm final bill amount and payment method to free chair for next client.
+          Collect payment and confirm to immediately free chair for next client.
         </DialogDescription>
       </DialogHeader>
 
       {currentlyServing && (
-        <div className="space-y-4 my-3">
-          {/* Customer & Service Summary */}
-          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">
+        <div className="space-y-4 my-2">
+          {/* Customer & Service Summary Bar */}
+          <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">
             <div>
-              <p className="font-bold text-white text-sm">{currentlyServing.customerName}</p>
-              <p className="text-slate-400 mt-0.5">{currentlyServing.serviceName || "Haircut Service"}</p>
+              <p className="font-bold text-white text-base">{currentlyServing.customerName}</p>
+              <p className="text-slate-400 mt-0.5">
+                {currentlyServing.serviceName || "Haircut Service"}
+                {currentlyServing.selectedAddOns && currentlyServing.selectedAddOns.length > 0 && (
+                  <span className="text-emerald-400 ml-1">
+                    (+{currentlyServing.selectedAddOns.length} add-ons)
+                  </span>
+                )}
+              </p>
             </div>
             <div className="text-right">
               <span className="text-slate-400 block text-[11px]">Chair Duration</span>
@@ -105,11 +142,14 @@ export function StationCheckoutModal({
             </div>
           </div>
 
-          {/* Editable Bill Input */}
-          <div>
-            <label className="text-xs font-bold text-slate-300 block mb-1 uppercase tracking-wider">
-              Final Bill Amount (₹)
-            </label>
+          {/* Editable Base Bill Input */}
+          <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Service Bill Amount (₹)
+              </label>
+              <span className="text-[11px] text-slate-400">Tap to adjust if modified</span>
+            </div>
             <div className="relative">
               <span className="absolute left-3.5 top-2.5 text-lg font-black text-emerald-400">₹</span>
               <Input
@@ -117,55 +157,196 @@ export function StationCheckoutModal({
                 min={0}
                 step={10}
                 value={editableBill}
-                onChange={(e) => onBillChange(Number(e.target.value))}
-                className="pl-8 text-xl font-black text-white"
+                onChange={(e) => onBillChange(Math.max(0, Number(e.target.value)))}
+                className="pl-8 text-2xl font-black text-white h-13 rounded-xl bg-slate-900 border-slate-700"
               />
             </div>
-            <span className="text-[10px] text-slate-500 mt-1 block">
-              Adjust for custom cuts, beard trims, or add-ons before taking payment.
-            </span>
+
+            {/* Barber Tip / Gratuity Pills */}
+            <div className="pt-2 border-t border-slate-800/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1">
+                  <Heart className="h-3 w-3 fill-amber-400 text-amber-400" />
+                  <span>Barber Tip / Gratuity:</span>
+                </span>
+                {tipAmount > 0 && (
+                  <span className="text-xs font-bold text-amber-300 font-mono">
+                    +₹{tipAmount} Tip
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {TIP_PRESETS.map((amount) => {
+                  const isSelected = tipAmount === amount;
+                  return (
+                    <button
+                      key={amount}
+                      type="button"
+                      onClick={() => setTipAmount(amount)}
+                      className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 select-none active:scale-95 ${
+                        isSelected
+                          ? "bg-amber-500/25 border-amber-400 text-amber-200 ring-1 ring-amber-400/50 shadow-md"
+                          : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      {amount === 0 ? "No Tip" : `+ ₹${amount}`}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Payment Method Selector Tabs */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => setPaymentMethod("UPI")}
-              className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold text-xs transition-all ${
-                paymentMethod === "UPI"
-                  ? "border-blue-500 bg-blue-500/15 text-white ring-1 ring-blue-500"
-                  : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white"
-              }`}
-            >
-              <Smartphone className="h-4 w-4 text-blue-400" />
-              <span>Online UPI QR</span>
-            </button>
-
+          <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
               onClick={() => setPaymentMethod("CASH")}
-              className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold text-xs transition-all ${
+              className={`p-3.5 rounded-2xl border flex items-center justify-center gap-2.5 font-bold text-sm transition-all select-none active:scale-98 ${
                 paymentMethod === "CASH"
-                  ? "border-emerald-500 bg-emerald-500/15 text-white ring-1 ring-emerald-500"
+                  ? "border-emerald-500 bg-emerald-500/20 text-white ring-2 ring-emerald-500/60 shadow-lg shadow-emerald-500/15"
                   : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white"
               }`}
             >
-              <Banknote className="h-4 w-4 text-emerald-400" />
-              <span>Cash Payment</span>
+              <Banknote className="h-5 w-5 text-emerald-400" />
+              <span>💵 Cash Payment</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPaymentMethod("UPI")}
+              className={`p-3.5 rounded-2xl border flex items-center justify-center gap-2.5 font-bold text-sm transition-all select-none active:scale-98 ${
+                paymentMethod === "UPI"
+                  ? "border-blue-500 bg-blue-500/20 text-white ring-2 ring-blue-500/60 shadow-lg shadow-blue-500/15"
+                  : "border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white"
+              }`}
+            >
+              <Smartphone className="h-5 w-5 text-blue-400" />
+              <span>📱 Online UPI QR</span>
             </button>
           </div>
 
-          {/* TAB 1: DYNAMIC UPI QR CODE */}
+          {/* TAB 1: FAST CASH PAYMENT WITH CHANGE CALCULATOR */}
+          {paymentMethod === "CASH" && (
+            <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Total to Collect
+                  </span>
+                  <div className="text-3xl font-black text-white">
+                    ₹{effectiveTotal}
+                  </div>
+                </div>
+                {tipAmount > 0 && (
+                  <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-xs">
+                    Incl. ₹{tipAmount} Tip
+                  </Badge>
+                )}
+              </div>
+
+              {/* Quick Cash Presets */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Customer Tendered Currency (1-Tap)
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {cashPresets.map((amount) => {
+                    const isSelected = tenderedAmount === amount;
+                    return (
+                      <button
+                        key={amount}
+                        type="button"
+                        onClick={() => setTenderedAmount(amount)}
+                        className={`min-h-[44px] px-4 py-2 rounded-xl text-sm font-black border transition-all flex items-center gap-1.5 select-none active:scale-95 ${
+                          isSelected
+                            ? "bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/30"
+                            : "bg-slate-950 border-slate-700 text-slate-200 hover:border-slate-500 hover:text-white"
+                        }`}
+                      >
+                        {amount === effectiveTotal ? `Exact (₹${amount})` : `₹${amount}`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Tendered Input */}
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-xs text-slate-400 shrink-0">Other Tendered:</span>
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-2 text-sm font-bold text-slate-400">₹</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={10}
+                    value={tenderedAmount}
+                    onChange={(e) => setTenderedAmount(Math.max(0, Number(e.target.value)))}
+                    className="pl-7 h-9 text-base font-bold bg-slate-950 border-slate-800 text-white rounded-lg"
+                  />
+                </div>
+              </div>
+
+              {/* LIVE CHANGE CALCULATOR RESULT BOX */}
+              {hasChange && (
+                <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/70 to-emerald-900/50 border-2 border-emerald-400/80 text-emerald-100 space-y-1 shadow-lg animate-in zoom-in-95">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                      <Banknote className="h-4 w-4 text-emerald-400" />
+                      <span>Return Change to Customer</span>
+                    </span>
+                    <span className="text-xs text-emerald-400/80 font-mono">
+                      (₹{tenderedAmount} - ₹{effectiveTotal})
+                    </span>
+                  </div>
+                  <div className="text-3xl font-black text-emerald-300">
+                    ₹{changeToReturn}
+                  </div>
+                </div>
+              )}
+
+              {isExactCash && (
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  <span>Exact cash received · No change needed!</span>
+                </div>
+              )}
+
+              {isShortage && (
+                <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/50 text-rose-300 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-rose-400 shrink-0" />
+                  <span>Shortage: ₹{Math.abs(changeToReturn)} still due from customer!</span>
+                </div>
+              )}
+
+              <Button
+                size="lg"
+                onClick={() => onFinishCheckout("CASH_PAID", effectiveTotal)}
+                disabled={processingAction || isShortage}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-base h-14 rounded-2xl gap-2 shadow-xl shadow-emerald-600/25 active:scale-98"
+              >
+                <Banknote className="h-6 w-6" />
+                <span>💵 Confirm ₹{effectiveTotal} Cash Received & Free Chair</span>
+              </Button>
+            </div>
+          )}
+
+          {/* TAB 2: DYNAMIC NPCI UPI QR CODE */}
           {paymentMethod === "UPI" && (
-            <div className="p-4 rounded-2xl bg-white text-slate-950 text-center space-y-3 shadow-xl">
+            <div className="p-5 rounded-2xl bg-white text-slate-950 text-center space-y-3.5 shadow-2xl">
               <div className="space-y-0.5">
                 <span className="text-[10px] font-black tracking-widest text-slate-500 uppercase block">
                   NPCI Dynamic UPI QR
                 </span>
-                <div className="text-2xl font-black text-slate-950">
-                  Scan & Pay ₹{editableBill}
+                <div className="text-3xl font-black text-slate-950">
+                  Scan & Pay ₹{effectiveTotal}
                 </div>
-                <p className="text-[11px] text-slate-500 font-medium">
+                {tipAmount > 0 && (
+                  <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full inline-block mt-0.5">
+                    (Bill ₹{editableBill} + Tip ₹{tipAmount})
+                  </span>
+                )}
+                <p className="text-[11px] text-slate-500 font-medium pt-0.5">
                   GPay · PhonePe · Paytm · BHIM
                 </p>
               </div>
@@ -175,10 +356,10 @@ export function StationCheckoutModal({
                   <img
                     src={qrCodeDataUrl}
                     alt="UPI Payment QR Code"
-                    className="w-48 h-48 object-contain rounded-lg border border-slate-200 shadow-inner"
+                    className="w-52 h-52 object-contain rounded-xl border border-slate-200 shadow-inner"
                   />
                 ) : (
-                  <div className="w-48 h-48 flex items-center justify-center bg-slate-100 rounded-lg text-slate-400 text-xs">
+                  <div className="w-52 h-52 flex items-center justify-center bg-slate-100 rounded-xl text-slate-400 text-xs font-medium">
                     {generatingQr ? "Generating QR..." : "QR Unavailable"}
                   </div>
                 )}
@@ -193,36 +374,12 @@ export function StationCheckoutModal({
 
               <Button
                 size="lg"
-                onClick={() => onFinishCheckout("ONLINE_PAID")}
+                onClick={() => onFinishCheckout("ONLINE_PAID", effectiveTotal)}
                 disabled={processingAction}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black text-sm h-12 rounded-xl gap-2 shadow-lg shadow-blue-600/30"
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black text-base h-14 rounded-2xl gap-2 shadow-xl shadow-blue-600/30 active:scale-98"
               >
-                <CheckCircle2 className="h-4 w-4" />
-                <span>✅ Payment Received (Confirm & Free Chair)</span>
-              </Button>
-            </div>
-          )}
-
-          {/* TAB 2: CASH PAYMENT */}
-          {paymentMethod === "CASH" && (
-            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-4">
-              <div className="h-14 w-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
-                <Banknote className="h-7 w-7" />
-              </div>
-              <div className="space-y-1">
-                <span className="text-xs text-slate-400 block uppercase font-bold">Cash Collection</span>
-                <div className="text-3xl font-black text-white">₹{editableBill}</div>
-                <p className="text-xs text-slate-400">Collect physical currency notes from customer.</p>
-              </div>
-
-              <Button
-                size="lg"
-                onClick={() => onFinishCheckout("CASH_PAID")}
-                disabled={processingAction}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm h-12 rounded-xl gap-2 shadow-lg shadow-emerald-600/20"
-              >
-                <Banknote className="h-4 w-4" />
-                <span>💵 Confirm ₹{editableBill} Cash Received & Free Chair</span>
+                <CheckCircle2 className="h-6 w-6" />
+                <span>✅ Confirm ₹{effectiveTotal} UPI Received & Free Chair</span>
               </Button>
             </div>
           )}
