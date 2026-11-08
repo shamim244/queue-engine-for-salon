@@ -391,9 +391,60 @@ function StaffLayoutContent({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* 4. MAIN WORKSPACE CONTENT */}
-      <main className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-8">
+      <main className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">
         {children}
       </main>
+
+      {/* 5. MOBILE BOTTOM THUMB BAR (md:hidden) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur border-t border-slate-800 px-2 py-2 flex items-center justify-around shadow-2xl safe-area-bottom">
+        <Link
+          href="/staff"
+          className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl min-h-[48px] min-w-[64px] transition-colors ${
+            pathname === "/staff"
+              ? "text-amber-400 font-bold bg-amber-500/10"
+              : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <Armchair className="h-5 w-5" />
+          <span className="text-[10px] mt-1">My Chair</span>
+        </Link>
+
+        <Link
+          href="/staff/analytics"
+          className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl min-h-[48px] min-w-[64px] transition-colors ${
+            pathname === "/staff/analytics"
+              ? "text-amber-400 font-bold bg-amber-500/10"
+              : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <BarChart3 className="h-5 w-5" />
+          <span className="text-[10px] mt-1">Analytics</span>
+        </Link>
+
+        <Link
+          href="/staff/preferences"
+          className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl min-h-[48px] min-w-[64px] transition-colors ${
+            pathname === "/staff/preferences"
+              ? "text-amber-400 font-bold bg-amber-500/10"
+              : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <Settings className="h-5 w-5" />
+          <span className="text-[10px] mt-1">Settings</span>
+        </Link>
+
+        <Link
+          href={`/s/${effectiveSlug}/station`}
+          className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl min-h-[48px] min-w-[64px] transition-colors ${
+            pathname.includes("/station")
+              ? "text-amber-400 font-bold bg-amber-500/10"
+              : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <Tv className="h-5 w-5" />
+          <span className="text-[10px] mt-1">Station</span>
+        </Link>
+      </nav>
     </div>
   );
 }

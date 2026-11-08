@@ -52,6 +52,10 @@ export const repository = {
     stylistRepo.addStylist(salonId, params),
   updateStylistPreference: (stylistId: string, updates: Parameters<typeof stylistRepo.updateStylistPreference>[1]) =>
     stylistRepo.updateStylistPreference(stylistId, updates),
+  getStylistServiceDurations: (stylistId: string) =>
+    stylistRepo.getStylistServiceDurations(stylistId),
+  saveStylistServiceDurations: (salonId: string, stylistId: string, overrides: Record<string, number | null>) =>
+    stylistRepo.saveStylistServiceDurations(salonId, stylistId, overrides),
 
   // Services
   addService: (service: Parameters<typeof serviceRepo.addService>[0]) => serviceRepo.addService(service),

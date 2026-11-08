@@ -501,6 +501,24 @@ export const api = {
         body: JSON.stringify(data),
       }),
 
+    getStaffServiceDurations: (stylistId: string) =>
+      request<{ success: boolean; overrides: Record<string, number> }>(
+        `/api/auth/staff/service-durations/${stylistId}`
+      ),
+
+    updateStaffServiceDurations: (data: {
+      salonId: string;
+      stylistId: string;
+      overrides: Record<string, number | null>;
+    }) =>
+      request<{ success: boolean; overrides: Record<string, number>; message: string }>(
+        "/api/auth/staff/service-durations",
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        }
+      ),
+
     registerCustomer: (data: {
       name: string;
       email?: string;

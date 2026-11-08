@@ -76,4 +76,72 @@ export const stylistRepo = {
     }
     return true;
   },
+
+  async getStylistServiceDurations(stylistId: string): Promise<Record<string, number>> {
+    const result: Record<string, number> = {};
+    if (isMySqlConnected) {
+      const db = getDb();
+      const [rows] = await db.query(
+        'SELECT service_id, duration_minutes FROM stylist_service_durations WHERE stylist_id = ?',
+        [stylistId]
+      );
+      if (Array.isArray(rows)) {
+        for (const row of rows as any[]) {
+          const duration = Number(row.duration_minutes);
+          result[row.service_id] = duration;
+          memoryStore.stylistServiceDurations.set(`${stylistId}:${row.service_id}`, duration);
+        }
+      }
+      return result;
+    }
+
+    // In-memory fallback
+    for (const [key, duration] of memoryStore.stylistServiceDurations.entries()) {
+      if (key.startsWith(`${stylistId}:`)) {
+        const serviceId = key.substring(stylistId.length + 1);
+        result[serviceId] = duration;
+      }
+    }
+    return result;
+  },
+
+  async saveStylistServiceDurations(
+    salonId: string,
+    stylistId: string,
+    overrides: Record<string, number | null>
+  ): Promise<boolean> {
+    const entries = Object.entries(overrides);
+    if (isMySqlConnected) {
+      const db = getDb();
+      for (const [serviceId, duration] of entries) {
+        if (duration === null || duration === undefined || duration <= 0) {
+          await db.query(
+            'DELETE FROM stylist_service_durations WHERE stylist_id = ? AND service_id = ?',
+            [stylistId, serviceId]
+          );
+          memoryStore.stylistServiceDurations.delete(`${stylistId}:${serviceId}`);
+        } else {
+          const id = `ssd-${stylistId}-${serviceId}`.slice(0, 36);
+          const minutes = Math.round(duration);
+          await db.query(
+            `INSERT INTO stylist_service_durations (id, salon_id, stylist_id, service_id, duration_minutes)
+             VALUES (?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE duration_minutes = VALUES(duration_minutes)`,
+            [id, salonId, stylistId, serviceId, minutes]
+          );
+          memoryStore.stylistServiceDurations.set(`${stylistId}:${serviceId}`, minutes);
+        }
+      }
+    } else {
+      for (const [serviceId, duration] of entries) {
+        if (duration === null || duration === undefined || duration <= 0) {
+          memoryStore.stylistServiceDurations.delete(`${stylistId}:${serviceId}`);
+        } else {
+          memoryStore.stylistServiceDurations.set(`${stylistId}:${serviceId}`, Math.round(duration));
+        }
+      }
+    }
+    invalidateSalonCache(salonId);
+    return true;
+  },
 };

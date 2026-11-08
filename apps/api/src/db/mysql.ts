@@ -177,6 +177,18 @@ async function runMigrations() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_job_status_sched (status, scheduled_for),
         INDEX idx_job_salon (salon_id)
+    ) ENGINE=InnoDB;`,
+
+    `CREATE TABLE IF NOT EXISTS stylist_service_durations (
+        id VARCHAR(36) PRIMARY KEY,
+        salon_id VARCHAR(36) NOT NULL,
+        stylist_id VARCHAR(36) NOT NULL,
+        service_id VARCHAR(36) NOT NULL,
+        duration_minutes INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_stylist_service (stylist_id, service_id),
+        INDEX idx_salon_stylist (salon_id, stylist_id)
     ) ENGINE=InnoDB;`
   ];
 

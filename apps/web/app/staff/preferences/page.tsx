@@ -30,6 +30,12 @@ import {
   Volume2,
   Maximize2,
   Check,
+  Scissors,
+  RotateCcw,
+  Minus,
+  Plus,
+  IndianRupee,
+  Zap,
 } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 
@@ -71,6 +77,13 @@ function StaffSettingsContent() {
   const [mirrorOledOn, setMirrorOledOn] = useState(false);
   const [chimeOn, setChimeOn] = useState(true);
 
+  // Per-Service Custom Duration State
+  const [serviceDurations, setServiceDurations] = useState<Record<string, number>>({});
+  const [loadingDurations, setLoadingDurations] = useState(false);
+  const [savingDurations, setSavingDurations] = useState(false);
+  const [durationSuccessMsg, setDurationSuccessMsg] = useState(false);
+  const [catalogServices, setCatalogServices] = useState<any[]>(salon?.services || []);
+
   // In-App Toast Alert
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
@@ -98,6 +111,103 @@ function StaffSettingsContent() {
       setChimeOn(savedChime);
     } catch {}
   }, []);
+
+  // Sync catalog services
+  useEffect(() => {
+    if (salon?.services && salon.services.length > 0) {
+      setCatalogServices(salon.services);
+    } else if (salon?.id || salon?.slug) {
+      api.salons.get(salon?.id || salon?.slug || "ramesh-barber").then((data) => {
+        if (data?.salon?.services && data.salon.services.length > 0) {
+          setCatalogServices(data.salon.services);
+        }
+      }).catch(() => {});
+    }
+  }, [salon]);
+
+  // Load existing per-service custom durations for this stylist
+  useEffect(() => {
+    if (!staffId) return;
+    setLoadingDurations(true);
+    const fetcher = typeof api.auth?.getStaffServiceDurations === "function"
+      ? api.auth.getStaffServiceDurations(staffId)
+      : fetch(`/api/auth/staff/service-durations/${staffId}`).then((r) => r.json());
+
+    fetcher
+      .then((res: any) => {
+        if (res && res.success && res.overrides) {
+          setServiceDurations(res.overrides);
+        }
+      })
+      .catch((err: any) => {
+        console.warn("Failed to load staff service durations:", err);
+      })
+      .finally(() => {
+        setLoadingDurations(false);
+      });
+  }, [staffId]);
+
+  const handleDurationChange = (serviceId: string, duration: number) => {
+    triggerHaptic("tap");
+    setServiceDurations((prev) => ({
+      ...prev,
+      [serviceId]: Math.max(5, Math.min(120, duration)),
+    }));
+  };
+
+  const handleResetDuration = (serviceId: string) => {
+    triggerHaptic("tap");
+    setServiceDurations((prev) => {
+      const copy = { ...prev };
+      delete copy[serviceId];
+      return copy;
+    });
+    showToast("Duration reset to salon default", "info");
+  };
+
+  const handleSaveAllDurations = async () => {
+    const effectiveSalonId = salon?.id || "salon-rural-01";
+    if (!staffId) return;
+    setSavingDurations(true);
+    triggerHaptic("tap");
+    try {
+      const overrides: Record<string, number | null> = {};
+      catalogServices.forEach((srv) => {
+        if (serviceDurations[srv.id] !== undefined) {
+          overrides[srv.id] = serviceDurations[srv.id];
+        } else {
+          overrides[srv.id] = null;
+        }
+      });
+
+      const payload = {
+        salonId: effectiveSalonId,
+        stylistId: staffId,
+        overrides,
+      };
+
+      const res: any = typeof api.auth?.updateStaffServiceDurations === "function"
+        ? await api.auth.updateStaffServiceDurations(payload)
+        : await fetch("/api/auth/staff/service-durations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }).then((r) => r.json());
+
+      if (res && res.success) {
+        setServiceDurations(res.overrides || {});
+        setDurationSuccessMsg(true);
+        triggerHaptic("complete");
+        showToast("Service custom durations saved! Client wait times recalculated.", "success");
+        setTimeout(() => setDurationSuccessMsg(false), 3500);
+      }
+    } catch (err: any) {
+      triggerHaptic("alert");
+      showToast("Failed to save service durations: " + (err.message || "Failed"), "error");
+    } finally {
+      setSavingDurations(false);
+    }
+  };
 
   const handleUpdatePace = async (newVal: number) => {
     setPaceMinutes(newVal);
@@ -499,6 +609,181 @@ function StaffSettingsContent() {
                 </div>
               )}
             </CardContent>
+          </Card>
+
+          {/* Per-Service Custom Duration Preferences */}
+          <Card className="border-slate-800 bg-slate-900/70 shadow-xl">
+            <CardHeader className="pb-3 border-b border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base text-white flex items-center gap-2">
+                    <Scissors className="h-4 w-4 text-amber-400" />
+                    <span>Individual Service Duration Overrides</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-400 mt-0.5">
+                    Different barbers take different times. Set your personal duration per service. Falls back to salon default if not customized.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <Badge variant="outline" className="border-amber-500/30 text-amber-300 bg-amber-500/10 text-xs font-bold">
+                    {Object.keys(serviceDurations).length} Custom Overrides
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 space-y-4">
+              {loadingDurations ? (
+                <div className="py-8 text-center text-xs text-slate-400 animate-pulse flex items-center justify-center gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin text-amber-400" />
+                  <span>Loading service catalog &amp; durations...</span>
+                </div>
+              ) : catalogServices.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-400">
+                  No services registered for this salon yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {catalogServices.map((service) => {
+                    const hasOverride = serviceDurations[service.id] !== undefined;
+                    const effectiveDuration = hasOverride
+                      ? serviceDurations[service.id]
+                      : service.estimatedDurationMinutes;
+
+                    return (
+                      <div
+                        key={service.id}
+                        className={`p-3.5 sm:p-4 rounded-xl border transition-all ${
+                          hasOverride
+                            ? "border-amber-500/40 bg-amber-500/5 shadow-sm"
+                            : "border-slate-800 bg-slate-950/60"
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-bold text-sm text-white truncate">{service.name}</h4>
+                              <span className="text-xs text-slate-400 font-mono flex items-center">
+                                <IndianRupee className="h-3 w-3" />
+                                {service.basePrice}
+                              </span>
+                              {service.isAddOn && (
+                                <Badge variant="secondary" className="text-[10px] py-0 px-1.5">
+                                  Add-on
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              Salon Owner Default: <strong className="text-slate-300">{service.estimatedDurationMinutes} mins</strong>
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-start sm:self-auto">
+                            {hasOverride ? (
+                              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-xs font-mono font-bold flex items-center gap-1">
+                                <Zap className="h-3 w-3 text-amber-400" />
+                                <span>{effectiveDuration} mins (Custom)</span>
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="border-slate-700 text-slate-400 text-xs font-mono">
+                                {effectiveDuration} mins (Salon Default)
+                              </Badge>
+                            )}
+
+                            {hasOverride && (
+                              <button
+                                type="button"
+                                onClick={() => handleResetDuration(service.id)}
+                                title="Reset to salon owner default"
+                                className="text-[10px] text-slate-400 hover:text-rose-300 p-1.5 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1 min-h-[36px]"
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                                <span className="hidden sm:inline">Reset</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Interactive Pace Stepper and Range Control */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-3">
+                            {/* Decrement Button */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleDurationChange(service.id, Math.max(5, effectiveDuration - 5))
+                              }
+                              className="h-10 w-10 sm:h-9 sm:w-9 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 flex items-center justify-center font-bold text-sm shrink-0 border border-slate-700"
+                              aria-label="Decrease 5 minutes"
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </button>
+
+                            {/* Slider */}
+                            <input
+                              type="range"
+                              min={5}
+                              max={90}
+                              step={5}
+                              value={effectiveDuration}
+                              onChange={(e) =>
+                                handleDurationChange(service.id, Number(e.target.value))
+                              }
+                              className="flex-1 h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+
+                            {/* Increment Button */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleDurationChange(service.id, Math.min(120, effectiveDuration + 5))
+                              }
+                              className="h-10 w-10 sm:h-9 sm:w-9 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 flex items-center justify-center font-bold text-sm shrink-0 border border-slate-700"
+                              aria-label="Increase 5 minutes"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+
+                            <span className="w-14 text-right font-mono text-sm font-bold text-amber-300">
+                              {effectiveDuration}m
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {durationSuccessMsg && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>Custom service durations saved! Client wait times recalculated across live queue.</span>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="pt-2 pb-4 sm:pb-6 px-4 sm:px-6 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <p className="text-[11px] text-slate-400">
+                Changes immediately affect estimated queue wait times for customers assigned to your chair.
+              </p>
+              <Button
+                type="button"
+                onClick={handleSaveAllDurations}
+                disabled={savingDurations || loadingDurations}
+                className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-slate-950 font-black h-11 px-6 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95"
+              >
+                {savingDurations ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Saving Durations...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4" />
+                    <span>Save Service Durations</span>
+                  </>
+                )}
+              </Button>
+            </CardFooter>
           </Card>
         </div>
       )}

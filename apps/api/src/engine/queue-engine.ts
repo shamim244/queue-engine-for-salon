@@ -39,6 +39,20 @@ export const queueEngine = {
     const service = salon.services.find((s) => s.id === params.serviceId);
     if (!service) throw new Error('Selected service not found');
 
+    // Check if assigned stylist has service duration overrides
+    let stylistOverrides: Record<string, number> = {};
+    if (params.stylistId) {
+      try {
+        stylistOverrides = await repository.getStylistServiceDurations(params.stylistId);
+      } catch (err) {
+        console.warn('[QueueEngine] Failed to load stylist overrides:', err);
+      }
+    }
+
+    const baseDuration = (params.stylistId && stylistOverrides[service.id])
+      ? stylistOverrides[service.id]
+      : service.estimatedDurationMinutes;
+
     // Resolve add-ons
     const selectedAddOns = (params.addOnIds || [])
       .map((id) => salon.services.find((s) => s.id === id))
@@ -47,11 +61,13 @@ export const queueEngine = {
         id: s.id,
         name: s.name,
         price: s.basePrice,
-        durationMinutes: s.estimatedDurationMinutes,
+        durationMinutes: (params.stylistId && stylistOverrides[s.id])
+          ? stylistOverrides[s.id]
+          : s.estimatedDurationMinutes,
       }));
 
     const totalPrice = service.basePrice + selectedAddOns.reduce((sum, a) => sum + a.price, 0);
-    const totalDurationMinutes = service.estimatedDurationMinutes + selectedAddOns.reduce((sum, a) => sum + a.durationMinutes, 0);
+    const totalDurationMinutes = baseDuration + selectedAddOns.reduce((sum, a) => sum + a.durationMinutes, 0);
 
     const ticketNumber = await repository.getNextTicketNumber(salon.id);
     const ticketId = 'tkt-' + Math.random().toString(36).substring(2, 9);
@@ -657,6 +673,20 @@ export const queueEngine = {
       throw new Error('Base service not found');
     }
 
+    // Check if assigned stylist has service duration overrides
+    let stylistOverrides: Record<string, number> = {};
+    if (ticket.stylistId) {
+      try {
+        stylistOverrides = await repository.getStylistServiceDurations(ticket.stylistId);
+      } catch (err) {
+        console.warn('[QueueEngine] Failed to load stylist overrides:', err);
+      }
+    }
+
+    const baseDuration = (ticket.stylistId && stylistOverrides[baseService.id])
+      ? stylistOverrides[baseService.id]
+      : baseService.estimatedDurationMinutes;
+
     // Resolve add-ons from salon catalog
     const selectedAddOns = (params.addOnIds || [])
       .map((id) => salon.services.find((s) => s.id === id))
@@ -665,11 +695,13 @@ export const queueEngine = {
         id: s.id,
         name: s.name,
         price: s.basePrice,
-        durationMinutes: s.estimatedDurationMinutes,
+        durationMinutes: (ticket.stylistId && stylistOverrides[s.id])
+          ? stylistOverrides[s.id]
+          : s.estimatedDurationMinutes,
       }));
 
     const totalPrice = baseService.basePrice + selectedAddOns.reduce((sum, a) => sum + a.price, 0);
-    const totalDurationMinutes = baseService.estimatedDurationMinutes + selectedAddOns.reduce((sum, a) => sum + a.durationMinutes, 0);
+    const totalDurationMinutes = baseDuration + selectedAddOns.reduce((sum, a) => sum + a.durationMinutes, 0);
 
     const updated = await repository.updateTicketServices(ticketId, {
       serviceId: baseService.id,

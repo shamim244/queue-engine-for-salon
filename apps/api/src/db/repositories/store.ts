@@ -76,6 +76,7 @@ export const memoryStore = {
   services: new Map<string, ServiceDefinition>(),
   tickets: new Map<string, QueueTicket>(),
   ticketSequence: new Map<string, number>(),
+  stylistServiceDurations: new Map<string, number>(), // key: `${stylistId}:${serviceId}` -> durationMinutes
   settings: JSON.parse(JSON.stringify(defaultPlatformSettings)) as PlatformSettings,
   auditLogs: [...defaultAuditLogs] as AuditLog[],
   maintenanceMode: {
@@ -138,6 +139,7 @@ export function seedDemoData() {
   memoryStore.salons.clear();
   memoryStore.stylists.clear();
   memoryStore.services.clear();
+  memoryStore.stylistServiceDurations.clear();
   memoryStore.organizations.clear();
   memoryStore.settings = JSON.parse(JSON.stringify(defaultPlatformSettings));
   memoryStore.auditLogs = [...defaultAuditLogs];

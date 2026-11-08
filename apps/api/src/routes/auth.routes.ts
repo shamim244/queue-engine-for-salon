@@ -448,6 +448,62 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
     }),
   })
 
+  // 10b. Staff Service Duration Overrides (Fetch Stylist Overrides)
+  .get('/staff/service-durations/:stylistId', async ({ params, set }) => {
+    try {
+      const overrides = await repository.getStylistServiceDurations(params.stylistId);
+      return { success: true, overrides };
+    } catch (err: any) {
+      set.status = 500;
+      return { success: false, message: err.message || 'Failed to fetch stylist service durations' };
+    }
+  }, {
+    params: t.Object({
+      stylistId: t.String(),
+    }),
+  })
+
+  // 10c. Staff Service Duration Overrides (Save Stylist Overrides)
+  .post('/staff/service-durations', async ({ body, set }) => {
+    try {
+      const { salonId, stylistId, overrides } = body as {
+        salonId: string;
+        stylistId: string;
+        overrides: Record<string, number | null>;
+      };
+
+      if (!salonId || !stylistId) {
+        set.status = 400;
+        return { success: false, message: 'salonId and stylistId are required' };
+      }
+
+      await repository.saveStylistServiceDurations(salonId, stylistId, overrides);
+
+      // Recalculate queue wait times and broadcast
+      await queueEngine.recalculateQueue(salonId);
+      const activeTickets = await repository.getActiveTickets(salonId);
+      websocketHub.broadcastToSalon(salonId, {
+        type: 'QUEUE_UPDATED',
+        salonId,
+        tickets: activeTickets,
+        activeQueueCount: activeTickets.length,
+        timestamp: new Date().toISOString(),
+      });
+
+      const updated = await repository.getStylistServiceDurations(stylistId);
+      return { success: true, overrides: updated, message: 'Custom service durations saved successfully' };
+    } catch (err: any) {
+      set.status = 400;
+      return { success: false, message: err.message || 'Failed to update service durations' };
+    }
+  }, {
+    body: t.Object({
+      salonId: t.String(),
+      stylistId: t.String(),
+      overrides: t.Record(t.String(), t.Union([t.Number(), t.Null()])),
+    }),
+  })
+
   // 11. Customer Account Registration & Session Issuance (From Door QR, Live Ticket, or Register Page)
   .post('/customer/register', async ({ body, set, cookie: { engine_session } }) => {
     const { name, phone, username, email, password } = body as {
