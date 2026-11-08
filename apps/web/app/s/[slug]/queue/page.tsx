@@ -20,6 +20,7 @@ import {
   QueuePreferenceModal,
   QueueAddServicesModal,
   QueueCancelDialog,
+  QueueLoungeAmenities,
 } from "@/components/queue";
 
 export default function DedicatedQueuePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -82,6 +83,11 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
   const [supportsVibration, setSupportsVibration] = useState<boolean>(false);
   const [isCopied, setIsCopied] = useState<boolean>(false);
 
+  // Screen Wake Lock API State (Rule 1 & Rule 7: Client Hardware Offloading)
+  const [wakeLockEnabled, setWakeLockEnabled] = useState<boolean>(false);
+  const [supportsWakeLock, setSupportsWakeLock] = useState<boolean>(false);
+  const wakeLockSentinelRef = React.useRef<any>(null);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
@@ -91,8 +97,72 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
         }
       } catch {}
       setSupportsVibration(typeof navigator !== "undefined" && "vibrate" in navigator);
+      setSupportsWakeLock(typeof navigator !== "undefined" && "wakeLock" in navigator);
+      try {
+        const storedWake = localStorage.getItem("queue_wake_lock_enabled");
+        if (storedWake === "true" && "wakeLock" in navigator) {
+          setWakeLockEnabled(true);
+        }
+      } catch {}
     }
   }, []);
+
+  const requestWakeLock = async () => {
+    if (typeof navigator !== "undefined" && "wakeLock" in navigator) {
+      try {
+        wakeLockSentinelRef.current = await (navigator as any).wakeLock.request("screen");
+        wakeLockSentinelRef.current.addEventListener("release", () => {
+          wakeLockSentinelRef.current = null;
+        });
+      } catch (err) {
+        console.warn("Wake lock request failed:", err);
+      }
+    }
+  };
+
+  const releaseWakeLock = () => {
+    if (wakeLockSentinelRef.current) {
+      try {
+        wakeLockSentinelRef.current.release();
+      } catch {}
+      wakeLockSentinelRef.current = null;
+    }
+  };
+
+  const handleToggleWakeLock = () => {
+    setWakeLockEnabled((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("queue_wake_lock_enabled", String(next));
+        } catch {}
+      }
+      if (next) {
+        requestWakeLock();
+        showToast("💡 Screen will stay awake while you wait", "info");
+      } else {
+        releaseWakeLock();
+        showToast("Screen wake-lock released", "info");
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (wakeLockEnabled && document.visibilityState === "visible") {
+        requestWakeLock();
+      }
+    };
+    if (wakeLockEnabled) {
+      requestWakeLock();
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      releaseWakeLock();
+    };
+  }, [wakeLockEnabled]);
 
   const handleToggleVibration = () => {
     setVibrationEnabled((prev) => {
@@ -500,6 +570,10 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
             onShareWhatsApp={handleShareWhatsApp}
             onCopyLink={handleCopyTicketLink}
             isCopied={isCopied}
+            wakeLockEnabled={wakeLockEnabled}
+            onToggleWakeLock={handleToggleWakeLock}
+            supportsWakeLock={supportsWakeLock}
+            allowWakeLock={salon?.enableScreenWakeLock !== false}
             onOpenAddServices={() => {
               const currentAddOnIds = (myTicket.selectedAddOns || []).map((a: any) => a.id);
               setSelectedAddOnIds(currentAddOnIds);
@@ -540,6 +614,9 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
           waitingSequence={waitingSequence}
           myTicket={myTicket}
         />
+
+        {/* 7. LOUNGE COMFORT & WI-FI (Conditionally rendered only if Wi-Fi or amenities exist) */}
+        <QueueLoungeAmenities salon={salon} />
       </main>
 
       {/* 7. MODALS & DIALOGS */}

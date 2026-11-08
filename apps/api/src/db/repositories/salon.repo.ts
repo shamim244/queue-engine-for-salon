@@ -255,6 +255,10 @@ export const salonRepo = {
     operatingMode?: string;
     currency?: string;
     status?: 'ACTIVE' | 'SUSPENDED' | 'MAINTENANCE';
+    wifiSsid?: string;
+    wifiPassword?: string;
+    enableLoungeWifi?: boolean;
+    enableScreenWakeLock?: boolean;
   }): Promise<Salon | null> {
     const all = await this.getAllSalons();
     const salon = all.find((s) => s.id === salonId || s.slug === salonId);
@@ -277,6 +281,10 @@ export const salonRepo = {
     if (updates.operatingMode !== undefined) salon.operatingMode = updates.operatingMode;
     if (updates.currency !== undefined) salon.currency = updates.currency.trim();
     if (updates.status !== undefined) (salon as any).status = updates.status;
+    if (updates.wifiSsid !== undefined) salon.wifiSsid = updates.wifiSsid ? updates.wifiSsid.trim() : undefined;
+    if (updates.wifiPassword !== undefined) salon.wifiPassword = updates.wifiPassword ? updates.wifiPassword.trim() : undefined;
+    if (updates.enableLoungeWifi !== undefined) salon.enableLoungeWifi = Boolean(updates.enableLoungeWifi);
+    if (updates.enableScreenWakeLock !== undefined) salon.enableScreenWakeLock = Boolean(updates.enableScreenWakeLock);
 
     memoryStore.salons.set(salon.id, salon);
     memoryStore.salons.set(salon.slug, salon);

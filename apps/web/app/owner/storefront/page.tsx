@@ -27,6 +27,8 @@ import {
   Check,
   Plus,
   Trash2,
+  Wifi,
+  Sun,
 } from "lucide-react";
 
 const STANDARD_AMENITIES = [
@@ -70,6 +72,10 @@ function OwnerStorefrontContent() {
   const [announcementActive, setAnnouncementActive] = useState(false);
   const [amenities, setAmenities] = useState<string[]>([]);
   const [customAmenity, setCustomAmenity] = useState("");
+  const [wifiSsid, setWifiSsid] = useState("");
+  const [wifiPassword, setWifiPassword] = useState("");
+  const [enableLoungeWifi, setEnableLoungeWifi] = useState(true);
+  const [enableScreenWakeLock, setEnableScreenWakeLock] = useState(true);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -97,6 +103,10 @@ function OwnerStorefrontContent() {
           setUpiPaymentId(s.upiPaymentId || "");
           setAnnouncement(s.announcement || "");
           setAnnouncementActive(Boolean(s.announcementActive));
+          setWifiSsid(s.wifiSsid || "");
+          setWifiPassword(s.wifiPassword || "");
+          setEnableLoungeWifi(s.enableLoungeWifi !== false);
+          setEnableScreenWakeLock(s.enableScreenWakeLock !== false);
           setAmenities(
             s.amenities && s.amenities.length > 0
               ? s.amenities
@@ -553,6 +563,93 @@ function OwnerStorefrontContent() {
                   </Badge>
                 ))}
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+                {/* 6. LOUNGE & QUEUE FEATURE CONTROLS (ADMIN / OWNER / STAFF) */}
+        <Card className="border border-slate-800 bg-slate-900/60 shadow-xl">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Wifi className="h-5 w-5 text-blue-400" />
+              <CardTitle className="text-base text-white">Queue &amp; Lounge Feature Controls</CardTitle>
+            </div>
+            <CardDescription className="text-xs text-slate-400">
+              Control customer-facing digital features on your live queue tracker. Easily enable or disable features based on your salon&apos;s physical setup.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Lounge Wi-Fi Feature Toggle */}
+            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Wifi className="h-4 w-4 text-blue-400" />
+                    <span>Lounge Guest Wi-Fi Card</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Display your guest Wi-Fi details on the queue page. Turn OFF if your salon has no Wi-Fi or it is down.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEnableLoungeWifi((prev) => !prev)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                    enableLoungeWifi
+                      ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-300"
+                      : "bg-slate-900 border-slate-800 text-slate-500"
+                  }`}
+                >
+                  {enableLoungeWifi ? "Wi-Fi: ENABLED" : "Wi-Fi: DISABLED"}
+                </button>
+              </div>
+
+              {enableLoungeWifi && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-300">Wi-Fi Network Name (SSID)</label>
+                    <Input
+                      value={wifiSsid}
+                      onChange={(e) => setWifiSsid(e.target.value)}
+                      placeholder="e.g. Ramesh_Salon_Guest"
+                      className="bg-slate-900 border-slate-800 text-xs h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-300">Wi-Fi Password</label>
+                    <Input
+                      value={wifiPassword}
+                      onChange={(e) => setWifiPassword(e.target.value)}
+                      placeholder="e.g. Style2026"
+                      className="bg-slate-900 border-slate-800 text-xs h-9"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Screen Wake-Lock Feature Toggle */}
+            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Sun className="h-4 w-4 text-amber-400" />
+                  <span>Customer Screen Wake-Lock</span>
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Allows customers in the lounge to keep their phone screen from sleeping while watching their queue timer.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEnableScreenWakeLock((prev) => !prev)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                  enableScreenWakeLock
+                    ? "bg-amber-500/15 border-amber-500/50 text-amber-300"
+                    : "bg-slate-900 border-slate-800 text-slate-500"
+                }`}
+              >
+                {enableScreenWakeLock ? "Wake-Lock: ALLOWED" : "Wake-Lock: DISABLED"}
+              </button>
             </div>
           </CardContent>
         </Card>

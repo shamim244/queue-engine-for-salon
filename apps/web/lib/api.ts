@@ -84,6 +84,10 @@ export interface Salon {
   announcement?: string;
   announcementActive?: boolean;
   status?: "ACTIVE" | "SUSPENDED" | "MAINTENANCE";
+  wifiSsid?: string;
+  wifiPassword?: string;
+  enableLoungeWifi?: boolean;
+  enableScreenWakeLock?: boolean;
   stylists: Stylist[];
   services: Service[];
   createdAt?: string;
@@ -543,6 +547,10 @@ export const api = {
         announcementActive?: boolean;
         operatingMode?: string;
         status?: "ACTIVE" | "SUSPENDED" | "MAINTENANCE";
+  wifiSsid?: string;
+  wifiPassword?: string;
+  enableLoungeWifi?: boolean;
+  enableScreenWakeLock?: boolean;
         currency?: string;
       }
     ) =>

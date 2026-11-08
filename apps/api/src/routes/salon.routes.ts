@@ -34,6 +34,10 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
       phone: t.String(),
       operatingMode: t.Optional(t.String()),
       currency: t.Optional(t.String()),
+      wifiSsid: t.Optional(t.String()),
+      wifiPassword: t.Optional(t.String()),
+      enableLoungeWifi: t.Optional(t.Boolean()),
+      enableScreenWakeLock: t.Optional(t.Boolean()),
       countryCode: t.Optional(t.String()),
       address: t.Optional(t.String()),
       upiPaymentId: t.Optional(t.String()),
@@ -183,6 +187,10 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
       operatingMode: t.Optional(t.String()),
       status: t.Optional(t.Union([t.Literal('ACTIVE'), t.Literal('SUSPENDED'), t.Literal('MAINTENANCE')])),
       currency: t.Optional(t.String()),
+      wifiSsid: t.Optional(t.String()),
+      wifiPassword: t.Optional(t.String()),
+      enableLoungeWifi: t.Optional(t.Boolean()),
+      enableScreenWakeLock: t.Optional(t.Boolean()),
     })
   })
 

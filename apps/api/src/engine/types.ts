@@ -124,6 +124,10 @@ export interface Salon {
   amenities?: string[];
   announcement?: string;
   announcementActive?: boolean;
+  wifiSsid?: string;
+  wifiPassword?: string;
+  enableLoungeWifi?: boolean;
+  enableScreenWakeLock?: boolean;
   services: ServiceDefinition[];
   stylists: Stylist[];
   createdAt: Date;
