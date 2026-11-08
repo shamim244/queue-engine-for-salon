@@ -248,7 +248,7 @@ export function QueuePocketTicket({
             </Badge>
           </div>
 
-          {(myTicket.status === "WAITING" || myTicket.status === "SOFT_BUMPED" || isPaused) && (
+          {(myTicket.status === "WAITING" || myTicket.status === "SOFT_BUMPED" || isPaused || myTicket.status === "IN_CHAIR" || myTicket.status === "IN_SERVICE") && (
             <div className="flex items-center gap-1.5 flex-wrap">
               <Button
                 size="sm"
@@ -261,7 +261,7 @@ export function QueuePocketTicket({
                 <span>+ Add Services</span>
               </Button>
 
-              {!isPaused && (
+              {!isPaused && myTicket.status !== "IN_CHAIR" && myTicket.status !== "IN_SERVICE" && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -275,7 +275,7 @@ export function QueuePocketTicket({
                 </Button>
               )}
 
-              {salon?.stylists && salon.stylists.length > 0 && !isPaused && (
+              {salon?.stylists && salon.stylists.length > 0 && !isPaused && myTicket.status !== "IN_CHAIR" && myTicket.status !== "IN_SERVICE" && (
                 <Button
                   size="sm"
                   variant="outline"

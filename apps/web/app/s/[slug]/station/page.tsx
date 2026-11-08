@@ -18,6 +18,7 @@ import { StationWaitingQueue } from "@/components/station/station-waiting-queue"
 import { StationQuickWalkinModal } from "@/components/station/station-quick-walkin-modal";
 import { StationCheckoutModal } from "@/components/station/station-checkout-modal";
 import { StationNoShowModal } from "@/components/station/station-noshow-modal";
+import { StationAddServicesModal } from "@/components/station/station-add-services-modal";
 
 export default function StaffStationPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
@@ -37,6 +38,8 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isNoShowModalOpen, setIsNoShowModalOpen] = useState(false);
+  const [isAddServicesOpen, setIsAddServicesOpen] = useState(false);
+  const [isUpdatingServices, setIsUpdatingServices] = useState(false);
 
   // Currently Serving / Summoned Ticket
   const [currentlyServing, setCurrentlyServing] = useState<Ticket | null>(null);
@@ -364,6 +367,28 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     }
   };
 
+  const handleSaveServices = async (selectedAddOnIds: string[]) => {
+    if (!currentlyServing) return;
+    setIsUpdatingServices(true);
+    try {
+      const resp = await api.queue.updateServices(currentlyServing.id, selectedAddOnIds);
+      if (resp.ticket) {
+        setCurrentlyServing(resp.ticket);
+        setEditableBill(resp.ticket.totalPrice || editableBill);
+        showToast(
+          `Services updated: #${resp.ticket.ticketNumber} (${resp.ticket.serviceName} + ${resp.ticket.selectedAddOns?.length || 0} add-ons)`,
+          "success"
+        );
+        setIsAddServicesOpen(false);
+        fetchStationData();
+      }
+    } catch (err) {
+      showToast("Error updating services: " + (err as Error).message, "error");
+    } finally {
+      setIsUpdatingServices(false);
+    }
+  };
+
   const handleQuickAddWalkin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!salon) return;
@@ -503,6 +528,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                 editableBill={editableBill}
                 processingAction={processingAction}
                 onProceedToCheckout={() => setIsCheckoutOpen(true)}
+                onOpenAddServices={() => setIsAddServicesOpen(true)}
               />
             )}
           </div>
@@ -563,6 +589,15 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         processingAction={processingAction}
         onClose={() => setIsNoShowModalOpen(false)}
         onConfirm={handleNoShow}
+      />
+
+      <StationAddServicesModal
+        isOpen={isAddServicesOpen}
+        onClose={() => setIsAddServicesOpen(false)}
+        salon={salon}
+        ticket={currentlyServing}
+        isUpdating={isUpdatingServices}
+        onSave={handleSaveServices}
       />
     </div>
   );

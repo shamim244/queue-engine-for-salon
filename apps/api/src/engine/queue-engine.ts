@@ -11,8 +11,16 @@ import type { QueueTicket, TicketSource, PaymentStatus } from './types';
 // Ensure standard background workers are registered
 registerNotificationHandler();
 
-// Per-salon recalculation serializer to prevent concurrent race conditions
-const recalculationQueues = new Map<string, Promise<QueueTicket[]>>();
+// Per-salon recalculation coalescer to prevent concurrent race conditions & DB write spikes
+const inFlightRecalculations = new Map<string, Promise<QueueTicket[]>>();
+const pendingRecalculations = new Map<
+  string,
+  {
+    promise: Promise<QueueTicket[]>;
+    resolve: (v: QueueTicket[]) => void;
+    reject: (err: any) => void;
+  }
+>();
 
 export const queueEngine = {
   // 1. Customer Self-Check-in via Door QR
@@ -553,7 +561,16 @@ export const queueEngine = {
       throw new Error('Ticket not found');
     }
 
-    if (ticket.status !== 'WAITING' && ticket.status !== 'SOFT_BUMPED' && ticket.status !== 'PAUSED') {
+    const modifiableStatuses = [
+      'WAITING',
+      'SOFT_BUMPED',
+      'PAUSED',
+      'SUMMONED',
+      'CALLED',
+      'IN_CHAIR',
+      'IN_SERVICE',
+    ];
+    if (!modifiableStatuses.includes(ticket.status)) {
       throw new Error(`Cannot modify services while ticket is in status: ${ticket.status}`);
     }
 
@@ -610,16 +627,51 @@ export const queueEngine = {
     return refreshed;
   },
 
-  // 9. Recalculate dynamic wait times for all active tickets (serialized per salon)
+  // 9. Recalculate dynamic wait times for all active tickets (coalesced & micro-batched per salon)
   async recalculateQueue(salonId: string): Promise<QueueTicket[]> {
-    const previous = recalculationQueues.get(salonId) || Promise.resolve([] as QueueTicket[]);
-    const current = previous
+    const inFlight = inFlightRecalculations.get(salonId);
+    if (!inFlight) {
+      const execution = this._executeRecalculateQueue(salonId).finally(() => {
+        inFlightRecalculations.delete(salonId);
+      });
+      inFlightRecalculations.set(salonId, execution);
+      return execution;
+    }
+
+    // A recalculation is already in-flight!
+    // Check if a pending coalesced run is already queued
+    const existingPending = pendingRecalculations.get(salonId);
+    if (existingPending) {
+      return existingPending.promise;
+    }
+
+    // Schedule a single coalesced pending run that executes after the in-flight run completes
+    let resolvePending!: (v: QueueTicket[]) => void;
+    let rejectPending!: (err: any) => void;
+    const pendingPromise = new Promise<QueueTicket[]>((res, rej) => {
+      resolvePending = res;
+      rejectPending = rej;
+    });
+
+    pendingRecalculations.set(salonId, {
+      promise: pendingPromise,
+      resolve: resolvePending,
+      reject: rejectPending,
+    });
+
+    inFlight
       .catch(() => [] as QueueTicket[])
       .then(async () => {
-        return this._executeRecalculateQueue(salonId);
+        pendingRecalculations.delete(salonId);
+        try {
+          const result = await this.recalculateQueue(salonId);
+          resolvePending(result);
+        } catch (err) {
+          rejectPending(err);
+        }
       });
-    recalculationQueues.set(salonId, current);
-    return current;
+
+    return pendingPromise;
   },
 
   async _executeRecalculateQueue(salonId: string): Promise<QueueTicket[]> {

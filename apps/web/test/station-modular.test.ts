@@ -8,6 +8,8 @@ import { StationOpenChairCard } from "@/components/station/station-open-chair-ca
 import { StationSummonedCard } from "@/components/station/station-summoned-card";
 import { StationWaitingQueue } from "@/components/station/station-waiting-queue";
 import { StationNoShowModal } from "@/components/station/station-noshow-modal";
+import { StationInServiceCard } from "@/components/station/station-in-service-card";
+import { StationAddServicesModal } from "@/components/station/station-add-services-modal";
 
 describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
   const mockStylist1: Stylist = {
@@ -271,6 +273,69 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
       expect(html).toContain("permanently remove");
       expect(html).toContain("Keep in Queue");
       expect(html).toContain("Yes, Mark No-Show");
+    });
+
+    it("should render StationInServiceCard with + Add-ons action and current bill", () => {
+      const inChairTicket: Ticket = {
+        ...mockTickets[0],
+        status: "IN_CHAIR",
+        serviceName: "Haircut",
+        totalPrice: 150,
+        selectedAddOns: [{ id: "srv-beard", name: "Beard Trim", price: 60, durationMinutes: 15 }],
+      };
+
+      const html = renderToString(
+        React.createElement(StationInServiceCard, {
+          currentlyServing: inChairTicket,
+          editableBill: 210,
+          processingAction: false,
+          onProceedToCheckout: () => {},
+          onOpenAddServices: () => {},
+        })
+      );
+
+      expect(html).toContain("CURRENTLY IN CHAIR");
+      expect(html).toContain("+ Add-ons");
+      expect(html).toContain("Beard Trim");
+      expect(html).toContain("+ Add / Modify");
+      expect(html).toContain("Complete Service");
+    });
+
+    it("should render StationAddServicesModal with grooming add-on options and live calculation preview", () => {
+      const inChairTicket: Ticket = {
+        ...mockTickets[0],
+        status: "IN_CHAIR",
+        serviceName: "Haircut",
+        totalPrice: 150,
+      };
+
+      const mockSalon = {
+        id: "salon-test",
+        name: "Test Salon",
+        slug: "test-salon",
+        services: [
+          { id: "srv-1", name: "Haircut", basePrice: 150, estimatedDurationMinutes: 20 },
+          { id: "srv-beard", name: "Beard Trim", basePrice: 60, estimatedDurationMinutes: 15 },
+          { id: "srv-spa", name: "Hair Spa", basePrice: 200, estimatedDurationMinutes: 30 },
+        ],
+      } as any;
+
+      const html = renderToString(
+        React.createElement(StationAddServicesModal, {
+          isOpen: true,
+          onClose: () => {},
+          salon: mockSalon,
+          ticket: inChairTicket,
+          isUpdating: false,
+          onSave: () => {},
+        })
+      );
+
+      expect(html).toContain("Add / Modify Services");
+      expect(html).toContain("Beard Trim");
+      expect(html).toContain("Hair Spa");
+      expect(html).toContain("Available Grooming Add-Ons");
+      expect(html).toContain("Save Services");
     });
   });
 });

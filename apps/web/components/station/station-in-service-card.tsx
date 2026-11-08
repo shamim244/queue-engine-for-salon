@@ -5,13 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LiveServiceTimer } from "@/components/live-service-timer";
 import { formatCurrency, maskPhone } from "@/lib/utils";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Sparkles } from "lucide-react";
 
 interface StationInServiceCardProps {
   currentlyServing: Ticket;
   editableBill: number;
   processingAction: boolean;
   onProceedToCheckout: () => void;
+  onOpenAddServices?: () => void;
 }
 
 export function StationInServiceCard({
@@ -19,6 +20,7 @@ export function StationInServiceCard({
   editableBill,
   processingAction,
   onProceedToCheckout,
+  onOpenAddServices,
 }: StationInServiceCardProps) {
   const startedTime =
     (currentlyServing as any).startedTime ||
@@ -64,29 +66,69 @@ export function StationInServiceCard({
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-right min-w-[200px]">
-          <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold block mb-1">
-            Selected Service
-          </span>
+        <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-right min-w-[220px] space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold block">
+              Selected Service
+            </span>
+            {onOpenAddServices && (
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={onOpenAddServices}
+                className="h-7 px-2.5 text-[11px] border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 font-bold rounded-lg gap-1"
+              >
+                <Sparkles className="h-3 w-3 text-amber-400" />
+                <span>+ Add-ons</span>
+              </Button>
+            )}
+          </div>
           <p className="text-base font-bold text-white">
             {currentlyServing.serviceName || "Haircut Service"}
           </p>
-          <p className="text-xs font-semibold text-emerald-400 mt-1">
-            {formatCurrency(currentlyServing.totalPrice || editableBill || 150)}
+          {currentlyServing.selectedAddOns && currentlyServing.selectedAddOns.length > 0 && (
+            <div className="flex flex-wrap gap-1 justify-end pt-0.5">
+              {currentlyServing.selectedAddOns.map((addon: any, idx: number) => (
+                <Badge
+                  key={addon.id || idx}
+                  variant="outline"
+                  className="text-[10px] bg-emerald-500/15 border-emerald-500/30 text-emerald-300 font-semibold"
+                >
+                  +{addon.name} ({formatCurrency(addon.price || 0)})
+                </Badge>
+              ))}
+            </div>
+          )}
+          <p className="text-xs font-semibold text-emerald-400 pt-0.5">
+            Total: {formatCurrency(currentlyServing.totalPrice || editableBill || 150)}
           </p>
         </div>
       </div>
 
       {/* Complete Service -> Proceed to Payment Button */}
-      <div className="pt-4 border-t border-slate-800">
+      <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row gap-3">
+        {onOpenAddServices && (
+          <Button
+            size="lg"
+            variant="outline"
+            type="button"
+            onClick={onOpenAddServices}
+            disabled={processingAction}
+            className="sm:w-1/3 min-h-[56px] rounded-2xl border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-200 font-bold text-base gap-2"
+          >
+            <Sparkles className="h-5 w-5 text-amber-400" />
+            <span>+ Add / Modify</span>
+          </Button>
+        )}
         <Button
           size="xl"
           onClick={onProceedToCheckout}
           disabled={processingAction}
-          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl h-16 rounded-2xl gap-3 shadow-xl shadow-emerald-600/20 transition-all active:scale-98"
+          className={`${onOpenAddServices ? "sm:w-2/3" : "w-full"} bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl h-14 sm:h-16 rounded-2xl gap-3 shadow-xl shadow-emerald-600/20 transition-all active:scale-98`}
         >
           <CheckCircle2 className="h-7 w-7" />
-          <span>✅ Complete Service &rarr; Proceed to Payment</span>
+          <span>✅ Complete Service &rarr; Payment</span>
         </Button>
       </div>
     </Card>

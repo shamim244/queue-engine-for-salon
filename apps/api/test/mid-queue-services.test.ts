@@ -127,8 +127,8 @@ describe('Mid-Queue Add-On Services & Dynamic Downstream Recalculation Suite', (
     expect(refreshedTicket2?.estimatedWaitMinutes).toBe(53);
   });
 
-  it('rejects mid-queue modifications if customer is already seated in chair', async () => {
-    const ticket = await queueEngine.checkIn({
+  it('allows mid-chair service additions when customer is seated in chair and recalculates downstream wait time', async () => {
+    const seatedTicket = await queueEngine.checkIn({
       salonSlug: 'aura-salon',
       customerName: 'Seated Customer',
       customerPhone: '9888822222',
@@ -136,12 +136,30 @@ describe('Mid-Queue Add-On Services & Dynamic Downstream Recalculation Suite', (
     });
 
     // Call and seat customer
-    await queueEngine.seatCustomer(ticket.id);
+    await queueEngine.seatCustomer(seatedTicket.id);
 
-    expect(
-      queueEngine.updateTicketServices(ticket.id, {
-        addOnIds: [beardServiceId],
-      })
-    ).rejects.toThrow('Cannot modify services while ticket is in status: IN_CHAIR');
+    // Waiting customer in lounge
+    const waitingTicket = await queueEngine.checkIn({
+      salonSlug: 'aura-salon',
+      customerName: 'Waiting Customer In Lounge',
+      customerPhone: '9888833333',
+      serviceId: haircutServiceId,
+    });
+
+    const waitBefore = waitingTicket.estimatedWaitMinutes;
+
+    // Customer decides to add beard trim while in chair!
+    const updated = await queueEngine.updateTicketServices(seatedTicket.id, {
+      addOnIds: [beardServiceId],
+    });
+
+    expect(updated.status).toBe('IN_CHAIR');
+    expect(updated.selectedAddOns).toHaveLength(1);
+    expect(updated.selectedAddOns[0].name).toBe('Beard Trim');
+    expect(updated.totalPrice).toBe(100 + 60); // Haircut (100) + Beard (60) = 160
+
+    // Downstream waiting ticket should reflect the extra chair time
+    const refreshedWaiting = await repository.getTicketById(waitingTicket.id);
+    expect(refreshedWaiting?.estimatedWaitMinutes).toBeGreaterThanOrEqual(waitBefore);
   });
 });
