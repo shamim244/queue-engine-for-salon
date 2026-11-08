@@ -462,6 +462,75 @@ export const queueEngine = {
     return refreshed;
   },
 
+  // 8.55 Transfer Active, Summoned, or Waiting Ticket to Another Barber Chair
+  async transferChair(params: {
+    ticketId: string;
+    targetStylistId: string;
+    reason?: string;
+  }): Promise<QueueTicket> {
+    const { ticketId, targetStylistId, reason } = params;
+    const ticket = await repository.getTicketById(ticketId);
+    if (!ticket) {
+      throw new Error('Ticket not found');
+    }
+
+    if (ticket.status === 'COMPLETED' || ticket.status === 'CANCELLED') {
+      throw new Error(`Cannot transfer ticket with status: ${ticket.status}`);
+    }
+
+    const salon = await repository.getSalonById(ticket.salonId);
+    const targetStylist = salon?.stylists?.find((s) => s.id === targetStylistId);
+    if (!targetStylist) {
+      throw new Error('Target barber chair does not exist in this salon');
+    }
+
+    // Append handover reason to ticket notes if provided
+    if (reason && reason.trim()) {
+      const handoverNote = `[Transferred to ${targetStylist.name}: ${reason.trim()}]`;
+      const updatedNotes = ticket.notes ? `${ticket.notes}\n${handoverNote}` : handoverNote;
+      await repository.updateTicketNotes(ticketId, { notes: updatedNotes });
+    }
+
+    // Reassign stylistId in repository (MySQL and memory)
+    const updated = await repository.updateTicketStylist(ticketId, targetStylistId);
+    if (!updated) {
+      throw new Error('Failed to update ticket stylist for chair transfer');
+    }
+
+    // If ticket was in chair or summoned, ensure servedByStylistId is also aligned
+    if (ticket.status === 'IN_CHAIR' || ticket.status === 'SUMMONED') {
+      (updated as any).servedByStylistId = targetStylistId;
+      await repository.updateTicketStatus(ticketId, ticket.status as any, {
+        stylistId: targetStylistId,
+      });
+    }
+
+    // Recalculate wait times and queue positions
+    const activeTickets = await this.recalculateQueue(ticket.salonId);
+    const refreshed = activeTickets.find((t) => t.id === ticketId) || updated;
+
+    // Real-time WebSocket dispatch to all station desks, mirror TVs, and pocket trackers
+    websocketHub.broadcastToSalon(ticket.salonId, {
+      type: 'TICKET_TRANSFERRED',
+      salonId: ticket.salonId,
+      ticket: refreshed,
+      targetStylistId,
+      targetStylistName: targetStylist.name,
+      activeQueueCount: activeTickets.length,
+      timestamp: new Date().toISOString(),
+    });
+
+    websocketHub.broadcastToSalon(ticket.salonId, {
+      type: 'QUEUE_UPDATED',
+      salonId: ticket.salonId,
+      tickets: activeTickets,
+      activeQueueCount: activeTickets.length,
+      timestamp: new Date().toISOString(),
+    });
+
+    return refreshed;
+  },
+
   // 8.6 Pause Ticket (Customer steps out for chai/errand, or staff marks away)
   async pauseTicket(ticketId: string, reason?: string): Promise<QueueTicket> {
     const ticket = await repository.getTicketById(ticketId);

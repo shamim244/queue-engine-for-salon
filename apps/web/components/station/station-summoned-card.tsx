@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, maskPhone } from "@/lib/utils";
-import { Volume2, UserCheck, Clock, Coffee, UserX, HeartHandshake, ShieldCheck } from "lucide-react";
+import { Volume2, UserCheck, Clock, Coffee, UserX, HeartHandshake, ShieldCheck, ArrowRightLeft } from "lucide-react";
 
 interface StationSummonedCardProps {
   summonedTicket: Ticket;
@@ -14,6 +14,7 @@ interface StationSummonedCardProps {
   onHoldAndCallNext: () => void;
   onNoShow: () => void;
   onReAnnounce: () => void;
+  onTransferChair?: () => void;
 }
 
 export function StationSummonedCard({
@@ -24,6 +25,7 @@ export function StationSummonedCard({
   onHoldAndCallNext,
   onNoShow,
   onReAnnounce,
+  onTransferChair,
 }: StationSummonedCardProps) {
   const visitCount = summonedTicket.visitCount || 1;
   const isReturning = visitCount > 1;
@@ -126,7 +128,7 @@ export function StationSummonedCard({
           <span>In Chair (Customer Arrived)</span>
         </Button>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div className={`grid grid-cols-1 ${onTransferChair ? "sm:grid-cols-4" : "sm:grid-cols-3"} gap-2.5`}>
           <Button
             size="sm"
             variant="outline"
@@ -150,6 +152,20 @@ export function StationSummonedCard({
             <Clock className="h-4 w-4 text-amber-300 shrink-0" />
             <span className="tracking-wide">Grace Hold</span>
           </Button>
+
+          {onTransferChair && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onTransferChair}
+              disabled={processingAction}
+              className="border-2 border-purple-400/80 bg-purple-950/80 text-purple-100 hover:bg-purple-900 hover:border-purple-300 font-bold h-12 rounded-xl gap-2 text-xs flex items-center justify-center shadow-md shadow-purple-950/40 transition-all select-none"
+              title="Transfer client to another barber chair"
+            >
+              <ArrowRightLeft className="h-4 w-4 text-purple-300 shrink-0" />
+              <span className="tracking-wide">Transfer</span>
+            </Button>
+          )}
 
           <Button
             size="sm"

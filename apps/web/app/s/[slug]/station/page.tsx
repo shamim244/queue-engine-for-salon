@@ -12,7 +12,7 @@ import { CheckCircle2, AlertCircle, Sparkles, Armchair, Users, Columns, Layers }
 import { StationStaffLogin } from "@/components/station/station-staff-login";
 import { StationPinLock } from "@/components/station/station-pin-lock";
 import { StationChairHeader } from "@/components/station/station-chair-header";
-import { StationSwitchChairModal } from "@/components/station/station-switch-chair-modal";
+import { StationTransferChairModal } from "@/components/station/station-transfer-chair-modal";
 import { StationOpenChairCard } from "@/components/station/station-open-chair-card";
 import { StationSummonedCard } from "@/components/station/station-summoned-card";
 import { StationInServiceCard } from "@/components/station/station-in-service-card";
@@ -22,6 +22,7 @@ import { StationCheckoutModal } from "@/components/station/station-checkout-moda
 import { StationNoShowModal } from "@/components/station/station-noshow-modal";
 import { StationAddServicesModal } from "@/components/station/station-add-services-modal";
 import { StationEarningsSummary, type StaffDailyReportData } from "@/components/station/station-earnings-summary";
+import { triggerHaptic } from "@/lib/haptics";
 
 export default function StaffStationPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
@@ -38,7 +39,9 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const [pinError, setPinError] = useState("");
 
   // Modals State
-  const [isSwitchChairOpen, setIsSwitchChairOpen] = useState(false);
+  const [transferTicket, setTransferTicket] = useState<Ticket | null>(null);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [isTransferring, setIsTransferring] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isNoShowModalOpen, setIsNoShowModalOpen] = useState(false);
@@ -395,6 +398,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         } catch {}
 
         const fullReport: StaffDailyReportData = {
+          salonId: salon.id,
           ...reportRes,
           totalTipsToday: calculatedTips + manualCash,
           manualCashTips: manualCash,
@@ -418,7 +422,12 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
 
   // Real-time WebSocket synchronization (memoized callback prevents reconnect churn)
   const onSocketEvent = useCallback((event: any) => {
-    console.log("[Station UI] WebSocket event:", event.type);
+    console.log("[Station UI] WebSocket event:", event?.type);
+    if (event?.type === "TICKET_CREATED") {
+      triggerHaptic("arrival");
+    } else if (event?.type === "TICKET_TRANSFERRED") {
+      triggerHaptic("transfer");
+    }
     fetchStationData();
   }, [fetchStationData]);
 
@@ -517,16 +526,48 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     setPinError("");
   }, []);
 
+  // 1-Tap Chair Handover / Transfer Handlers
+  const handleOpenTransferModal = (ticket: Ticket) => {
+    triggerHaptic("tap");
+    setTransferTicket(ticket);
+    setIsTransferModalOpen(true);
+  };
+
+  const handleConfirmTransfer = async (targetStylistId: string, reason?: string) => {
+    if (!transferTicket) return;
+    setIsTransferring(true);
+    try {
+      await api.queue.transferChair({
+        ticketId: transferTicket.id,
+        targetStylistId,
+        reason,
+      });
+      triggerHaptic("transfer");
+      showToast(`Ticket #${transferTicket.ticketNumber} transferred to another chair!`, "success");
+      setIsTransferModalOpen(false);
+      setTransferTicket(null);
+      fetchStationData();
+    } catch (err: any) {
+      triggerHaptic("alert");
+      showToast("Error transferring chair: " + (err?.message || "Failed"), "error");
+      throw err;
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
   // Station Queue Actions
   const handleCallNext = async () => {
     if (!salon) return;
     if (isOnBreak) setBreakRemainingSeconds(null);
     setProcessingAction(true);
+    triggerHaptic("tap");
     try {
       const res = await api.queue.callNext(salon.id, activeStylist?.id);
       if (res.ticket) {
         const ticket = res.ticket;
         setSummonedTicket(ticket);
+        triggerHaptic("summon");
         speakAnnouncement(`Ticket Number ${ticket.ticketNumber}, ${ticket.customerName}, please step to chair!`);
         showToast(`Summoned Ticket #${ticket.ticketNumber} (${ticket.customerName})`, "success");
         fetchStationData();
@@ -543,6 +584,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const handleSeatInChair = async () => {
     if (!summonedTicket) return;
     setProcessingAction(true);
+    triggerHaptic("tap");
     try {
       await api.queue.seat(summonedTicket.id, activeStylist?.id);
       setCurrentlyServing(summonedTicket);
@@ -617,6 +659,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
           body: JSON.stringify({ ticketId: summonedTicket.id, reason: "Client did not show up" }),
         });
       }
+      triggerHaptic("alert");
       showToast(`Ticket #${summonedTicket.ticketNumber} marked as No-Show.`, "info");
       setSummonedTicket(null);
       setIsNoShowModalOpen(false);
@@ -685,6 +728,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     const amountToCharge = finalAmount !== undefined ? finalAmount : editableBill;
     try {
       await api.queue.finish(currentlyServing.id, paymentStatus, amountToCharge);
+      triggerHaptic("complete");
       showToast(
         `Completed Ticket #${currentlyServing.ticketNumber} (₹${amountToCharge} ${paymentStatus === "CASH_PAID" ? "Cash" : "UPI"})!`,
         "success"
@@ -865,7 +909,6 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
 
   const handleSelectStylistChair = (st: Stylist) => {
     setActiveStylist(st);
-    setIsSwitchChairOpen(false);
     setIsLocked(false);
     setEnteredPin("");
     setPinError("");
@@ -927,15 +970,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
           onPinDigit={handlePinDigit}
           onClearPin={handleClearPin}
           onBackspace={handleBackspace}
-          onOpenSwitchChair={() => setIsSwitchChairOpen(true)}
           onLogout={logout}
-        />
-        <StationSwitchChairModal
-          isOpen={isSwitchChairOpen}
-          stylists={salon?.stylists || []}
-          activeStylistId={activeStylist?.id}
-          onClose={() => setIsSwitchChairOpen(false)}
-          onSelectStylist={handleSelectStylistChair}
         />
       </>
     );
@@ -963,7 +998,6 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         onToggleMirrorMode={handleToggleMirrorMode}
         onToggleFullscreen={handleToggleFullscreen}
         onToggleLayoutMode={handleToggleLayoutMode}
-        onOpenSwitchChair={() => setIsSwitchChairOpen(true)}
         onOpenQuickAdd={() => setIsQuickAddOpen(true)}
         onLockChair={() => setIsLocked(true)}
         onLogout={logout}
@@ -1018,45 +1052,9 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
           </div>
         )}
 
-        {/* Layout Preference Bar */}
-        <div className="flex items-center justify-between pb-1 text-xs">
-          <div className="flex items-center gap-2 text-slate-400 font-medium">
-            <span>Layout View:</span>
-            <span className="text-amber-400 font-bold">
-              {layoutMode === "split" ? "🖥️ Side-by-Side (Split)" : "📑 Tabbed (Minimal Scroll)"}
-            </span>
-          </div>
-          <div className="inline-flex rounded-xl bg-slate-900 border border-slate-800 p-0.5 text-xs shadow-sm">
-            <button
-              type="button"
-              onClick={() => handleSetLayoutMode("split")}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 min-h-[36px] ${
-                layoutMode === "split"
-                  ? "bg-amber-500 text-slate-950 shadow-sm"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Columns className="h-3.5 w-3.5" />
-              <span>Side-by-Side</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSetLayoutMode("tabbed")}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 min-h-[36px] ${
-                layoutMode === "tabbed"
-                  ? "bg-amber-500 text-slate-950 shadow-sm"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Layers className="h-3.5 w-3.5" />
-              <span>Tabbed</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Tabbed View Switcher (Active ONLY when layoutMode === "tabbed") */}
+        {/* Tabbed View Switcher (Active ONLY when on Mobile or layoutMode === "tabbed") */}
         {layoutMode === "tabbed" && (
-          <div className="grid grid-cols-2 gap-2 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 shadow-md">
+          <div className="grid grid-cols-2 gap-2 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 shadow-md md:hidden">
             <button
               type="button"
               onClick={() => setMobileTab("chair")}
@@ -1110,6 +1108,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                 onSeatInChair={handleSeatInChair}
                 onPauseAndCallNext={handlePauseAndCallNext}
                 onHoldAndCallNext={handleHoldAndCallNext}
+                onTransferChair={() => handleOpenTransferModal(summonedTicket)}
                 onNoShow={() => setIsNoShowModalOpen(true)}
                 onReAnnounce={() =>
                   speakAnnouncement(
@@ -1129,6 +1128,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                 onToggleAddOn={handleToggleAddOn}
                 onToggleGroomingTag={handleToggleGroomingTag}
                 onUpdateNotes={handleUpdateNotes}
+                onTransferChair={() => handleOpenTransferModal(currentlyServing)}
                 onProceedToCheckout={() => setIsCheckoutOpen(true)}
                 onOpenAddServices={() => setIsAddServicesOpen(true)}
               />
@@ -1145,6 +1145,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
               onSummonSpecific={handleSummonSpecific}
               onPauseTicket={handlePauseTicket}
               onResumeTicket={handleResumeTicket}
+              onTransferTicket={handleOpenTransferModal}
             />
           </div>
         </div>
@@ -1177,12 +1178,14 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
         onFinishCheckout={handleFinishCheckout}
       />
 
-      <StationSwitchChairModal
-        isOpen={isSwitchChairOpen}
+      <StationTransferChairModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        ticket={transferTicket}
         stylists={salon?.stylists || []}
-        activeStylistId={activeStylist?.id}
-        onClose={() => setIsSwitchChairOpen(false)}
-        onSelectStylist={handleSelectStylistChair}
+        currentStylistId={activeStylist?.id}
+        onConfirmTransfer={handleConfirmTransfer}
+        isLoading={isTransferring}
       />
 
       <StationNoShowModal

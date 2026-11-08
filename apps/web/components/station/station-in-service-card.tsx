@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { LiveServiceTimer } from "@/components/live-service-timer";
 import { StationActionDrawer } from "@/components/station/station-action-drawer";
 import { formatCurrency, maskPhone } from "@/lib/utils";
-import { CheckCircle2, Sparkles, HeartHandshake, ShieldCheck, FileText } from "lucide-react";
+import { CheckCircle2, Sparkles, HeartHandshake, ShieldCheck, FileText, ArrowRightLeft } from "lucide-react";
 
 interface StationInServiceCardProps {
   currentlyServing: Ticket;
@@ -19,6 +19,7 @@ interface StationInServiceCardProps {
   onUpdateNotes?: (notes: string) => void;
   onProceedToCheckout: () => void;
   onOpenAddServices?: () => void;
+  onTransferChair?: () => void;
 }
 
 export function StationInServiceCard({
@@ -32,6 +33,7 @@ export function StationInServiceCard({
   onUpdateNotes,
   onProceedToCheckout,
   onOpenAddServices,
+  onTransferChair,
 }: StationInServiceCardProps) {
   const startedTime =
     (currentlyServing as any).startedTime ||
@@ -164,25 +166,43 @@ export function StationInServiceCard({
       />
 
       {/* 6. Primary Action Buttons (Always Visible Above Fold) */}
-      <div className="pt-2 border-t border-slate-800 flex flex-col sm:flex-row gap-2.5">
-        {onOpenAddServices && (
-          <Button
-            size="lg"
-            variant="outline"
-            type="button"
-            onClick={onOpenAddServices}
-            disabled={processingAction}
-            className="sm:w-1/3 min-h-[50px] rounded-2xl border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-200 font-bold text-sm gap-2"
-          >
-            <Sparkles className="h-4 w-4 text-amber-400" />
-            <span>+ Add / Modify</span>
-          </Button>
-        )}
+      <div className="pt-2 border-t border-slate-800 flex flex-col gap-2.5">
+        <div className="flex flex-col sm:flex-row gap-2.5">
+          {onOpenAddServices && (
+            <Button
+              size="lg"
+              variant="outline"
+              type="button"
+              onClick={onOpenAddServices}
+              disabled={processingAction}
+              className="flex-1 min-h-[50px] rounded-2xl border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-200 font-bold text-sm gap-2"
+            >
+              <Sparkles className="h-4 w-4 text-amber-400" />
+              <span>+ Add / Modify</span>
+            </Button>
+          )}
+
+          {onTransferChair && (
+            <Button
+              size="lg"
+              variant="outline"
+              type="button"
+              onClick={onTransferChair}
+              disabled={processingAction}
+              className="min-h-[50px] rounded-2xl border-amber-500/40 bg-amber-950/30 hover:bg-amber-900/40 text-amber-200 font-bold text-sm gap-2 px-4"
+              title="Transfer client to another chair / barber"
+            >
+              <ArrowRightLeft className="h-4 w-4 text-amber-400" />
+              <span>Transfer Chair</span>
+            </Button>
+          )}
+        </div>
+
         <Button
           size="xl"
           onClick={onProceedToCheckout}
           disabled={processingAction}
-          className={`${onOpenAddServices ? "sm:w-2/3" : "w-full"} bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg h-14 rounded-2xl gap-2.5 shadow-xl shadow-emerald-600/20 transition-all active:scale-98`}
+          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg h-14 rounded-2xl gap-2.5 shadow-xl shadow-emerald-600/20 transition-all active:scale-98"
         >
           <CheckCircle2 className="h-6 w-6" />
           <span>✅ Complete Service &rarr; Payment ({formatCurrency(currentTotal)})</span>

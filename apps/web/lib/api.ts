@@ -738,6 +738,12 @@ export const api = {
         body: JSON.stringify({ ticketId, stylistId }),
       }),
 
+    transferChair: (data: { ticketId: string; targetStylistId: string; reason?: string }) =>
+      request<{ success: boolean; ticket: Ticket }>("/api/queue/transfer-chair", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
     updateServices: (ticketId: string, addOnIds: string[], serviceId?: string) =>
       request<{ success: boolean; ticket: Ticket }>("/api/queue/update-services", {
         method: "POST",

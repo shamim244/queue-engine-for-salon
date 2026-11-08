@@ -19,7 +19,11 @@ import {
   TrendingUp,
   Receipt,
   Printer,
+  Lock,
+  Unlock,
+  AlertTriangle,
 } from "lucide-react";
+import { triggerHaptic } from "@/lib/haptics";
 
 export interface CompletedTicketLog {
   id: string;
@@ -76,6 +80,48 @@ export function StationEarningsSummary({
 }: StationEarningsSummaryProps) {
   const [customTipInput, setCustomTipInput] = useState("");
   const [tipSuccessToast, setTipSuccessToast] = useState<string | null>(null);
+  const [isClosingShift, setIsClosingShift] = useState(false);
+  const [shiftClosureData, setShiftClosureData] = useState<{
+    closedAt: string;
+    totalServed: number;
+    totalRevenue: number;
+    totalTips: number;
+  } | null>(null);
+
+  const todayKey = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const closureKey = `station_shift_closed_${slug}_${activeStylist?.id || "default"}_${todayKey}`;
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(closureKey);
+      if (saved) {
+        setShiftClosureData(JSON.parse(saved));
+      }
+    } catch {}
+  }, [closureKey]);
+
+  const handleConfirmShiftClosure = () => {
+    triggerHaptic("complete");
+    const closurePayload = {
+      closedAt: new Date().toISOString(),
+      totalServed,
+      totalRevenue,
+      totalTips,
+    };
+    try {
+      localStorage.setItem(closureKey, JSON.stringify(closurePayload));
+    } catch {}
+    setShiftClosureData(closurePayload);
+    setIsClosingShift(false);
+  };
+
+  const handleReopenShift = () => {
+    triggerHaptic("tap");
+    try {
+      localStorage.removeItem(closureKey);
+    } catch {}
+    setShiftClosureData(null);
+  };
 
   // Close on Escape key
   useEffect(() => {
@@ -203,6 +249,72 @@ export function StationEarningsSummary({
 
         {/* Scrollable Content Body */}
         <div className="flex-1 overflow-y-auto space-y-5 py-4 pr-1">
+          {/* Shift Closed Success Banner */}
+          {shiftClosureData && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-emerald-900/50 to-slate-900 border border-emerald-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg shadow-emerald-950/40">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-md">
+                  <CheckCircle2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-emerald-300">
+                    🎉 आज की शिफ्ट सफलतापूर्वक संपन्न हुई! (Shift Closed)
+                  </p>
+                  <p className="text-xs text-slate-300">
+                    Closed at{" "}
+                    {new Date(shiftClosureData.closedAt).toLocaleTimeString("en-IN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}{" "}
+                    • Ledger Reconciled & Locked
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReopenShift}
+                className="border-slate-700 bg-slate-900/90 text-slate-300 hover:text-white text-xs h-9 rounded-xl gap-1.5 shrink-0"
+              >
+                <Unlock className="h-3.5 w-3.5 text-amber-400" />
+                <span>Re-open Shift</span>
+              </Button>
+            </div>
+          )}
+
+          {/* Shift Close Confirmation Box */}
+          {isClosingShift && (
+            <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/50 space-y-3">
+              <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
+                <AlertTriangle className="h-4 w-4" />
+                <span>Confirm Shift Closure (शिफ्ट क्लोजर कन्फर्म करें)</span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Are you ready to close today&apos;s shift for {activeStylist?.name || "your chair"}? Final metrics:{" "}
+                <strong className="text-white">{totalServed} clients served</strong>,{" "}
+                <strong className="text-emerald-400">₹{totalRevenue} revenue</strong>,{" "}
+                <strong className="text-amber-300">₹{totalTips} tips</strong>.
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setIsClosingShift(false)}
+                  className="text-xs text-slate-400 hover:text-white h-9"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleConfirmShiftClosure}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-9 px-4 rounded-xl shadow-md"
+                >
+                  Yes, Lock & Close Shift
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* 4 Highlight KPI Stat Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {/* 1. Clients Served */}
@@ -407,17 +519,35 @@ export function StationEarningsSummary({
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between gap-3 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePrintSummary}
-            className="border-slate-700 bg-slate-900 text-slate-300 hover:text-white text-xs gap-1.5 h-11 rounded-xl px-4"
-          >
-            <Printer className="h-3.5 w-3.5 text-slate-400" />
-            <span className="hidden sm:inline">Print / Reconcile Shift</span>
-            <span className="sm:hidden">Print</span>
-          </Button>
+        <div className="pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrintSummary}
+              className="border-slate-700 bg-slate-900 text-slate-300 hover:text-white text-xs gap-1.5 h-11 rounded-xl px-4"
+            >
+              <Printer className="h-3.5 w-3.5 text-slate-400" />
+              <span className="hidden sm:inline">Print / Reconcile Shift</span>
+              <span className="sm:hidden">Print</span>
+            </Button>
+
+            {!shiftClosureData && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  triggerHaptic("tap");
+                  setIsClosingShift((prev) => !prev);
+                }}
+                className="border-amber-500/50 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40 text-xs gap-1.5 h-11 rounded-xl px-3 font-semibold"
+              >
+                <Lock className="h-3.5 w-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Close Shift (शिफ्ट क्लोज़ करें)</span>
+                <span className="sm:hidden">Close Shift</span>
+              </Button>
+            )}
+          </div>
 
           <Button
             variant="default"

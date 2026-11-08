@@ -3,7 +3,7 @@ import type { Ticket, Stylist } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, User, Shuffle, Lock, Coffee, RotateCcw } from "lucide-react";
+import { Users, User, Shuffle, Lock, Coffee, RotateCcw, ArrowRightLeft } from "lucide-react";
 
 interface StationWaitingQueueProps {
   allTickets: Ticket[];
@@ -13,6 +13,7 @@ interface StationWaitingQueueProps {
   onSummonSpecific: (ticket: Ticket) => void;
   onPauseTicket?: (ticket: Ticket) => void;
   onResumeTicket?: (ticket: Ticket) => void;
+  onTransferTicket?: (ticket: Ticket) => void;
 }
 
 export function StationWaitingQueue({
@@ -23,6 +24,7 @@ export function StationWaitingQueue({
   onSummonSpecific,
   onPauseTicket,
   onResumeTicket,
+  onTransferTicket,
 }: StationWaitingQueueProps) {
   const [activeTab, setActiveTab] = useState<"YOURS" | "OTHER" | "PAUSED">("YOURS");
 
@@ -230,6 +232,18 @@ export function StationWaitingQueue({
                     {/* Active Tab Actions: Call to Chair & Pause */}
                     {activeTab === "YOURS" && (t.status === "WAITING" || t.status === "SOFT_BUMPED") && (
                       <div className="flex items-center gap-1">
+                        {onTransferTicket && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onTransferTicket(t)}
+                            disabled={processingAction}
+                            title="Transfer client to another barber chair"
+                            className="h-7 px-2 text-[11px] text-slate-400 hover:text-purple-300 hover:bg-purple-950/40"
+                          >
+                            <ArrowRightLeft className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         {onPauseTicket && (
                           <Button
                             size="sm"

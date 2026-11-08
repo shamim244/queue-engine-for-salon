@@ -10,7 +10,7 @@ interface StationPinLockProps {
   onPinDigit: (digit: string) => void;
   onClearPin: () => void;
   onBackspace: () => void;
-  onOpenSwitchChair: () => void;
+  onOpenSwitchChair?: () => void;
   onLogout?: () => void;
 }
 
@@ -205,7 +205,7 @@ export function StationPinLock({
               </button>
             </div>
           )}
-          {salon?.stylists && salon.stylists.length > 1 && (
+          {onOpenSwitchChair && salon?.stylists && salon.stylists.length > 1 && (
             <div>
               <button
                 type="button"

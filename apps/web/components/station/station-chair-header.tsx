@@ -19,6 +19,7 @@ import {
   Menu,
   X,
   User,
+  UserCircle,
   ExternalLink,
   Check,
   IndianRupee,
@@ -44,7 +45,7 @@ interface StationChairHeaderProps {
   onToggleMirrorMode?: () => void;
   onToggleFullscreen?: () => void;
   onToggleLayoutMode?: () => void;
-  onOpenSwitchChair: () => void;
+  onOpenSwitchChair?: () => void;
   onOpenQuickAdd: () => void;
   onLockChair: () => void;
   onLogout?: () => void;
@@ -91,58 +92,55 @@ export function StationChairHeader({
           isMirrorMode ? "bg-black" : "bg-slate-900/90"
         } backdrop-blur sticky top-0 z-40 px-3 sm:px-8 py-2.5 sm:py-3 flex items-center justify-between transition-colors`}
       >
-        {/* Left: Chair Identity & Stylist */}
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-amber-500 flex items-center justify-center font-black text-slate-950 shadow-md shrink-0">
-            <Armchair className="h-5 w-5" />
+        {/* Left: Streamlined Chair Identity (Clean, compact, no oversized badges or text) */}
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="h-8 w-8 rounded-lg bg-amber-500 flex items-center justify-center font-black text-slate-950 shadow-md shrink-0">
+            <Armchair className="h-4 w-4" />
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="font-bold text-white text-sm sm:text-base truncate">
-                {activeStylist?.name || "Barber Station"}
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-bold text-white text-sm sm:text-base truncate">
+              {activeStylist?.name || "Barber Station"}
+            </span>
+            {isOnBreak ? (
+              <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1 bg-amber-500/15 px-2 py-0.5 rounded-md border border-amber-500/30">
+                <Coffee className="h-3 w-3 text-amber-400 animate-pulse" />
+                <span>Break ({formatBreakTime(breakRemainingSeconds || 0)})</span>
               </span>
-              <Badge
-                variant="outline"
-                className="text-[10px] border-slate-700 bg-slate-800 text-slate-300 shrink-0"
-              >
-                Pace: {activeStylist?.avgDurationMinutes || 25}m
-              </Badge>
-            </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              {isOnBreak ? (
-                <span className="text-[11px] sm:text-xs text-amber-400 font-semibold flex items-center gap-1.5 bg-amber-500/15 px-2 py-0.5 rounded-md border border-amber-500/30">
-                  <Coffee className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-amber-400 animate-pulse" />
-                  <span>Break ({formatBreakTime(breakRemainingSeconds || 0)})</span>
-                </span>
-              ) : (
-                <span className="text-[11px] sm:text-xs text-emerald-400 font-semibold flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Active Station</span>
-                </span>
-              )}
-              {hasMultipleStylists && !isOnBreak && (
-                <button
-                  type="button"
-                  onClick={onOpenSwitchChair}
-                  className="hidden sm:inline text-[11px] text-amber-400 hover:text-amber-300 underline font-medium ml-1"
-                >
-                  Change Chair
-                </button>
-              )}
-            </div>
+            ) : (
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" title="Online" />
+            )}
           </div>
         </div>
 
         {/* Right Desktop Toolbar (Visible on tablet & desktop >= md) */}
         <div className="hidden md:flex items-center gap-2">
-          <ConnectionPill status={socketStatus} reconnectAttempts={reconnectAttempts} />
+          {/* Minimalist Live Sync Indicator */}
+          <div
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+              socketStatus === "connected"
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                : "bg-slate-800 text-slate-400 border-slate-700"
+            }`}
+          >
+            <span className="relative flex h-2 w-2">
+              {socketStatus === "connected" && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              )}
+              <span
+                className={`relative inline-flex rounded-full h-2 w-2 ${
+                  socketStatus === "connected" ? "bg-emerald-400" : "bg-slate-500"
+                }`}
+              />
+            </span>
+            <span>Live</span>
+          </div>
 
           {onToggleBreak && (
             <Button
               variant={isOnBreak ? "default" : "outline"}
               size="sm"
               onClick={onToggleBreak}
-              className={`text-xs font-bold gap-1.5 h-9 rounded-xl transition-all ${
+              className={`text-xs font-bold gap-1.5 h-8 rounded-xl transition-all ${
                 isOnBreak
                   ? "bg-amber-500 hover:bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-500/25"
                   : "border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300"
@@ -153,66 +151,8 @@ export function StationChairHeader({
                   : "Take a 10-minute chai or tool-cleaning break"
               }
             >
-              <Coffee className="h-3.5 w-3.5 text-amber-400" />
-              <span>{isOnBreak ? "Resume Work" : "☕ 10m Break"}</span>
-            </Button>
-          )}
-
-          {/* OLED Mirror Mode */}
-          {onToggleMirrorMode && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onToggleMirrorMode}
-              className={`text-xs font-bold gap-1.5 h-9 rounded-xl transition-all ${
-                isMirrorMode
-                  ? "bg-purple-950/80 border-purple-400 text-purple-200 ring-1 ring-purple-400"
-                  : "border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300"
-              }`}
-              title="Toggle OLED Deep Black Mirror Mode"
-            >
-              <Moon className="h-3.5 w-3.5 text-purple-400" />
-              <span className="hidden lg:inline">{isMirrorMode ? "🪞 Mirror OLED" : "Mirror Mode"}</span>
-            </Button>
-          )}
-
-          {/* Layout Mode Toggle */}
-          {onToggleLayoutMode && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onToggleLayoutMode}
-              className="border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-bold gap-1.5 h-9 rounded-xl transition-all"
-              title={
-                layoutMode === "split"
-                  ? "Switch to Tabbed minimal scroll layout"
-                  : "Switch to Side-by-Side split layout"
-              }
-            >
-              {layoutMode === "tabbed" ? (
-                <>
-                  <Layers className="h-3.5 w-3.5 text-amber-400" />
-                  <span className="hidden lg:inline">📑 Tabbed</span>
-                </>
-              ) : (
-                <>
-                  <Columns className="h-3.5 w-3.5 text-amber-400" />
-                  <span className="hidden lg:inline">🖥️ Split</span>
-                </>
-              )}
-            </Button>
-          )}
-
-          {/* Fullscreen */}
-          {onToggleFullscreen && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onToggleFullscreen}
-              className="h-9 w-9 text-slate-400 hover:text-white"
-              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Kiosk Mode"}
-            >
-              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              <Coffee className="h-3 w-3 text-amber-400" />
+              <span>{isOnBreak ? "Resume Work" : "☕ Break"}</span>
             </Button>
           )}
 
@@ -221,9 +161,9 @@ export function StationChairHeader({
             variant="outline"
             size="sm"
             onClick={onOpenQuickAdd}
-            className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10 text-xs font-bold gap-1.5 h-9 rounded-xl"
+            className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10 text-xs font-bold gap-1.5 h-8 rounded-xl"
           >
-            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+            <Sparkles className="h-3 w-3 text-amber-400" />
             <span>+ Walk-in</span>
           </Button>
 
@@ -233,12 +173,12 @@ export function StationChairHeader({
               variant="outline"
               size="sm"
               onClick={onOpenEarnings}
-              className="border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-xs font-bold gap-1.5 h-9 rounded-xl transition-all shadow-sm"
+              className="border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-xs font-bold gap-1.5 h-8 rounded-xl transition-all shadow-sm"
               title="Open Daily Earnings & Shift Summary"
             >
-              <IndianRupee className="h-3.5 w-3.5 text-emerald-400" />
+              <IndianRupee className="h-3 w-3 text-emerald-400" />
               <span>
-                {dailyEarningsTotal !== undefined ? `₹${dailyEarningsTotal} Today` : "Earnings"}
+                {dailyEarningsTotal !== undefined ? `₹${dailyEarningsTotal}` : "Earnings"}
               </span>
             </Button>
           )}
@@ -248,10 +188,23 @@ export function StationChairHeader({
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 text-slate-400 hover:text-white"
+              className="h-8 w-8 text-slate-400 hover:text-white"
               title="Launch TV Board"
             >
-              <Tv className="h-4 w-4" />
+              <Tv className="h-3.5 w-3.5" />
+            </Button>
+          </Link>
+
+          {/* Staff Portal */}
+          <Link href="/staff">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs gap-1.5 h-8 rounded-xl"
+              title="Go to Staff Portal"
+            >
+              <UserCircle className="h-3 w-3 text-emerald-400" />
+              <span className="hidden xl:inline">Portal</span>
             </Button>
           </Link>
 
@@ -260,12 +213,25 @@ export function StationChairHeader({
             variant="outline"
             size="sm"
             onClick={onLockChair}
-            className="border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs gap-1.5 h-9 rounded-xl"
+            className="border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs gap-1.5 h-8 rounded-xl"
             title="Lock mirror tablet screen"
           >
-            <KeyRound className="h-3.5 w-3.5 text-amber-400" />
-            <span className="hidden lg:inline">Lock Chair</span>
+            <KeyRound className="h-3 w-3 text-amber-400" />
+            <span className="hidden xl:inline">Lock</span>
           </Button>
+
+          {/* Fullscreen */}
+          {onToggleFullscreen && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleFullscreen}
+              className="h-8 w-8 text-slate-400 hover:text-white"
+              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Mode"}
+            >
+              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            </Button>
+          )}
 
           {/* Sign Out */}
           {onLogout && (
@@ -273,30 +239,35 @@ export function StationChairHeader({
               variant="ghost"
               size="sm"
               onClick={onLogout}
-              className="text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 text-xs gap-1.5 h-9 rounded-xl px-2.5"
+              className="text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 text-xs gap-1 h-8 rounded-xl px-2"
               title="Sign out of staff station"
             >
-              <LogOut className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">Sign Out</span>
+              <LogOut className="h-3 w-3" />
             </Button>
           )}
-
-          {/* Station Menu / Profile Drawer Trigger (Available on Desktop & Mobile) */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs font-bold gap-1.5 h-9 rounded-xl transition-all shadow-sm"
-            title="Open Station Menu & Profile Drawer"
-          >
-            <Menu className="h-4 w-4 text-amber-400" />
-            <span>Menu</span>
-          </Button>
         </div>
 
         {/* Right Mobile Clean Header (Eliminates horizontal overflow on Android) */}
-        <div className="flex md:hidden items-center gap-1.5 sm:gap-2 shrink-0">
-          <ConnectionPill status={socketStatus} reconnectAttempts={reconnectAttempts} />
+        <div className="flex md:hidden items-center gap-1.5 shrink-0">
+          <div
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+              socketStatus === "connected"
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                : "bg-slate-800 text-slate-400 border-slate-700"
+            }`}
+          >
+            <span className="relative flex h-1.5 w-1.5">
+              {socketStatus === "connected" && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              )}
+              <span
+                className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
+                  socketStatus === "connected" ? "bg-emerald-400" : "bg-slate-500"
+                }`}
+              />
+            </span>
+            <span>Live</span>
+          </div>
 
           {onToggleBreak && (
             <button
@@ -373,19 +344,6 @@ export function StationChairHeader({
                     ~{activeStylist?.avgDurationMinutes || 25} mins / service
                   </span>
                 </div>
-
-                {hasMultipleStylists && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      onOpenSwitchChair();
-                    }}
-                    className="w-full text-xs text-amber-400 hover:text-amber-300 font-semibold py-1 bg-amber-500/10 rounded-lg border border-amber-500/20 text-center transition-colors"
-                  >
-                    🔄 Switch Active Chair
-                  </button>
-                )}
               </div>
 
               {/* Barber Daily Shift & Earnings Summary Card */}

@@ -336,6 +336,37 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
     })
   })
 
+  // 8.35 1-Tap Chair Handover / Transfer to Another Barber Chair
+  .post('/transfer-chair', async ({ body, headers, cookie: { engine_session }, set }) => {
+    try {
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && auth.role === 'CUSTOMER') {
+          set.status = 403;
+          return { success: false, message: 'Forbidden: Customers cannot transfer salon chairs' };
+        }
+      }
+      const { ticketId, targetStylistId, reason } = body as {
+        ticketId: string;
+        targetStylistId: string;
+        reason?: string;
+      };
+      const ticket = await queueEngine.transferChair({ ticketId, targetStylistId, reason });
+      return { success: true, ticket };
+    } catch (err: any) {
+      console.error('[queueRoutes:transfer-chair] Error:', err);
+      set.status = 400;
+      return { success: false, message: err.message || 'Failed to transfer chair' };
+    }
+  }, {
+    body: t.Object({
+      ticketId: t.String(),
+      targetStylistId: t.String(),
+      reason: t.Optional(t.String()),
+    })
+  })
+
   // 8.4 Pause Spot (Customer steps out for chai/errands or Barber marks away)
   .post('/pause', async ({ body, headers, cookie: { engine_session }, set }) => {
     try {

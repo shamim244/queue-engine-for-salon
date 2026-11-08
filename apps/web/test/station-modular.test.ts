@@ -12,6 +12,8 @@ import { StationInServiceCard } from "@/components/station/station-in-service-ca
 import { StationAddServicesModal } from "@/components/station/station-add-services-modal";
 import { StationCheckoutModal } from "@/components/station/station-checkout-modal";
 import { StationEarningsSummary, type StaffDailyReportData } from "@/components/station/station-earnings-summary";
+import { StationTransferChairModal } from "@/components/station/station-transfer-chair-modal";
+import { triggerHaptic, isHapticSupported } from "@/lib/haptics";
 
 describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
   const mockStylist1: Stylist = {
@@ -179,7 +181,7 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
   });
 
   describe("Station Header & Locked View", () => {
-    it("should render StationChairHeader with active stylist name and pace badge", () => {
+    it("should render streamlined StationChairHeader with active stylist identity and clean status", () => {
       const html = renderToString(
         React.createElement(StationChairHeader, {
           slug: "test-salon",
@@ -187,17 +189,14 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
           hasMultipleStylists: true,
           socketStatus: "connected",
           reconnectAttempts: 0,
-          onOpenSwitchChair: () => {},
           onOpenQuickAdd: () => {},
           onLockChair: () => {},
         })
       );
 
       expect(html).toContain("Vikram Stylist");
-      expect(html).toContain("Pace:");
-      expect(html).toContain("25");
-      expect(html).toContain("Active Station");
-      expect(html).toContain("Change Chair");
+      expect(html).toContain("Live");
+      expect(html).not.toContain("Change Chair");
     });
 
     it("should render StationPinLock with 4-digit numeric pad and active chair title", () => {
@@ -446,7 +445,7 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
       expect(html).toContain("Exact cash received");
     });
 
-    it("should render StationChairHeader with Phase 4 Mirror OLED mode and Fullscreen kiosk toggles", () => {
+    it("should render StationChairHeader with Fullscreen and Break toggles", () => {
       const html = renderToString(
         React.createElement(StationChairHeader, {
           slug: "ramesh-barber",
@@ -454,44 +453,36 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
           hasMultipleStylists: true,
           socketStatus: "connected",
           reconnectAttempts: 0,
-          isMirrorMode: true,
           isFullscreen: false,
           onToggleBreak: () => {},
-          onToggleMirrorMode: () => {},
           onToggleFullscreen: () => {},
-          onOpenSwitchChair: () => {},
           onOpenQuickAdd: () => {},
           onLockChair: () => {},
         })
       );
 
-      expect(html).toContain("Mirror OLED");
-      expect(html).toContain("Fullscreen Kiosk Mode");
-      expect(html).toContain("☕ 10m Break");
+      expect(html).toContain("Fullscreen Mode");
+      expect(html).toContain("Break");
     });
 
-    it("should render StationChairHeader with daily earnings badge, drawer summary card, and offline cache pill", () => {
+    it("should render StationChairHeader with daily earnings badge and streamlined status", () => {
       const html = renderToString(
         React.createElement(StationChairHeader, {
           slug: "royal",
           activeStylist: mockStylist1,
           hasMultipleStylists: true,
-          socketStatus: "offline",
+          socketStatus: "connected",
           reconnectAttempts: 0,
           dailyEarningsTotal: 710,
           dailyClientsCount: 7,
           onOpenEarnings: () => {},
-          onOpenSwitchChair: () => {},
           onOpenQuickAdd: () => {},
           onLockChair: () => {},
         })
       );
 
       // Verify desktop header toolbar earnings button
-      expect(html).toContain("₹710 Today");
-
-      // Verify connection pill reflects offline cache
-      expect(html).toContain("Offline Cache");
+      expect(html).toContain("₹710");
 
       // Verify active stylist title
       expect(html).toContain("Vikram Stylist");
@@ -602,6 +593,31 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
       expect(parsed.tickets.length).toBe(3);
       expect(parsed.activeStylist.name).toBe("Vikram Stylist");
       expect(parsed.currentlyServing.customerName).toBe("Aman Sharma");
+    });
+
+    it("should render StationTransferChairModal with target stylist selection and reason pills", () => {
+      const html = renderToString(
+        React.createElement(StationTransferChairModal, {
+          isOpen: true,
+          ticket: mockTickets[0],
+          stylists: [mockStylist1, mockStylist2],
+          currentStylistId: mockStylist1.id,
+          onClose: () => {},
+          onConfirmTransfer: async () => {},
+        })
+      );
+
+      expect(html).toContain("1-Tap Chair Handover");
+      expect(html).toContain("Rahul Stylist");
+      expect(html).toContain("Specialized Service");
+      expect(html).toContain("Confirm Chair Transfer");
+    });
+
+    it("should safely handle haptic vibrations on server and client environments", () => {
+      expect(typeof isHapticSupported).toBe("function");
+      // On bun server environment without navigator, should safely return false without throwing
+      const res = triggerHaptic("tap");
+      expect(res).toBe(false);
     });
   });
 });
