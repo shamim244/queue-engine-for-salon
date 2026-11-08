@@ -19,10 +19,10 @@ import {
   Menu,
   X,
   User,
-  Shield,
   ExternalLink,
   Check,
   IndianRupee,
+  Sliders,
 } from "lucide-react";
 
 interface StationChairHeaderProps {
@@ -530,17 +530,26 @@ export function StationChairHeader({
                 </Link>
               </div>
 
-              {/* Sandy's Switch to Admin / Staff Portal Option */}
+              {/* Sandy's 1-Tap Switch to Staff Portal (/staff) */}
               <div className="pt-2 border-t border-slate-800">
                 <Link
-                  href={`/s/${slug}/admin`}
-                  className="w-full p-3 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-600/10 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center justify-between hover:bg-amber-500/20 transition-all block"
+                  href="/staff"
+                  className="w-full p-3 rounded-xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-slate-900 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center justify-between hover:bg-amber-500/20 hover:border-amber-500/50 transition-all block group shadow-sm active:scale-[0.98]"
                 >
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-amber-400" />
-                    <span>Go to Salon Admin Panel</span>
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center font-bold">
+                      <Sliders className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="block font-bold text-white group-hover:text-amber-300 transition-colors">
+                        Go to Staff Portal
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        Profile, pace calibration &amp; preferences
+                      </span>
+                    </div>
                   </div>
-                  <ExternalLink className="h-3.5 w-3.5 text-amber-400" />
+                  <ExternalLink className="h-4 w-4 text-amber-400 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
               </div>
             </div>
