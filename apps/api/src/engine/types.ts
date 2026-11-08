@@ -261,3 +261,17 @@ export interface OnboardSalonPayload {
     icon?: string;
   }>;
 }
+
+export interface StaffLeave {
+  id: string;
+  salonId: string;
+  stylistId: string;
+  leaveDate: string;
+  endDate?: string | null;
+  reason?: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  appliedBy: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+

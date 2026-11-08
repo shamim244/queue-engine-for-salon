@@ -51,6 +51,26 @@ export interface Stylist {
   historicalAvgDurationMinutes?: number;
 }
 
+export interface StaffLeave {
+  id: string;
+  salonId: string;
+  stylistId: string;
+  leaveDate: string;
+  endDate?: string | null;
+  reason?: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+  appliedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffAbsencePayload {
+  stylistId: string;
+  action: "UNIVERSAL_FAST_LINE" | "REASSIGN_STYLIST";
+  targetStylistId?: string;
+  reason?: string;
+}
+
 export interface Service {
   id: string;
   salonId: string;
@@ -652,6 +672,54 @@ export const api = {
         averageServiceDurationMinutes: number;
         stylistBreakdown: Record<string, number>;
       }>(`/api/salons/${salonId}/metrics`),
+
+    getStaffLeaves: (salonId: string, options?: { stylistId?: string; date?: string }) => {
+      const q = new URLSearchParams();
+      if (options?.stylistId) q.set("stylistId", options.stylistId);
+      if (options?.date) q.set("date", options.date);
+      const queryStr = q.toString() ? `?${q.toString()}` : "";
+      return request<{ success: boolean; leaves: StaffLeave[] }>(`/api/salons/${salonId}/staff-leaves${queryStr}`);
+    },
+
+    createStaffLeave: (
+      salonId: string,
+      data: {
+        stylistId: string;
+        leaveDate: string;
+        endDate?: string;
+        reason?: string;
+        status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+        appliedBy?: string;
+      }
+    ) =>
+      request<{ success: boolean; leave: StaffLeave }>(`/api/salons/${salonId}/staff-leaves`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    updateStaffLeaveStatus: (
+      salonId: string,
+      leaveId: string,
+      status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED"
+    ) =>
+      request<{ success: boolean; leave: StaffLeave }>(`/api/salons/${salonId}/staff-leaves/${leaveId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+
+    getStylistStrandedTickets: (salonId: string, stylistId: string) =>
+      request<{ success: boolean; count: number; tickets: Ticket[] }>(
+        `/api/salons/${salonId}/stylists/${stylistId}/stranded-tickets`
+      ),
+
+    handleStaffAbsence: (salonId: string, data: StaffAbsencePayload) =>
+      request<{ success: boolean; affectedCount: number; message: string; tickets: Ticket[] }>(
+        `/api/salons/${salonId}/staff-leaves/handle-absence`,
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        }
+      ),
   },
 
   queue: {

@@ -3,6 +3,7 @@ import type { QueueTicket } from './types';
 export interface CandidateSelectionOptions {
   excludeTicketId?: string;
   preferWaiting?: boolean;
+  inactiveStylistIds?: string[];
 }
 
 /**
@@ -50,11 +51,14 @@ export function selectNextTicketCandidate(
   // Case 1: Stylist-specific station call
   if (callingStylistId) {
     // Fair Chronological Queue:
-    // Pool all tickets eligible for this chair (tickets explicitly selecting this stylist + universal walk-ins).
-    // Tickets explicitly requesting a DIFFERENT stylist are strictly excluded.
+    // Pool all tickets eligible for this chair (tickets explicitly selecting this stylist + universal walk-ins + inactive/absent stylists).
+    // Tickets explicitly requesting a DIFFERENT active stylist are strictly excluded.
     // Late arrivals requesting this stylist NEVER jump ahead of earlier universal walk-ins!
     const eligibleTickets = candidates.filter(
-      (t) => !t.stylistId || t.stylistId === callingStylistId
+      (t) =>
+        !t.stylistId ||
+        t.stylistId === callingStylistId ||
+        (options.inactiveStylistIds && t.stylistId && options.inactiveStylistIds.includes(t.stylistId))
     );
 
     return pickFromPool(eligibleTickets);

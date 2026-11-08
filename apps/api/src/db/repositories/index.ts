@@ -56,6 +56,18 @@ export const repository = {
     stylistRepo.getStylistServiceDurations(stylistId),
   saveStylistServiceDurations: (salonId: string, stylistId: string, overrides: Record<string, number | null>) =>
     stylistRepo.saveStylistServiceDurations(salonId, stylistId, overrides),
+  getStaffLeaves: (salonId: string, options?: Parameters<typeof stylistRepo.getStaffLeaves>[1]) =>
+    stylistRepo.getStaffLeaves(salonId, options),
+  createStaffLeave: (params: Parameters<typeof stylistRepo.createStaffLeave>[0]) =>
+    stylistRepo.createStaffLeave(params),
+  updateStaffLeaveStatus: (leaveId: string, status: Parameters<typeof stylistRepo.updateStaffLeaveStatus>[1]) =>
+    stylistRepo.updateStaffLeaveStatus(leaveId, status),
+  isStylistOnLeave: (stylistId: string, dateStr?: string) =>
+    stylistRepo.isStylistOnLeave(stylistId, dateStr),
+  getStylistStrandedTickets: (salonId: string, stylistId: string) =>
+    stylistRepo.getStylistStrandedTickets(salonId, stylistId),
+  handleStaffAbsenceRecovery: (params: Parameters<typeof stylistRepo.handleStaffAbsenceRecovery>[0]) =>
+    stylistRepo.handleStaffAbsenceRecovery(params),
 
   // Services
   addService: (service: Parameters<typeof serviceRepo.addService>[0]) => serviceRepo.addService(service),

@@ -68,6 +68,7 @@ export function QueuePreferenceModal({
 
           {/* Option B: Specific Stylists */}
           {salon?.stylists?.map((st) => {
+            const isOnLeave = st.isActive === false;
             const metric = queueLoadMetrics.byStylist[st.id] || {
               waitingCount: 0,
               estWaitMin: 20,
@@ -76,6 +77,29 @@ export function QueuePreferenceModal({
               universalShare: 0,
             };
             const isSelected = newPreferenceStylistId === st.id;
+
+            if (isOnLeave) {
+              return (
+                <div
+                  key={st.id}
+                  className="w-full p-3 rounded-xl border border-slate-800/80 bg-slate-950/40 opacity-60 text-left flex flex-col justify-between cursor-not-allowed select-none"
+                  title={`${st.name} is currently on leave today.`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2 truncate">
+                      <Scissors className="h-4 w-4 text-slate-500 shrink-0" />
+                      <span className="text-xs font-semibold text-slate-400 truncate">{st.name}</span>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/30">
+                      🏖️ On Leave Today
+                    </Badge>
+                  </div>
+                  <div className="text-[11px] text-slate-500 italic mt-1.5">
+                    Unavailable for booking
+                  </div>
+                </div>
+              );
+            }
 
             return (
               <button

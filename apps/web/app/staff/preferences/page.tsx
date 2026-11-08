@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
+import type { StaffLeave } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,7 @@ import {
   Plus,
   IndianRupee,
   Zap,
+  Calendar,
 } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 
@@ -90,6 +92,15 @@ function StaffSettingsContent() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  // Staff Leave & Absence State
+  const [myLeaves, setMyLeaves] = useState<StaffLeave[]>([]);
+  const [loadingLeaves, setLoadingLeaves] = useState(false);
+  const [leaveDate, setLeaveDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [leaveEndDate, setLeaveEndDate] = useState("");
+  const [leaveReason, setLeaveReason] = useState("");
+  const [submittingLeave, setSubmittingLeave] = useState(false);
+  const [leaveSuccessMsg, setLeaveSuccessMsg] = useState("");
 
   const staffId = staff?.id || user?.staffId || "stylist-01";
   const userId = user?.id || "user-staff-01";
@@ -146,6 +157,68 @@ function StaffSettingsContent() {
         setLoadingDurations(false);
       });
   }, [staffId]);
+
+  // Load staff leaves
+  const fetchMyLeaves = async () => {
+    const sId = salon?.id || "salon-rural-01";
+    if (!staffId || !sId) return;
+    try {
+      setLoadingLeaves(true);
+      const res = await api.salons.getStaffLeaves(sId, { stylistId: staffId });
+      setMyLeaves(res.leaves || []);
+    } catch {
+      setMyLeaves([]);
+    } finally {
+      setLoadingLeaves(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMyLeaves();
+  }, [staffId, salon?.id]);
+
+  const handleSubmitLeave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const sId = salon?.id || "salon-rural-01";
+    if (!staffId || !sId) return;
+    triggerHaptic("alert");
+    setSubmittingLeave(true);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const isEmergencyToday = leaveDate <= today && (!leaveEndDate || leaveEndDate >= today);
+
+      if (isEmergencyToday) {
+        await api.salons.handleStaffAbsence(sId, {
+          stylistId: staffId,
+          action: "UNIVERSAL_FAST_LINE",
+          reason: leaveReason.trim() || "Emergency absence marked from Staff Panel",
+        });
+      } else {
+        await api.salons.createStaffLeave(sId, {
+          stylistId: staffId,
+          leaveDate,
+          endDate: leaveEndDate || undefined,
+          reason: leaveReason.trim() || "Planned leave requested by staff member",
+          status: "APPROVED",
+          appliedBy: "STAFF",
+        });
+      }
+
+      setLeaveSuccessMsg(
+        isEmergencyToday
+          ? "Emergency absence activated! Any queued clients were shifted to Universal Fast Line."
+          : `Planned leave recorded for ${leaveDate}!`
+      );
+      setLeaveReason("");
+      setLeaveEndDate("");
+      fetchMyLeaves();
+      setTimeout(() => setLeaveSuccessMsg(""), 5000);
+    } catch (err: any) {
+      showToast(err.message || "Failed to submit leave", "error");
+    } finally {
+      setSubmittingLeave(false);
+    }
+  };
 
   const handleDurationChange = (serviceId: string, duration: number) => {
     triggerHaptic("tap");
@@ -784,6 +857,122 @@ function StaffSettingsContent() {
                 )}
               </Button>
             </CardFooter>
+          </Card>
+
+          {/* Leave & Absence Management Card */}
+          <Card className="border-slate-800 bg-slate-900/70 shadow-xl">
+            <CardHeader className="pb-3 border-b border-slate-800">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base text-white flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-amber-400" />
+                  <span>Leave & Absence Management</span>
+                </CardTitle>
+                {myLeaves.some((l) => {
+                  const today = new Date().toISOString().slice(0, 10);
+                  const end = l.endDate || l.leaveDate;
+                  return l.status === "APPROVED" && today >= l.leaveDate && today <= end;
+                }) && (
+                  <Badge variant="outline" className="bg-amber-500/10 text-amber-300 border-amber-500/40 text-[10px]">
+                    🏖️ On Leave Today
+                  </Badge>
+                )}
+              </div>
+              <CardDescription className="text-xs text-slate-400">
+                Plan upcoming leaves or report an emergency absence so your chair queue is automatically protected.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 space-y-4">
+              {/* Existing Leaves List */}
+              {myLeaves.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-xs font-semibold text-slate-300 block">Your Scheduled Leaves:</span>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {myLeaves.map((l) => (
+                      <div
+                        key={l.id}
+                        className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800 flex items-center justify-between text-xs"
+                      >
+                        <div>
+                          <span className="font-mono text-white font-semibold">{l.leaveDate}</span>
+                          {l.endDate && l.endDate !== l.leaveDate && (
+                            <span className="font-mono text-slate-400"> → {l.endDate}</span>
+                          )}
+                          <p className="text-[11px] text-slate-400">{l.reason || "Staff absence"}</p>
+                        </div>
+                        <Badge
+                          variant={l.status === "APPROVED" ? "success" : "outline"}
+                          className="text-[10px]"
+                        >
+                          {l.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Leave Application Form */}
+              <form onSubmit={handleSubmitLeave} className="space-y-3 pt-2 border-t border-slate-800">
+                <span className="text-xs font-bold text-white block">
+                  Request Planned Leave or Mark Emergency Absence:
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Start Date:</label>
+                    <Input
+                      type="date"
+                      value={leaveDate}
+                      onChange={(e) => setLeaveDate(e.target.value)}
+                      className="bg-slate-950 border-slate-800 text-white text-xs min-h-[44px]"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">End Date (Optional):</label>
+                    <Input
+                      type="date"
+                      value={leaveEndDate}
+                      onChange={(e) => setLeaveEndDate(e.target.value)}
+                      className="bg-slate-950 border-slate-800 text-white text-xs min-h-[44px]"
+                      placeholder="Single day if empty"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">Reason / Note:</label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Fever, family emergency, out of station"
+                    value={leaveReason}
+                    onChange={(e) => setLeaveReason(e.target.value)}
+                    className="bg-slate-950 border-slate-800 text-white text-xs min-h-[44px]"
+                  />
+                </div>
+
+                {leaveSuccessMsg && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <span>{leaveSuccessMsg}</span>
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={submittingLeave || loadingLeaves}
+                  className="w-full min-h-[44px] bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs gap-2 shadow-lg shadow-amber-500/20"
+                >
+                  {submittingLeave ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Calendar className="h-4 w-4" />
+                  )}
+                  <span>Submit Leave / Activate Absence</span>
+                </Button>
+              </form>
+            </CardContent>
           </Card>
         </div>
       )}

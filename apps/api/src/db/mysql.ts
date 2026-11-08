@@ -189,6 +189,20 @@ async function runMigrations() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uq_stylist_service (stylist_id, service_id),
         INDEX idx_salon_stylist (salon_id, stylist_id)
+    ) ENGINE=InnoDB;`,
+    `CREATE TABLE IF NOT EXISTS staff_leaves (
+        id VARCHAR(36) PRIMARY KEY,
+        salon_id VARCHAR(36) NOT NULL,
+        stylist_id VARCHAR(36) NOT NULL,
+        leave_date DATE NOT NULL,
+        end_date DATE NULL,
+        reason VARCHAR(255) NULL,
+        status ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED') DEFAULT 'APPROVED',
+        applied_by VARCHAR(50) DEFAULT 'OWNER',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_salon_date (salon_id, leave_date),
+        INDEX idx_stylist_date (stylist_id, leave_date)
     ) ENGINE=InnoDB;`
   ];
 

@@ -18,21 +18,25 @@ import {
 interface StaffRosterCardProps {
   user: AuthUser;
   matchedStylist?: Stylist;
+  isOnLeaveToday?: boolean;
   onEdit: (user: AuthUser) => void;
   onPin: (user: AuthUser) => void;
   onResetPassword: (user: AuthUser) => void;
   onDelete: (user: AuthUser) => void;
   onKillSwitch: (user: AuthUser) => void;
+  onManageLeave?: (user: AuthUser, matchedStylist?: Stylist) => void;
 }
 
 export function StaffRosterCard({
   user,
   matchedStylist,
+  isOnLeaveToday,
   onEdit,
   onPin,
   onResetPassword,
   onDelete,
   onKillSwitch,
+  onManageLeave,
 }: StaffRosterCardProps) {
   const pace = matchedStylist?.avgDurationMinutes || 25;
   const hasPin = Boolean(user.pin || matchedStylist?.pin);
@@ -65,9 +69,20 @@ export function StaffRosterCard({
               <p className="text-xs font-mono text-slate-400">@{user.username}</p>
             </div>
           </div>
-          <Badge variant={isSuspended ? "destructive" : "success"}>
-            {isSuspended ? "Suspended" : "Active"}
-          </Badge>
+          <div className="flex flex-col items-end gap-1">
+            {isOnLeaveToday ? (
+              <Badge
+                variant="outline"
+                className="bg-amber-500/15 text-amber-300 border-amber-500/40 text-[11px] font-semibold"
+              >
+                🏖️ On Leave
+              </Badge>
+            ) : (
+              <Badge variant={isSuspended ? "destructive" : "success"}>
+                {isSuspended ? "Suspended" : "🟢 Active"}
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
 
@@ -163,6 +178,18 @@ export function StaffRosterCard({
             Remove
           </Button>
         </div>
+
+        {/* Absence & Leave Recovery Button */}
+        {onManageLeave && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full text-xs min-h-[44px] border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/15 text-amber-300 font-medium gap-2"
+            onClick={() => onManageLeave(user, matchedStylist)}
+          >
+            🏖️ Manage Leave & Absence
+          </Button>
+        )}
       </CardContent>
 
       {/* Emergency Session Revoke Kill-Switch */}

@@ -163,6 +163,7 @@ export function QueueWalkinForm({
 
                 {/* 2. SPECIFIC BARBER CARDS (Strict FIFO accurate metrics) */}
                 {salon.stylists.map((st) => {
+                  const isOnLeave = st.isActive === false;
                   const metric = queueLoadMetrics.byStylist[st.id] || {
                     waitingCount: 0,
                     isInChair: false,
@@ -172,6 +173,33 @@ export function QueueWalkinForm({
                     dedicatedCount: 0,
                     universalShare: 0,
                   };
+
+                  if (isOnLeave) {
+                    return (
+                      <div
+                        key={st.id}
+                        className="min-h-[58px] p-3 rounded-xl border border-slate-800/80 bg-slate-950/40 opacity-60 text-left flex flex-col justify-between cursor-not-allowed select-none"
+                        title={`${st.name} is currently on leave / unavailable today.`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <Scissors className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                            <span className="text-xs font-semibold text-slate-400 truncate">{st.name}</span>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/30"
+                          >
+                            🏖️ On Leave Today
+                          </Badge>
+                        </div>
+
+                        <div className="flex items-center justify-between w-full mt-2 text-[11px] text-slate-500 italic">
+                          <span>Unavailable • Choose Fastest Available Chair</span>
+                        </div>
+                      </div>
+                    );
+                  }
 
                   return (
                     <button

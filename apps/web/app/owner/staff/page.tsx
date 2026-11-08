@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import type { Stylist, AuthUser } from "@/lib/api";
+import type { Stylist, AuthUser, StaffLeave } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,8 @@ import {
   RefreshCw,
   CheckCircle2,
   Search,
+  Calendar,
+  XCircle,
 } from "lucide-react";
 import {
   UnlinkedStationsBanner,
@@ -27,6 +29,7 @@ import {
   ResetPasswordModal,
   KillSwitchModal,
   DeleteStaffModal,
+  StaffAbsenceRecoveryModal,
   InitialStaffData,
 } from "@/components/owner/staff";
 
@@ -36,6 +39,7 @@ function OwnerStaffContent() {
 
   const [stylists, setStylists] = useState<Stylist[]>([]);
   const [staffUsers, setStaffUsers] = useState<AuthUser[]>([]);
+  const [leaves, setLeaves] = useState<StaffLeave[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -54,6 +58,7 @@ function OwnerStaffContent() {
   const [killSwitchTarget, setKillSwitchTarget] = useState<AuthUser | null>(null);
   const [userToDelete, setUserToDelete] = useState<AuthUser | null>(null);
   const [selectedStaffUser, setSelectedStaffUser] = useState<AuthUser | null>(null);
+  const [absenceTarget, setAbsenceTarget] = useState<{ user: AuthUser; stylist: Stylist | null } | null>(null);
   const [initialCreateData, setInitialCreateData] = useState<InitialStaffData | undefined>(undefined);
 
   const currentSlug = salon?.slug || searchParams.get("salon") || "ramesh-barber";
@@ -68,12 +73,29 @@ function OwnerStaffContent() {
 
         const staffRes = await api.auth.listStaff(salonRes.salon.id);
         setStaffUsers(staffRes.staffUsers || []);
+
+        try {
+          const leavesRes = await api.salons.getStaffLeaves(salonRes.salon.id);
+          setLeaves(leavesRes.leaves || []);
+        } catch {
+          setLeaves([]);
+        }
       }
     } catch (err: any) {
       showToast("Failed to load staff roster: " + (err.message || "Unknown error"), "error");
     } finally {
       setLoading(false);
     }
+  };
+
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const isStylistOnLeaveToday = (stylistId?: string | null) => {
+    if (!stylistId) return false;
+    return leaves.some((l) => {
+      if (l.stylistId !== stylistId || l.status !== "APPROVED") return false;
+      const end = l.endDate || l.leaveDate;
+      return todayStr >= l.leaveDate && todayStr <= end;
+    });
   };
 
   useEffect(() => {
@@ -252,6 +274,7 @@ function OwnerStaffContent() {
                 key={user.id}
                 user={user}
                 matchedStylist={matchedStylist}
+                isOnLeaveToday={isStylistOnLeaveToday(matchedStylist?.id || user.staffId)}
                 onEdit={(u) => {
                   setSelectedStaffUser(u);
                   setIsEditOpen(true);
@@ -266,11 +289,111 @@ function OwnerStaffContent() {
                 }}
                 onDelete={(u) => setUserToDelete(u)}
                 onKillSwitch={(u) => setKillSwitchTarget(u)}
+                onManageLeave={(u, st) => setAbsenceTarget({ user: u, stylist: st || null })}
               />
             );
           })}
         </div>
       )}
+
+      {/* Staff Leave & Absence Records Section */}
+      <Card className="bg-slate-900/60 border-slate-800">
+        <div className="p-4 sm:p-6 border-b border-slate-800/80 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <Calendar className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-white">
+                Staff Leaves & Absence Schedule
+              </h2>
+              <p className="text-xs text-slate-400">
+                Track planned leave, late-detected absences, and duty status across the salon team.
+              </p>
+            </div>
+          </div>
+          <Badge variant="outline" className="text-xs border-slate-700 text-slate-300">
+            {leaves.length} Recorded
+          </Badge>
+        </div>
+
+        <CardContent className="p-4 sm:p-6">
+          {leaves.length === 0 ? (
+            <div className="text-center py-8 text-slate-500 text-xs">
+              No leave records found. Tap "Manage Leave & Absence" on any staff card to schedule or record an absence.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 font-semibold">
+                    <th className="pb-3 px-3">Team Member</th>
+                    <th className="pb-3 px-3">Leave Date</th>
+                    <th className="pb-3 px-3">Reason</th>
+                    <th className="pb-3 px-3">Status</th>
+                    <th className="pb-3 px-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {leaves.map((leave) => {
+                    const matched =
+                      stylists.find((s) => s.id === leave.stylistId) ||
+                      staffUsers.find((u) => u.staffId === leave.stylistId || u.id === leave.stylistId);
+                    const memberName = (matched as any)?.fullName || (matched as any)?.name || leave.stylistId;
+
+                    return (
+                      <tr key={leave.id} className="hover:bg-slate-800/30">
+                        <td className="py-3 px-3 font-semibold text-white">{memberName}</td>
+                        <td className="py-3 px-3 font-mono text-slate-300">
+                          {leave.leaveDate}
+                          {leave.endDate && leave.endDate !== leave.leaveDate && ` → ${leave.endDate}`}
+                        </td>
+                        <td className="py-3 px-3 text-slate-400 max-w-[200px] truncate">
+                          {leave.reason || "Staff absence"}
+                        </td>
+                        <td className="py-3 px-3">
+                          <Badge
+                            variant={
+                              leave.status === "APPROVED"
+                                ? "success"
+                                : leave.status === "CANCELLED"
+                                ? "outline"
+                                : "destructive"
+                            }
+                            className="text-[10px]"
+                          >
+                            {leave.status}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          {leave.status === "APPROVED" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 h-8 px-2"
+                              onClick={async () => {
+                                try {
+                                  await api.salons.updateStaffLeaveStatus(salon?.id || "", leave.id, "CANCELLED");
+                                  showToast("Leave cancelled and staff member reactivated!", "success");
+                                  fetchStaffData();
+                                } catch (err: any) {
+                                  showToast(err.message || "Failed to cancel leave", "error");
+                                }
+                              }}
+                            >
+                              Cancel Leave
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Modals */}
       <AddStaffModal
@@ -339,6 +462,20 @@ function OwnerStaffContent() {
         user={userToDelete}
         onClose={() => setUserToDelete(null)}
         onSuccess={() => fetchStaffData()}
+        showToast={showToast}
+      />
+
+      <StaffAbsenceRecoveryModal
+        isOpen={Boolean(absenceTarget)}
+        onClose={() => setAbsenceTarget(null)}
+        user={absenceTarget?.user || null}
+        stylist={absenceTarget?.stylist || null}
+        salonId={salon?.id}
+        allStylists={stylists}
+        onSuccess={(msg) => {
+          showToast(msg, "success");
+          fetchStaffData();
+        }}
         showToast={showToast}
       />
     </div>

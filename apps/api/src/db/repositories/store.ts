@@ -8,6 +8,7 @@ import type {
   PlatformSettings,
   AuditLog,
   MaintenanceMode,
+  StaffLeave,
 } from '../../engine/types';
 
 export const defaultPlatformSettings: PlatformSettings = {
@@ -77,6 +78,7 @@ export const memoryStore = {
   tickets: new Map<string, QueueTicket>(),
   ticketSequence: new Map<string, number>(),
   stylistServiceDurations: new Map<string, number>(), // key: `${stylistId}:${serviceId}` -> durationMinutes
+  staffLeaves: new Map<string, StaffLeave>(),
   settings: JSON.parse(JSON.stringify(defaultPlatformSettings)) as PlatformSettings,
   auditLogs: [...defaultAuditLogs] as AuditLog[],
   maintenanceMode: {
@@ -140,6 +142,7 @@ export function seedDemoData() {
   memoryStore.stylists.clear();
   memoryStore.services.clear();
   memoryStore.stylistServiceDurations.clear();
+  memoryStore.staffLeaves.clear();
   memoryStore.organizations.clear();
   memoryStore.settings = JSON.parse(JSON.stringify(defaultPlatformSettings));
   memoryStore.auditLogs = [...defaultAuditLogs];

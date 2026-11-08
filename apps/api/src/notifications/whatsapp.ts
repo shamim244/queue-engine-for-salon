@@ -6,7 +6,7 @@ export interface DispatchedNotification {
   ticketId: string;
   recipientPhone: string;
   recipientName: string;
-  type: 'TICKET_CONFIRMATION' | '10_MIN_WARNING' | 'CHAIR_READY' | 'SOFT_BUMP_ALERT';
+  type: 'TICKET_CONFIRMATION' | '10_MIN_WARNING' | 'CHAIR_READY' | 'SOFT_BUMP_ALERT' | 'ABSENCE_QUEUE_REASSIGNMENT';
   channel: 'WHATSAPP' | 'SMS';
   message: string;
   sentAt: string;
@@ -22,10 +22,11 @@ export const notificationService = {
     ticketId: string;
     recipientPhone: string;
     recipientName: string;
-    type: 'TICKET_CONFIRMATION' | '10_MIN_WARNING' | 'CHAIR_READY' | 'SOFT_BUMP_ALERT';
+    type: 'TICKET_CONFIRMATION' | '10_MIN_WARNING' | 'CHAIR_READY' | 'SOFT_BUMP_ALERT' | 'ABSENCE_QUEUE_REASSIGNMENT';
     ticketNumber: number;
     estimatedWaitMinutes?: number;
     stylistName?: string;
+    customMessage?: string;
   }): Promise<DispatchedNotification> {
     let messageText = '';
 
@@ -44,6 +45,10 @@ export const notificationService = {
 
       case 'SOFT_BUMP_ALERT':
         messageText = `⏳ *Notice from ${params.salonName}*\n\n${params.recipientName}, we called your ticket #${params.ticketNumber}, but couldn't find you. We held your place and placed you next in line. Please let the barber know when you arrive!`;
+        break;
+
+      case 'ABSENCE_QUEUE_REASSIGNMENT':
+        messageText = params.customMessage || `💈 *${params.salonName}*\n\nNamaste ${params.recipientName}! Notice regarding Ticket #${params.ticketNumber}: Your preferred barber is unavailable today. Your ticket has been transferred to the Fastest Available Line with your arrival priority fully preserved!`;
         break;
     }
 

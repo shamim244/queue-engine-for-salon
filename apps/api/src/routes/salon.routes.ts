@@ -251,4 +251,119 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
   // 6. Salon Performance Metrics
   .get('/:id/metrics', async ({ params }) => {
     return await repository.getSalonMetrics(params.id);
+  })
+
+  // 7.1 Handle Late-Detected Staff Absence & Queue Recovery (Static sub-path first)
+  .post('/:id/staff-leaves/handle-absence', async ({ params, body, set }) => {
+    try {
+      const b = body as {
+        stylistId: string;
+        action: 'UNIVERSAL_FAST_LINE' | 'REASSIGN_STYLIST';
+        targetStylistId?: string;
+        reason?: string;
+      };
+      const result = await repository.handleStaffAbsenceRecovery({
+        salonId: params.id,
+        stylistId: b.stylistId,
+        action: b.action,
+        targetStylistId: b.targetStylistId,
+        reason: b.reason,
+      });
+      return result;
+    } catch (err: any) {
+      set.status = 400;
+      return { success: false, message: err.message };
+    }
+  }, {
+    body: t.Object({
+      stylistId: t.String(),
+      action: t.Union([t.Literal('UNIVERSAL_FAST_LINE'), t.Literal('REASSIGN_STYLIST')]),
+      targetStylistId: t.Optional(t.String()),
+      reason: t.Optional(t.String()),
+    })
+  })
+
+  // 7.2 Get Salon Staff Leaves
+  .get('/:id/staff-leaves', async ({ params, query }) => {
+    const leaves = await repository.getStaffLeaves(params.id, {
+      stylistId: (query as any)?.stylistId,
+      date: (query as any)?.date,
+    });
+    return { success: true, leaves };
+  })
+
+  // 7.3 Create / Apply for Staff Leave
+  .post('/:id/staff-leaves', async ({ params, body, set }) => {
+    try {
+      const b = body as {
+        stylistId: string;
+        leaveDate: string;
+        endDate?: string;
+        reason?: string;
+        status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+        appliedBy?: string;
+      };
+      const leave = await repository.createStaffLeave({
+        salonId: params.id,
+        stylistId: b.stylistId,
+        leaveDate: b.leaveDate,
+        endDate: b.endDate,
+        reason: b.reason,
+        status: b.status,
+        appliedBy: b.appliedBy,
+      });
+      return { success: true, leave };
+    } catch (err: any) {
+      set.status = 400;
+      return { success: false, message: err.message };
+    }
+  }, {
+    body: t.Object({
+      stylistId: t.String(),
+      leaveDate: t.String(),
+      endDate: t.Optional(t.String()),
+      reason: t.Optional(t.String()),
+      status: t.Optional(t.Union([
+        t.Literal('PENDING'),
+        t.Literal('APPROVED'),
+        t.Literal('REJECTED'),
+        t.Literal('CANCELLED'),
+      ])),
+      appliedBy: t.Optional(t.String()),
+    })
+  })
+
+  // 7.4 Update Staff Leave Status
+  .patch('/:id/staff-leaves/:leaveId', async ({ params, body, set }) => {
+    try {
+      const b = body as { status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' };
+      const updated = await repository.updateStaffLeaveStatus(params.leaveId, b.status);
+      if (!updated) {
+        set.status = 404;
+        return { success: false, message: 'Leave record not found' };
+      }
+      return { success: true, leave: updated };
+    } catch (err: any) {
+      set.status = 400;
+      return { success: false, message: err.message };
+    }
+  }, {
+    body: t.Object({
+      status: t.Union([
+        t.Literal('PENDING'),
+        t.Literal('APPROVED'),
+        t.Literal('REJECTED'),
+        t.Literal('CANCELLED'),
+      ]),
+    })
+  })
+
+  // 7.5 Inspect Stylist Stranded Queue Tickets
+  .get('/:id/stylists/:stylistId/stranded-tickets', async ({ params }) => {
+    const tickets = await repository.getStylistStrandedTickets(params.id, params.stylistId);
+    return {
+      success: true,
+      count: tickets.length,
+      tickets,
+    };
   });
