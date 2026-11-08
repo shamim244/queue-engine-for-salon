@@ -6,7 +6,7 @@ import { api, request, markTicketNoShow } from "@/lib/api";
 import type { Salon, Ticket, Stylist } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
 import { useAuth } from "@/lib/auth-context";
-import { CheckCircle2, AlertCircle, Sparkles, Armchair } from "lucide-react";
+import { CheckCircle2, AlertCircle, Sparkles, Armchair, Users } from "lucide-react";
 
 // Modular Station Components
 import { StationStaffLogin } from "@/components/station/station-staff-login";
@@ -43,6 +43,9 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const [isNoShowModalOpen, setIsNoShowModalOpen] = useState(false);
   const [isAddServicesOpen, setIsAddServicesOpen] = useState(false);
   const [isUpdatingServices, setIsUpdatingServices] = useState(false);
+
+  // Android Mobile Segmented View (Low Scroll Cockpit)
+  const [mobileTab, setMobileTab] = useState<"chair" | "queue">("chair");
 
   // 10-Minute Chai Break Mode
   const [breakRemainingSeconds, setBreakRemainingSeconds] = useState<number | null>(null);
@@ -739,9 +742,37 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
           </div>
         )}
 
+        {/* Mobile View Segmented Switcher (Visible on Mobile screens only, lg:hidden) - Minimal Scroll for Android Barbers */}
+        <div className="grid grid-cols-2 gap-2 lg:hidden bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 shadow-md">
+          <button
+            type="button"
+            onClick={() => setMobileTab("chair")}
+            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 min-h-[48px] ${
+              mobileTab === "chair"
+                ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/25"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Armchair className="h-4 w-4" />
+            <span>Chair Cockpit {currentlyServing ? `(#${currentlyServing.ticketNumber})` : ""}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab("queue")}
+            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 min-h-[48px] ${
+              mobileTab === "queue"
+                ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/25"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            <span>Waiting List ({eligibleTicketsCount})</span>
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left 2 Cols: Hero Work Surfaces */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className={`lg:col-span-2 space-y-6 ${mobileTab !== "chair" ? "hidden lg:block" : ""}`}>
             {!currentlyServing && !summonedTicket && (
               <StationOpenChairCard
                 eligibleTicketsCount={eligibleTicketsCount}
@@ -791,7 +822,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
           </div>
 
           {/* Right Col: Partitioned Waiting Queue */}
-          <div className="space-y-4">
+          <div className={`space-y-4 ${mobileTab !== "queue" ? "hidden lg:block" : ""}`}>
             <StationWaitingQueue
               allTickets={activeTickets}
               activeStylist={activeStylist}

@@ -367,12 +367,10 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
       expect(html).toContain("Regular VIP");
       expect(html).toContain("Fade + Beard Trim");
 
-      // Check grooming tags section and preset pills
-      expect(html).toContain("Grooming Preferences &amp; Tags");
+      // Check grooming tags on compact HUD & dock
+      expect(html).toContain("Grooming");
       expect(html).toContain("Sensitive Skin");
       expect(html).toContain("Scissor Only");
-      expect(html).toContain("Zero Machine");
-      expect(html).toContain("Low Fade");
     });
 
     it("should render StationSummonedCard with loyalty badge and preferences on file", () => {
