@@ -463,6 +463,48 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
     })
   })
 
+  // 8.7 Update Ticket Grooming Notes & Tags (Barber Chair-side Customization)
+  .post('/update-notes', async ({ body, headers, cookie: { engine_session }, set }) => {
+    try {
+      const { ticketId, notes, groomingTags } = body as {
+        ticketId: string;
+        notes?: string;
+        groomingTags?: string[];
+      };
+
+      const existing = await repository.getTicketById(ticketId);
+      if (!existing) {
+        set.status = 404;
+        return { success: false, message: 'Ticket not found' };
+      }
+
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && auth.role === 'CUSTOMER') {
+          set.status = 403;
+          return { success: false, message: 'Forbidden: Customers cannot edit barber grooming tags' };
+        }
+      }
+
+      const updated = await queueEngine.updateTicketNotes(ticketId, {
+        notes,
+        groomingTags,
+      });
+      return { success: true, ticket: updated };
+    } catch (err: any) {
+      console.error('[queueRoutes:update-notes] Error:', err);
+      set.status = 400;
+      return { success: false, message: err.message || 'Failed to update ticket notes' };
+    }
+  }, {
+    body: t.Object({
+      ticketId: t.String(),
+      notes: t.Optional(t.Union([t.String(), t.Null()])),
+      groomingTags: t.Optional(t.Array(t.String())),
+    })
+  })
+
   // 8.6 Mark No-Show (Barber / Staff marks customer absent)
   .post('/no-show', async ({ body, headers, cookie: { engine_session }, set }) => {
     try {

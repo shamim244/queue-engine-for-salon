@@ -204,6 +204,8 @@ async function runMigrations() {
     `ALTER TABLE queue_tickets ADD COLUMN routing_preference ENUM('AUTO_FASTEST', 'SPECIFIC_STYLIST') DEFAULT 'AUTO_FASTEST';`,
     `ALTER TABLE queue_tickets MODIFY COLUMN status ENUM('WAITING', 'SUMMONED', 'IN_CHAIR', 'COMPLETED', 'SOFT_BUMPED', 'CANCELLED', 'NO_SHOW', 'PAUSED') DEFAULT 'WAITING';`,
     `ALTER TABLE queue_tickets ADD COLUMN customer_id VARCHAR(36) NULL;`,
+    `ALTER TABLE queue_tickets ADD COLUMN notes TEXT NULL;`,
+    `ALTER TABLE queue_tickets ADD COLUMN grooming_tags JSON NULL;`,
     `ALTER TABLE stylists ADD COLUMN username VARCHAR(100) NULL;`,
     `ALTER TABLE stylists ADD COLUMN email VARCHAR(100) NULL;`,
     `ALTER TABLE stylists ADD COLUMN user_id VARCHAR(36) NULL;`,

@@ -143,6 +143,11 @@ export interface Ticket {
   paymentStatus?: "UNPAID" | "CASH_PAID" | "ONLINE_PAID";
   createdAt: string;
   checkInTime?: string;
+  notes?: string | null;
+  groomingTags?: string[];
+  visitCount?: number;
+  lastVisitedAt?: string | null;
+  lastServiceName?: string | null;
 }
 
 export interface AuthUser {
@@ -727,6 +732,12 @@ export const api = {
       request<{ success: boolean; ticket: Ticket }>("/api/queue/update-services", {
         method: "POST",
         body: JSON.stringify({ ticketId, addOnIds, serviceId }),
+      }),
+
+    updateNotes: (ticketId: string, params: { notes?: string; groomingTags?: string[] }) =>
+      request<{ success: boolean; ticket: Ticket }>("/api/queue/update-notes", {
+        method: "POST",
+        body: JSON.stringify({ ticketId, ...params }),
       }),
 
     pause: (ticketId: string, reason?: string) =>

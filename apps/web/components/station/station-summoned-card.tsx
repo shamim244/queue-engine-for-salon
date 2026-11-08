@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, maskPhone } from "@/lib/utils";
-import { Volume2, UserCheck, Clock, Coffee, UserX } from "lucide-react";
+import { Volume2, UserCheck, Clock, Coffee, UserX, HeartHandshake, ShieldCheck } from "lucide-react";
 
 interface StationSummonedCardProps {
   summonedTicket: Ticket;
@@ -25,6 +25,9 @@ export function StationSummonedCard({
   onNoShow,
   onReAnnounce,
 }: StationSummonedCardProps) {
+  const visitCount = summonedTicket.visitCount || 1;
+  const isReturning = visitCount > 1;
+
   return (
     <Card className="border-2 border-amber-500 bg-amber-500/5 p-6 space-y-6 shadow-2xl animate-in zoom-in-95">
       <div className="flex items-center justify-between pb-4 border-b border-amber-500/20">
@@ -38,7 +41,7 @@ export function StationSummonedCard({
           variant="ghost"
           size="sm"
           onClick={onReAnnounce}
-          className="text-xs text-amber-400 gap-1"
+          className="text-xs text-amber-400 gap-1 hover:bg-amber-500/10"
         >
           <Volume2 className="h-4 w-4" />
           Re-Announce
@@ -51,10 +54,27 @@ export function StationSummonedCard({
             #{summonedTicket.ticketNumber}
           </div>
           <div>
-            <h3 className="text-2xl font-black text-white">{summonedTicket.customerName}</h3>
-            <p className="text-sm text-slate-400 mt-1">
-              {maskPhone(summonedTicket.customerPhone) || "Walk-in Guest"}
-            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-2xl font-black text-white">{summonedTicket.customerName}</h3>
+              {isReturning ? (
+                <Badge className="text-xs px-2.5 py-0.5 font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                  <HeartHandshake className="h-3 w-3 text-amber-400" />
+                  <span>⭐ {visitCount === 2 ? "2nd Visit" : `${visitCount}th Visit`} · Regular VIP</span>
+                </Badge>
+              ) : (
+                <Badge className="text-xs px-2.5 py-0.5 font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  🆕 First-Time Guest
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-3 text-sm text-slate-400 mt-1 flex-wrap">
+              <span>{maskPhone(summonedTicket.customerPhone) || "Walk-in Guest"}</span>
+              {summonedTicket.lastServiceName && (
+                <span className="text-xs text-amber-300/90 bg-amber-950/40 border border-amber-900/60 px-2 py-0.5 rounded-lg">
+                  Last visit: {summonedTicket.lastServiceName}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -66,13 +86,41 @@ export function StationSummonedCard({
         </div>
       </div>
 
+      {/* Feature 2: Client Known Grooming Preferences Preview */}
+      {((summonedTicket.groomingTags && summonedTicket.groomingTags.length > 0) || summonedTicket.notes) && (
+        <div className="p-3.5 rounded-xl bg-slate-950/70 border border-amber-500/30 space-y-2">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
+            <ShieldCheck className="h-4 w-4 text-amber-400" />
+            <span>Client Preferences on File:</span>
+          </div>
+          {summonedTicket.groomingTags && summonedTicket.groomingTags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {summonedTicket.groomingTags.map((tag, idx) => (
+                <Badge
+                  key={idx}
+                  variant="outline"
+                  className="text-xs bg-sky-500/15 border-sky-400/40 text-sky-200 font-semibold"
+                >
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
+          {summonedTicket.notes && (
+            <p className="text-xs text-slate-300 italic pl-1 border-l-2 border-amber-400/50">
+              &ldquo;{summonedTicket.notes}&rdquo;
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Action Buttons: In Chair vs Multi-Perspective Absence Handling */}
       <div className="space-y-3 pt-2">
         <Button
           size="lg"
           onClick={onSeatInChair}
           disabled={processingAction}
-          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg h-14 rounded-xl gap-2 shadow-lg shadow-emerald-600/20"
+          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg h-14 rounded-xl gap-2 shadow-lg shadow-emerald-600/20 active:scale-98"
         >
           <UserCheck className="h-6 w-6" />
           <span>In Chair (Customer Arrived)</span>

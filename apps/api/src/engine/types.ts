@@ -157,6 +157,11 @@ export interface QueueTicket {
   paymentStatus: PaymentStatus;
   paymentAmount?: number | null;
   positionInQueue: number;
+  notes?: string | null;
+  groomingTags?: string[];
+  visitCount?: number;
+  lastVisitedAt?: string | null;
+  lastServiceName?: string | null;
 }
 
 export interface QueueEventPayload {

@@ -630,6 +630,37 @@ export const queueEngine = {
     return refreshed;
   },
 
+  async updateTicketNotes(
+    ticketId: string,
+    params: {
+      notes?: string | null;
+      groomingTags?: string[];
+    }
+  ): Promise<QueueTicket> {
+    const ticket = await repository.getTicketById(ticketId);
+    if (!ticket) {
+      throw new Error('Ticket not found');
+    }
+
+    const updated = await repository.updateTicketNotes(ticketId, params);
+    if (!updated) {
+      throw new Error('Failed to update ticket notes');
+    }
+
+    const activeTickets = await repository.getActiveTickets(ticket.salonId);
+    const refreshed = activeTickets.find((t) => t.id === ticketId) || updated;
+
+    websocketHub.broadcastToSalon(ticket.salonId, {
+      type: 'TICKET_UPDATED',
+      salonId: ticket.salonId,
+      ticket: refreshed,
+      activeQueueCount: activeTickets.length,
+      timestamp: new Date().toISOString(),
+    });
+
+    return refreshed;
+  },
+
   // 9. Recalculate dynamic wait times for all active tickets (coalesced & micro-batched per salon)
   async recalculateQueue(salonId: string): Promise<QueueTicket[]> {
     const inFlight = inFlightRecalculations.get(salonId);

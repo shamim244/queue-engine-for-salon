@@ -110,11 +110,25 @@ export function StationOpenChairCard({
                 #{nextEligibleTicket.ticketNumber}
               </div>
               <div>
-                <h4 className="text-base font-bold text-white leading-tight">
-                  {nextEligibleTicket.customerName}
-                </h4>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="text-base font-bold text-white leading-tight">
+                    {nextEligibleTicket.customerName}
+                  </h4>
+                  {nextEligibleTicket.visitCount && nextEligibleTicket.visitCount > 1 ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      ⭐ {nextEligibleTicket.visitCount === 2 ? "2nd Visit" : `${nextEligibleTicket.visitCount}th Visit`}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                      🆕 New Guest
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Service: <span className="text-slate-200 font-semibold">{nextEligibleTicket.serviceName || "Haircut"}</span>
+                  {nextEligibleTicket.lastServiceName && (
+                    <span className="text-amber-300/80 ml-2">· Prev: {nextEligibleTicket.lastServiceName}</span>
+                  )}
                 </p>
               </div>
             </div>

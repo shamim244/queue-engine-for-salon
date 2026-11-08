@@ -475,6 +475,45 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     }
   };
 
+  // 1-Tap Toggle Client Grooming Preference Tag
+  const handleToggleGroomingTag = async (tag: string) => {
+    if (!currentlyServing) return;
+    const currentTags = currentlyServing.groomingTags || [];
+    const isAlreadyTagged = currentTags.includes(tag);
+    const newTags = isAlreadyTagged
+      ? currentTags.filter((t: string) => t !== tag)
+      : [...currentTags, tag];
+
+    // Optimistic UI update
+    setCurrentlyServing((prev) => (prev ? { ...prev, groomingTags: newTags } : prev));
+
+    try {
+      const resp = await api.queue.updateNotes(currentlyServing.id, { groomingTags: newTags });
+      if (resp.ticket) {
+        setCurrentlyServing((prev) => (prev ? { ...prev, ...resp.ticket } : resp.ticket));
+      }
+    } catch (err: any) {
+      showToast("Error updating grooming tag: " + err.message, "error");
+      fetchStationData();
+    }
+  };
+
+  // Save Custom Client Notes
+  const handleUpdateNotes = async (notes: string) => {
+    if (!currentlyServing) return;
+    setCurrentlyServing((prev) => (prev ? { ...prev, notes } : prev));
+    try {
+      const resp = await api.queue.updateNotes(currentlyServing.id, { notes });
+      if (resp.ticket) {
+        setCurrentlyServing((prev) => (prev ? { ...prev, ...resp.ticket } : resp.ticket));
+        showToast("Client preference note saved!", "success");
+      }
+    } catch (err: any) {
+      showToast("Error saving note: " + err.message, "error");
+      fetchStationData();
+    }
+  };
+
   // 1-Tap Direct Seat Client (Skipping Call Step if client already seated)
   const handleDirectSeat = async (ticket: Ticket) => {
     if (isOnBreak) setBreakRemainingSeconds(null);
@@ -700,6 +739,8 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
                 availableAddOns={salon?.services?.filter((s) => s.isAddOn) || []}
                 isUpdatingAddon={isUpdatingServices}
                 onToggleAddOn={handleToggleAddOn}
+                onToggleGroomingTag={handleToggleGroomingTag}
+                onUpdateNotes={handleUpdateNotes}
                 onProceedToCheckout={() => setIsCheckoutOpen(true)}
                 onOpenAddServices={() => setIsAddServicesOpen(true)}
               />

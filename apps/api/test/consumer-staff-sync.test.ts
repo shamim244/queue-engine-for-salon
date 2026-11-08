@@ -550,4 +550,76 @@ describe('Staff Station, Consumer Lifecycle, and 4-Way Synchronization Suite', (
       expect(invalid).toBeNull();
     });
   });
+
+  describe('5. Phase 2: Client Intelligence & 1-Tap Grooming Notes', () => {
+    it('POST /api/queue/update-notes should allow staff to update grooming tags and client notes', async () => {
+      // 1. Create a ticket
+      const ticket = await queueEngine.checkIn({
+        salonSlug: 'ramesh-barber',
+        customerName: 'Kavita Singh',
+        customerPhone: '9870099887',
+        serviceId: 'srv-r-1',
+      });
+
+      // 2. Login as staff ramesh
+      const loginRes = await app.handle(
+        new Request('http://localhost:3000/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier: 'ramesh', password: 'Ramesh@123' }),
+        })
+      );
+      const loginData = await loginRes.json();
+      const token = loginData.token;
+
+      // 3. Update grooming tags as staff
+      const updateRes = await app.handle(
+        new Request('http://localhost:3000/api/queue/update-notes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            ticketId: ticket.id,
+            notes: 'Prefers scissors on crown, gentle trimmer on neck',
+            groomingTags: ['Sensitive Skin', 'Scissor Only', 'Low Fade'],
+          }),
+        })
+      );
+
+      expect(updateRes.status).toBe(200);
+      const updateData = await updateRes.json();
+      expect(updateData.success).toBe(true);
+      expect(updateData.ticket.notes).toBe('Prefers scissors on crown, gentle trimmer on neck');
+      expect(updateData.ticket.groomingTags).toEqual(['Sensitive Skin', 'Scissor Only', 'Low Fade']);
+    });
+
+    it('should enrich ticket intelligence with visit count and past services', async () => {
+      const phone = '9879998877';
+      // Ticket 1: completed visit
+      const t1 = await queueEngine.checkIn({
+        salonSlug: 'ramesh-barber',
+        customerName: 'Rahul Verma',
+        customerPhone: phone,
+        serviceId: 'srv-r-1',
+      });
+      await queueEngine.summonTicket(t1.id, 'stylist-ramesh-01');
+      await queueEngine.seatCustomer(t1.id, 'stylist-ramesh-01');
+      await queueEngine.finishService(t1.id, 'CASH_PAID', 120);
+
+      // Ticket 2: current active visit
+      const t2 = await queueEngine.checkIn({
+        salonSlug: 'ramesh-barber',
+        customerName: 'Rahul Verma',
+        customerPhone: phone,
+        serviceId: 'srv-r-1',
+      });
+
+      const fetched = await repository.getTicketById(t2.id);
+      expect(fetched).not.toBeNull();
+      expect(fetched?.visitCount).toBe(2); // 1 completed + 1 current = 2nd visit
+      expect(fetched?.lastServiceName).toBeDefined();
+    });
+  });
 });

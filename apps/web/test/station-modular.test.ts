@@ -337,5 +337,72 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
       expect(html).toContain("Available Grooming Add-Ons");
       expect(html).toContain("Save Services");
     });
+
+    it("should render StationInServiceCard with Phase 2 client intelligence and 1-tap grooming tags", () => {
+      const vipTicket: Ticket = {
+        ...mockTickets[0],
+        status: "IN_CHAIR",
+        customerName: "Vikram Malhotra",
+        visitCount: 5,
+        lastServiceName: "Fade + Beard Trim",
+        groomingTags: ["Sensitive Skin", "Scissor Only"],
+        notes: "Prefers cold water rinse",
+        totalPrice: 180,
+      };
+
+      const html = renderToString(
+        React.createElement(StationInServiceCard, {
+          currentlyServing: vipTicket,
+          editableBill: 180,
+          processingAction: false,
+          onProceedToCheckout: () => {},
+          onToggleGroomingTag: () => {},
+          onUpdateNotes: () => {},
+        })
+      );
+
+      // Check loyalty badge
+      expect(html).toContain("5th Visit");
+      expect(html).toContain("Regular VIP");
+      expect(html).toContain("Fade + Beard Trim");
+
+      // Check grooming tags section and preset pills
+      expect(html).toContain("Grooming Preferences &amp; Tags");
+      expect(html).toContain("Sensitive Skin");
+      expect(html).toContain("Scissor Only");
+      expect(html).toContain("Zero Machine");
+      expect(html).toContain("Low Fade");
+    });
+
+    it("should render StationSummonedCard with loyalty badge and preferences on file", () => {
+      const summonedTicket: Ticket = {
+        ...mockTickets[0],
+        status: "SUMMONED",
+        customerName: "Rohan Mehra",
+        visitCount: 3,
+        lastServiceName: "Classic Cut",
+        groomingTags: ["Sensitive Skin", "Low Fade"],
+        notes: "Gentle neck shave",
+      };
+
+      const html = renderToString(
+        React.createElement(StationSummonedCard, {
+          summonedTicket,
+          processingAction: false,
+          onSeatInChair: () => {},
+          onPauseAndCallNext: () => {},
+          onHoldAndCallNext: () => {},
+          onNoShow: () => {},
+          onReAnnounce: () => {},
+        })
+      );
+
+      expect(html).toContain("th Visit");
+      expect(html).toContain("Regular VIP");
+      expect(html).toContain("Client Preferences on File");
+      expect(html).toContain("Sensitive Skin");
+      expect(html).toContain("Low Fade");
+      expect(html).toContain("Gentle neck shave");
+    });
   });
 });

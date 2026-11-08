@@ -74,6 +74,10 @@ export const repository = {
     ticketId: string,
     params: Parameters<typeof queueRepo.updateTicketServices>[1]
   ) => queueRepo.updateTicketServices(ticketId, params),
+  updateTicketNotes: (
+    ticketId: string,
+    params: Parameters<typeof queueRepo.updateTicketNotes>[1]
+  ) => queueRepo.updateTicketNotes(ticketId, params),
   updateTicketWaitTime: (ticketId: string, estimatedMinutes: number) =>
     queueRepo.updateTicketWaitTime(ticketId, estimatedMinutes),
   updateTicketWaitTimesBatch: (updates: Parameters<typeof queueRepo.updateTicketWaitTimesBatch>[0]) =>

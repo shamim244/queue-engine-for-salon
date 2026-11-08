@@ -24,8 +24,8 @@ export const queueRepo = {
       await db.query(
         `INSERT INTO queue_tickets 
           (id, salon_id, stylist_id, ticket_number, customer_name, customer_phone, service_id, service_name, 
-           selected_add_ons, total_price, total_duration_minutes, status, source, estimated_wait_minutes, payment_status, check_in_time)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()))`,
+           selected_add_ons, total_price, total_duration_minutes, status, source, estimated_wait_minutes, payment_status, check_in_time, notes, grooming_tags)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()), ?, ?)`,
         [
           ticket.id,
           ticket.salonId,
@@ -43,6 +43,8 @@ export const queueRepo = {
           ticket.estimatedWaitMinutes || 0,
           ticket.paymentStatus || 'PENDING',
           toMySqlDatetime(ticket.checkInTime),
+          ticket.notes || null,
+          ticket.groomingTags ? JSON.stringify(ticket.groomingTags) : null,
         ]
       );
     }
@@ -53,6 +55,7 @@ export const queueRepo = {
   },
 
   async getActiveTickets(salonId: string): Promise<QueueTicket[]> {
+    let tickets: QueueTicket[] = [];
     if (isMySqlConnected) {
       const db = getDb();
       const [rows]: any = await db.query(
@@ -61,7 +64,7 @@ export const queueRepo = {
          ORDER BY check_in_time ASC`,
         [salonId]
       );
-      return rows.map((r: any) => ({
+      tickets = rows.map((r: any) => ({
         id: r.id,
         salonId: r.salon_id,
         stylistId: r.stylist_id,
@@ -83,21 +86,26 @@ export const queueRepo = {
         paymentStatus: r.payment_status,
         paymentAmount: r.payment_amount ? Number(r.payment_amount) : null,
         positionInQueue: 0,
+        notes: r.notes || null,
+        groomingTags: typeof r.grooming_tags === 'string' ? JSON.parse(r.grooming_tags || '[]') : (r.grooming_tags || []),
       }));
+    } else {
+      tickets = Array.from(memoryStore.tickets.values())
+        .filter((t) => t.salonId === salonId && ['WAITING', 'SUMMONED', 'IN_CHAIR', 'SOFT_BUMPED', 'PAUSED'].includes(t.status))
+        .sort((a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime());
     }
 
-    return Array.from(memoryStore.tickets.values())
-      .filter((t) => t.salonId === salonId && ['WAITING', 'SUMMONED', 'IN_CHAIR', 'SOFT_BUMPED', 'PAUSED'].includes(t.status))
-      .sort((a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime());
+    return await this.enrichTicketsIntelligence(tickets, salonId);
   },
 
   async getTicketById(ticketId: string): Promise<QueueTicket | null> {
+    let ticket: QueueTicket | null = null;
     if (isMySqlConnected) {
       const db = getDb();
       const [rows]: any = await db.query('SELECT * FROM queue_tickets WHERE id = ? LIMIT 1', [ticketId]);
       if (rows.length === 0) return null;
       const r = rows[0];
-      return {
+      ticket = {
         id: r.id,
         salonId: r.salon_id,
         stylistId: r.stylist_id,
@@ -119,9 +127,117 @@ export const queueRepo = {
         paymentStatus: r.payment_status,
         paymentAmount: r.payment_amount ? Number(r.payment_amount) : null,
         positionInQueue: 0,
+        notes: r.notes || null,
+        groomingTags: typeof r.grooming_tags === 'string' ? JSON.parse(r.grooming_tags || '[]') : (r.grooming_tags || []),
       };
+    } else {
+      ticket = memoryStore.tickets.get(ticketId) || null;
     }
-    return memoryStore.tickets.get(ticketId) || null;
+
+    if (!ticket) return null;
+    const [enriched] = await this.enrichTicketsIntelligence([ticket], ticket.salonId);
+    return enriched || ticket;
+  },
+
+  async enrichTicketsIntelligence(tickets: QueueTicket[], salonId?: string): Promise<QueueTicket[]> {
+    if (!tickets || tickets.length === 0) return tickets;
+
+    const phones = Array.from(new Set(tickets.map((t) => t.customerPhone).filter(Boolean)));
+    if (phones.length === 0) return tickets;
+
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        const placeholders = phones.map(() => '?').join(', ');
+        const [counts]: any = await db.query(
+          `SELECT customer_phone, COUNT(*) AS completed_count, MAX(completed_time) AS last_visited_at 
+           FROM queue_tickets 
+           WHERE status = 'COMPLETED' AND customer_phone IN (${placeholders})
+           GROUP BY customer_phone`,
+          phones
+        );
+
+        const [lastServices]: any = await db.query(
+          `SELECT t.customer_phone, t.service_name 
+           FROM queue_tickets t
+           INNER JOIN (
+             SELECT customer_phone, MAX(completed_time) AS max_time 
+             FROM queue_tickets 
+             WHERE status = 'COMPLETED' AND customer_phone IN (${placeholders})
+             GROUP BY customer_phone
+           ) latest ON t.customer_phone = latest.customer_phone AND t.completed_time = latest.max_time`,
+          phones
+        );
+
+        const countMap = new Map<string, { count: number; lastVisitedAt: string | null }>();
+        for (const row of counts) {
+          countMap.set(row.customer_phone, {
+            count: Number(row.completed_count),
+            lastVisitedAt: toIsoStringSafe(row.last_visited_at),
+          });
+        }
+
+        const serviceMap = new Map<string, string>();
+        for (const row of lastServices) {
+          serviceMap.set(row.customer_phone, row.service_name);
+        }
+
+        for (const ticket of tickets) {
+          if (!ticket.customerPhone) {
+            ticket.visitCount = 1;
+            continue;
+          }
+          const stats = countMap.get(ticket.customerPhone);
+          const completedCount = stats?.count || 0;
+          ticket.visitCount = completedCount + 1;
+          ticket.lastVisitedAt = stats?.lastVisitedAt || null;
+          ticket.lastServiceName = serviceMap.get(ticket.customerPhone) || null;
+        }
+        return tickets;
+      } catch (err) {
+        console.warn('[QueueRepo] MySQL enrichTicketsIntelligence warning:', err);
+      }
+    }
+
+    // Memory store fallback
+    for (const ticket of tickets) {
+      if (!ticket.customerPhone) {
+        ticket.visitCount = 1;
+        continue;
+      }
+      const phoneDigits = ticket.customerPhone.replace(/[^0-9]/g, '');
+      const last10 = phoneDigits.slice(-10);
+
+      const completedForCustomer = Array.from(memoryStore.tickets.values())
+        .filter((t) => {
+          if (t.status !== 'COMPLETED') return false;
+          const td = (t.customerPhone || '').replace(/[^0-9]/g, '');
+          return td && (td.endsWith(last10) || last10.endsWith(td));
+        })
+        .sort((a, b) => new Date(b.completedTime || b.checkInTime).getTime() - new Date(a.completedTime || a.checkInTime).getTime());
+
+      ticket.visitCount = completedForCustomer.length + 1;
+      if (completedForCustomer.length > 0) {
+        ticket.lastVisitedAt = completedForCustomer[0].completedTime || completedForCustomer[0].checkInTime;
+        ticket.lastServiceName = completedForCustomer[0].serviceName;
+      } else {
+        ticket.lastVisitedAt = null;
+        ticket.lastServiceName = null;
+      }
+
+      if (!ticket.groomingTags || ticket.groomingTags.length === 0) {
+        const prevWithTags = Array.from(memoryStore.tickets.values())
+          .filter((t) => {
+            const td = (t.customerPhone || '').replace(/[^0-9]/g, '');
+            return td && (td.endsWith(last10) || last10.endsWith(td)) && t.groomingTags && t.groomingTags.length > 0;
+          })
+          .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
+        if (prevWithTags.length > 0) {
+          ticket.groomingTags = prevWithTags[0].groomingTags;
+        }
+      }
+    }
+    return tickets;
   },
 
   async getTicketsByCustomer(phone: string): Promise<QueueTicket[]> {
@@ -280,6 +396,38 @@ export const queueRepo = {
     ticket.selectedAddOns = params.selectedAddOns;
     ticket.totalPrice = params.totalPrice;
     ticket.totalDurationMinutes = params.totalDurationMinutes;
+
+    memoryStore.tickets.set(ticketId, ticket);
+    return ticket;
+  },
+
+  async updateTicketNotes(
+    ticketId: string,
+    params: {
+      notes?: string | null;
+      groomingTags?: string[];
+    }
+  ): Promise<QueueTicket | null> {
+    const ticket = await this.getTicketById(ticketId);
+    if (!ticket) return null;
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query(
+        `UPDATE queue_tickets 
+         SET notes = ?,
+             grooming_tags = ?
+         WHERE id = ?`,
+        [
+          params.notes !== undefined ? params.notes : (ticket.notes || null),
+          params.groomingTags !== undefined ? JSON.stringify(params.groomingTags) : JSON.stringify(ticket.groomingTags || []),
+          ticketId,
+        ]
+      );
+    }
+
+    if (params.notes !== undefined) ticket.notes = params.notes;
+    if (params.groomingTags !== undefined) ticket.groomingTags = params.groomingTags;
 
     memoryStore.tickets.set(ticketId, ticket);
     return ticket;
