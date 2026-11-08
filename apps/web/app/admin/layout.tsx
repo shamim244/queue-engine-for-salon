@@ -19,6 +19,7 @@ import {
   Palette,
   Cpu,
   ShieldCheck,
+  Zap,
   Menu,
   X,
 } from "lucide-react";
@@ -73,6 +74,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       title: "PLATFORM CONFIGURATION",
       items: [
         { label: "General Settings", href: "/admin/settings", icon: Settings },
+        { label: "Compression & Caching", href: "/admin/settings/compression", icon: Zap },
         { label: "Appearance & Themes", href: "/admin/settings/appearance", icon: Palette },
         { label: "Engine & Gateways", href: "/admin/settings/system", icon: Cpu },
         { label: "Security & Audit", href: "/admin/security", icon: ShieldCheck },

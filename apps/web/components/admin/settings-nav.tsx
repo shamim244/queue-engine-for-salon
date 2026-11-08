@@ -3,13 +3,14 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, Palette, Cpu, ShieldCheck } from "lucide-react";
+import { Settings, Palette, Cpu, ShieldCheck, Zap } from "lucide-react";
 
 export function SettingsNav() {
   const pathname = usePathname();
 
   const tabs = [
     { label: "General", href: "/admin/settings", icon: Settings },
+    { label: "Compression & Caching", href: "/admin/settings/compression", icon: Zap },
     { label: "Appearance", href: "/admin/settings/appearance", icon: Palette },
     { label: "System Engine & Gateways", href: "/admin/settings/system", icon: Cpu },
     { label: "Security & Audit", href: "/admin/security", icon: ShieldCheck },

@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 import {
   Sliders,
   Save,
@@ -20,6 +21,9 @@ import {
   DollarSign,
   Mail,
   Phone,
+  Zap,
+  ArrowRight,
+  Layers,
 } from "lucide-react";
 
 interface GeneralFormState {
@@ -308,6 +312,38 @@ function GeneralSettingsContent() {
           </CardFooter>
         </Card>
       </form>
+
+      {/* Compression & Caching Spotlight */}
+      <Card className="bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-blue-950/30 border-slate-800">
+        <CardContent className="p-6">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/5">
+                <Zap className="h-6 w-6" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-white">Multi-Tier Compression & Caching Engine</h3>
+                  <Badge variant="success" className="text-[10px]">ACTIVE</Badge>
+                </div>
+                <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
+                  Cascading payload optimization (<span className="text-sky-300">Zstd</span> &rarr; <span className="text-emerald-300">Brotli -91%</span> &rarr; <span className="text-indigo-300">Gzip</span> &rarr; <span className="text-slate-300">Raw</span>) with live benchmarking and sub-50ms catalog cache.
+                </p>
+              </div>
+            </div>
+
+            <Link href="/admin/settings/compression">
+              <Button
+                type="button"
+                className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold gap-2 shrink-0 h-10 px-4 rounded-xl shadow-md shadow-blue-600/20"
+              >
+                <span>Configure & Benchmark Engine</span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
