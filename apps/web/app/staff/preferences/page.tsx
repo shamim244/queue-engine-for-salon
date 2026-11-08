@@ -8,7 +8,9 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { triggerHaptic, isHapticEnabled, setHapticEnabled } from "@/lib/haptics";
 import {
+  Settings,
   Sliders,
   Clock,
   KeyRound,
@@ -21,20 +23,29 @@ import {
   RefreshCw,
   LogOut,
   AlertCircle,
+  User,
+  Shield,
+  Smartphone,
+  Moon,
+  Volume2,
+  Maximize2,
+  Check,
 } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
 import { AuthGuard } from "@/components/auth-guard";
 
 export default function StaffPreferencesPage() {
   return (
     <AuthGuard requiredRole={["STAFF", "SALON_OWNER", "SUPER_ADMIN"]}>
-      <StaffPreferencesContent />
+      <StaffSettingsContent />
     </AuthGuard>
   );
 }
 
-function StaffPreferencesContent() {
+type SettingsTab = "general" | "security" | "device";
+
+function StaffSettingsContent() {
   const { user, staff, salon, logout, demoLogin } = useAuth();
+  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 
   // Speed Calibration State (15m to 60m)
   const [paceMinutes, setPaceMinutes] = useState<number>(staff?.avgDurationMinutes || 25);
@@ -55,7 +66,12 @@ function StaffPreferencesContent() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [pwdSuccessMsg, setPwdSuccessMsg] = useState(false);
 
-  // In-App Toast
+  // Device & Display Preferences State
+  const [hapticsOn, setHapticsOn] = useState(true);
+  const [mirrorOledOn, setMirrorOledOn] = useState(false);
+  const [chimeOn, setChimeOn] = useState(true);
+
+  // In-App Toast Alert
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
     setToast({ message, type });
@@ -64,11 +80,30 @@ function StaffPreferencesContent() {
 
   const staffId = staff?.id || user?.staffId || "stylist-01";
   const userId = user?.id || "user-staff-01";
+  const displayName = staff?.name || user?.fullName || user?.username || "Staff Barber";
+  const initials = displayName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  // Load initial preferences
+  useEffect(() => {
+    setHapticsOn(isHapticEnabled());
+    try {
+      const savedOled = localStorage.getItem("station_oled_mode") === "true";
+      setMirrorOledOn(savedOled);
+      const savedChime = localStorage.getItem("station_audio_chime") !== "false";
+      setChimeOn(savedChime);
+    } catch {}
+  }, []);
 
   const handleUpdatePace = async (newVal: number) => {
     setPaceMinutes(newVal);
     setSavingPace(true);
     setPaceSuccessMsg(false);
+    triggerHaptic("tap");
     try {
       await api.auth.updateStaffPreference({
         staffId,
@@ -78,14 +113,15 @@ function StaffPreferencesContent() {
       setPaceSuccessMsg(true);
       showToast(`Speed pace updated to ${newVal} minutes`, "success");
       setTimeout(() => setPaceSuccessMsg(false), 3000);
-    } catch (err) {
-      showToast("Failed to update speed pace: " + (err as Error).message, "error");
+    } catch (err: any) {
+      showToast("Failed to update speed pace: " + (err.message || "Failed"), "error");
     } finally {
       setSavingPace(false);
     }
   };
 
   const handleToggleShift = async (status: "ACTIVE" | "BREAK" | "OFF") => {
+    triggerHaptic("tap");
     setShiftStatus(status);
     try {
       await api.auth.updateStaffPreference({
@@ -93,9 +129,14 @@ function StaffPreferencesContent() {
         customAvgDurationMinutes: paceMinutes,
         isActive: status === "ACTIVE",
       });
-      showToast(`Shift status changed to ${status === "ACTIVE" ? "Active" : status === "BREAK" ? "On Break" : "Off Duty"}`, "info");
-    } catch (err) {
-      showToast("Failed to update shift status: " + (err as Error).message, "error");
+      showToast(
+        `Shift status changed to ${
+          status === "ACTIVE" ? "Active Duty" : status === "BREAK" ? "On Break" : "Off Duty"
+        }`,
+        "info"
+      );
+    } catch (err: any) {
+      showToast("Failed to update shift status: " + (err.message || "Failed"), "error");
     }
   };
 
@@ -107,14 +148,17 @@ function StaffPreferencesContent() {
     }
     setSavingPin(true);
     setPinSuccessMsg(false);
+    triggerHaptic("tap");
     try {
       await api.auth.setPin(userId, newPin);
+      triggerHaptic("complete");
       setPinSuccessMsg(true);
       setNewPin("");
       showToast("Mirror touch PIN saved successfully!", "success");
       setTimeout(() => setPinSuccessMsg(false), 3000);
-    } catch (err) {
-      showToast("Failed to update PIN: " + (err as Error).message, "error");
+    } catch (err: any) {
+      triggerHaptic("alert");
+      showToast("Failed to update PIN: " + (err.message || "Failed"), "error");
     } finally {
       setSavingPin(false);
     }
@@ -132,306 +176,563 @@ function StaffPreferencesContent() {
     }
     setSavingPassword(true);
     setPwdSuccessMsg(false);
+    triggerHaptic("tap");
     try {
       await api.auth.changePassword(userId, newPassword);
+      triggerHaptic("complete");
       setPwdSuccessMsg(true);
       setNewPassword("");
       setConfirmPassword("");
-      showToast("Password changed successfully!", "success");
+      showToast("Account password changed successfully!", "success");
       setTimeout(() => setPwdSuccessMsg(false), 3000);
-    } catch (err) {
-      showToast("Failed to change password: " + (err as Error).message, "error");
+    } catch (err: any) {
+      triggerHaptic("alert");
+      showToast("Failed to change password: " + (err.message || "Failed"), "error");
     } finally {
       setSavingPassword(false);
     }
   };
 
+  const handleToggleHaptic = () => {
+    const next = !hapticsOn;
+    setHapticsOn(next);
+    setHapticEnabled(next);
+    if (next) triggerHaptic("complete");
+    showToast(`Haptic vibration ${next ? "enabled" : "disabled"}`, "info");
+  };
+
+  const handleToggleOled = () => {
+    triggerHaptic("tap");
+    const next = !mirrorOledOn;
+    setMirrorOledOn(next);
+    try {
+      localStorage.setItem("station_oled_mode", String(next));
+    } catch {}
+    showToast(`OLED anti-glare mirror mode ${next ? "activated" : "deactivated"}`, "info");
+  };
+
+  const handleToggleChime = () => {
+    triggerHaptic("tap");
+    const next = !chimeOn;
+    setChimeOn(next);
+    try {
+      localStorage.setItem("station_audio_chime", String(next));
+    } catch {}
+    showToast(`Audio chime announcements ${next ? "enabled" : "disabled"}`, "info");
+  };
+
+  const handleToggleFullscreen = () => {
+    triggerHaptic("tap");
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+      showToast("Fullscreen kiosk mode active", "info");
+    } else {
+      document.exitFullscreen().catch(() => {});
+      showToast("Exited fullscreen mode", "info");
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8 flex justify-center">
-      <div className="w-full max-w-2xl space-y-6">
-        {/* Toast Alert Banner */}
-        {toast && (
+    <div className="space-y-6 max-w-4xl mx-auto">
+      {/* Toast Alert */}
+      {toast && (
+        <div className="fixed top-20 right-4 z-50 animate-in slide-in-from-top-2">
           <div
-            className={`p-3.5 rounded-xl border flex items-center justify-between shadow-lg transition-all animate-in slide-in-from-top-2 ${
+            className={`px-4 py-3 rounded-2xl shadow-2xl border text-sm font-semibold flex items-center gap-2 ${
               toast.type === "success"
-                ? "bg-emerald-950/90 border-emerald-600/50 text-emerald-200"
+                ? "bg-emerald-950 border-emerald-500/50 text-emerald-200"
                 : toast.type === "error"
-                ? "bg-rose-950/90 border-rose-600/50 text-rose-200"
-                : "bg-blue-950/90 border-blue-600/50 text-blue-200"
+                ? "bg-rose-950 border-rose-500/50 text-rose-200"
+                : "bg-slate-900 border-slate-700 text-slate-200"
             }`}
           >
-            <div className="flex items-center gap-2.5">
-              {toast.type === "success" && <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />}
-              {toast.type === "error" && <AlertCircle className="h-5 w-5 text-rose-400 shrink-0" />}
-              {toast.type === "info" && <Sparkles className="h-5 w-5 text-blue-400 shrink-0" />}
-              <span className="text-sm font-semibold">{toast.message}</span>
-            </div>
-            <button
-              onClick={() => setToast(null)}
-              className="text-xs opacity-70 hover:opacity-100 p-1 rounded transition-opacity"
-            >
-              ✕
-            </button>
+            {toast.type === "success" && <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />}
+            {toast.type === "error" && <AlertCircle className="h-4 w-4 text-rose-400 shrink-0" />}
+            {toast.type === "info" && <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />}
+            <span>{toast.message}</span>
           </div>
-        )}
-        {/* Navigation & Header */}
-        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-          <Link
-            href={salon?.slug ? `/s/${salon.slug}/station` : "/"}
-            className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+        </div>
+      )}
+
+      {/* Top Header Navigation */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-3">
+        <Link
+          href="/staff"
+          className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>Back to Chair &amp; Queue Cockpit</span>
+        </Link>
+
+        {user && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => logout()}
+            className="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 gap-1.5 self-start sm:self-auto"
           >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Chair Station</span>
-          </Link>
-
-          {user ? (
-            <Button variant="ghost" size="sm" onClick={() => logout()} className="text-xs text-rose-400 gap-1.5">
-              <LogOut className="h-3.5 w-3.5" />
-              <span>Logout ({user.username})</span>
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => demoLogin("STAFF")}
-              className="text-xs border-dashed gap-1"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-              Quick Staff Auth
-            </Button>
-          )}
-        </div>
-
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Staff Profile & Station Preferences
-          </h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Personal speed pace calibration, shift availability, and 4-digit mirror PIN security.
-          </p>
-        </div>
-
-        {/* 1. Shift Availability Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center justify-between">
-              <span>Shift Working Status</span>
-              <Badge
-                variant={
-                  shiftStatus === "ACTIVE"
-                    ? "success"
-                    : shiftStatus === "BREAK"
-                    ? "warning"
-                    : "secondary"
-                }
-              >
-                {shiftStatus === "ACTIVE"
-                  ? "On Duty & Serving"
-                  : shiftStatus === "BREAK"
-                  ? "On Tea Break"
-                  : "Off Duty"}
-              </Badge>
-            </CardTitle>
-            <CardDescription>
-              Marking yourself on break pauses automated ticket dispatch to your chair.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-3">
-              <button
-                type="button"
-                onClick={() => handleToggleShift("ACTIVE")}
-                className={`p-3 rounded-xl border text-center transition-all ${
-                  shiftStatus === "ACTIVE"
-                    ? "border-emerald-500 bg-emerald-500/15 text-emerald-300 font-bold shadow-lg shadow-emerald-500/10"
-                    : "border-slate-800 bg-slate-900 text-slate-400 hover:text-white"
-                }`}
-              >
-                <Armchair className="h-5 w-5 mx-auto mb-1 text-emerald-400" />
-                <span className="text-xs">On Duty</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleToggleShift("BREAK")}
-                className={`p-3 rounded-xl border text-center transition-all ${
-                  shiftStatus === "BREAK"
-                    ? "border-amber-500 bg-amber-500/15 text-amber-300 font-bold shadow-lg shadow-amber-500/10"
-                    : "border-slate-800 bg-slate-900 text-slate-400 hover:text-white"
-                }`}
-              >
-                <Coffee className="h-5 w-5 mx-auto mb-1 text-amber-400" />
-                <span className="text-xs">15m Chai Break</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleToggleShift("OFF")}
-                className={`p-3 rounded-xl border text-center transition-all ${
-                  shiftStatus === "OFF"
-                    ? "border-rose-500 bg-rose-500/15 text-rose-300 font-bold shadow-lg shadow-rose-500/10"
-                    : "border-slate-800 bg-slate-900 text-slate-400 hover:text-white"
-                }`}
-              >
-                <Clock className="h-5 w-5 mx-auto mb-1 text-rose-400" />
-                <span className="text-xs">Off Shift</span>
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 2. Speed Calibration Slider (15m to 60m) */}
-        <Card className="border-amber-500/30">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Sliders className="h-4 w-4 text-amber-400" />
-                  <span>Personal Speed Calibration</span>
-                </CardTitle>
-                <CardDescription>
-                  Tune your haircut pace. Downstream wait times recalculate dynamically in real-time!
-                </CardDescription>
-              </div>
-              <div className="text-right">
-                <span className="text-3xl font-black text-amber-400">{paceMinutes}</span>
-                <span className="text-xs text-slate-400 ml-1">mins / client</span>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <input
-                type="range"
-                min={15}
-                max={60}
-                step={5}
-                value={paceMinutes}
-                onChange={(e) => handleUpdatePace(Number(e.target.value))}
-                className="w-full h-3 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
-              />
-              <div className="flex justify-between text-[11px] font-semibold text-slate-400 px-1">
-                <span>15m (Lightning Fast)</span>
-                <span>25m (Standard)</span>
-                <span>40m (Detailed Fade)</span>
-                <span>60m (Relaxed Spa)</span>
-              </div>
-            </div>
-
-            {paceSuccessMsg && (
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
-                <span>Pace calibrated to {paceMinutes} minutes! Queue updated.</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* 3. 4-Digit Quick Mirror PIN */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <KeyRound className="h-4 w-4 text-amber-400" />
-              <span>4-Digit Mirror Touch PIN</span>
-            </CardTitle>
-            <CardDescription>
-              Used for 2-second rapid chair unlock and switching on the shared tablet.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSavePin} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                  New 4-Digit Numeric PIN
-                </label>
-                <div className="flex gap-3">
-                  <Input
-                    type="password"
-                    maxLength={4}
-                    pattern="\d{4}"
-                    placeholder="••••"
-                    value={newPin}
-                    onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
-                    className="w-36 text-center text-xl tracking-widest font-mono"
-                    required
-                  />
-                  <Button
-                    type="submit"
-                    disabled={savingPin || newPin.length !== 4}
-                    className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
-                  >
-                    {savingPin ? "Saving..." : "Update PIN"}
-                  </Button>
-                </div>
-              </div>
-
-              {pinSuccessMsg && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  <span>4-Digit Mirror PIN saved successfully!</span>
-                </div>
-              )}
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* 4. Alphanumeric Password Change */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Lock className="h-4 w-4 text-blue-400" />
-              <span>Change Account Password</span>
-            </CardTitle>
-            <CardDescription>Update your personal account credentials.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleChangePassword} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                    New Password
-                  </label>
-                  <Input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Min 6 characters"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                    Confirm Password
-                  </label>
-                  <Input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-enter password"
-                    required
-                  />
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                disabled={savingPassword}
-                variant="secondary"
-                className="text-xs font-bold"
-              >
-                {savingPassword ? "Updating..." : "Change Password"}
-              </Button>
-
-              {pwdSuccessMsg && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  <span>Password updated successfully!</span>
-                </div>
-              )}
-            </form>
-          </CardContent>
-        </Card>
+            <LogOut className="h-3.5 w-3.5" />
+            <span>Sign Out ({user.username})</span>
+          </Button>
+        )}
       </div>
+
+      {/* Main Page Title */}
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
+          <Settings className="h-6 w-6 text-amber-400" />
+          <span>General Settings &amp; Account Control</span>
+        </h1>
+        <p className="text-slate-400 text-xs sm:text-sm mt-1">
+          Complete control over your personal profile, 4-digit mirror PIN, service speed pace, and hardware preferences.
+        </p>
+      </div>
+
+      {/* Category Tabs: General | Security | Device */}
+      <div className="flex border-b border-slate-800 gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic("tap");
+            setActiveTab("general");
+          }}
+          className={`pb-3 px-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === "general"
+              ? "border-amber-400 text-amber-300"
+              : "border-transparent text-slate-400 hover:text-white"
+          }`}
+        >
+          <User className="h-4 w-4" />
+          <span>General Profile &amp; Pace</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic("tap");
+            setActiveTab("security");
+          }}
+          className={`pb-3 px-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === "security"
+              ? "border-amber-400 text-amber-300"
+              : "border-transparent text-slate-400 hover:text-white"
+          }`}
+        >
+          <Shield className="h-4 w-4" />
+          <span>Security &amp; PIN</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic("tap");
+            setActiveTab("device");
+          }}
+          className={`pb-3 px-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === "device"
+              ? "border-amber-400 text-amber-300"
+              : "border-transparent text-slate-400 hover:text-white"
+          }`}
+        >
+          <Smartphone className="h-4 w-4" />
+          <span>Device &amp; Station</span>
+        </button>
+      </div>
+
+      {/* TAB 1: GENERAL SETTINGS */}
+      {activeTab === "general" && (
+        <div className="space-y-6 animate-in fade-in-0 duration-150">
+          {/* Stylist Identity Card */}
+          <Card className="border-slate-800 bg-slate-900/70 shadow-xl">
+            <CardHeader className="pb-3 border-b border-slate-800">
+              <CardTitle className="text-base text-white flex items-center gap-2">
+                <User className="h-4 w-4 text-cyan-400" />
+                <span>Stylist Profile &amp; Branch Assignment</span>
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-400">
+                Your authenticated staff identity within this salon
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="h-14 w-14 rounded-2xl bg-gradient-to-tr from-cyan-600 to-blue-600 text-white font-black text-xl flex items-center justify-center shadow-lg shadow-cyan-600/20 shrink-0">
+                  {initials}
+                </div>
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-lg font-bold text-white truncate">{displayName}</h3>
+                    <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10 font-bold">
+                      STAFF STYLIST
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Username: <span className="text-slate-200 font-mono">@{user?.username || "staff"}</span>
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    Assigned Salon: <strong className="text-slate-200">{salon?.name || "Ramesh Traditional Barber"}</strong>
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Shift Working Status */}
+          <Card className="border-slate-800 bg-slate-900/70 shadow-xl">
+            <CardHeader className="pb-3 border-b border-slate-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base text-white flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-amber-400" />
+                    <span>Shift Working Availability</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-400 mt-0.5">
+                    Controls whether automated ticket queue dispatches clients to your chair
+                  </CardDescription>
+                </div>
+                <Badge
+                  variant={
+                    shiftStatus === "ACTIVE"
+                      ? "success"
+                      : shiftStatus === "BREAK"
+                      ? "warning"
+                      : "secondary"
+                  }
+                  className="font-bold text-xs"
+                >
+                  {shiftStatus === "ACTIVE"
+                    ? "On Duty & Ready"
+                    : shiftStatus === "BREAK"
+                    ? "On Chai Break"
+                    : "Off Duty"}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleToggleShift("ACTIVE")}
+                  className={`p-4 rounded-xl border text-center transition-all min-h-[52px] ${
+                    shiftStatus === "ACTIVE"
+                      ? "border-emerald-500 bg-emerald-500/15 text-emerald-300 font-bold shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/30"
+                      : "border-slate-800 bg-slate-950/70 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Armchair className="h-5 w-5 mx-auto mb-1.5 text-emerald-400" />
+                  <span className="text-xs font-bold block">On Duty &amp; Serving</span>
+                  <span className="text-[10px] text-slate-400">Queue active</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleShift("BREAK")}
+                  className={`p-4 rounded-xl border text-center transition-all min-h-[52px] ${
+                    shiftStatus === "BREAK"
+                      ? "border-amber-500 bg-amber-500/15 text-amber-300 font-bold shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/30"
+                      : "border-slate-800 bg-slate-950/70 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Coffee className="h-5 w-5 mx-auto mb-1.5 text-amber-400" />
+                  <span className="text-xs font-bold block">15m Chai Break</span>
+                  <span className="text-[10px] text-slate-400">Chair paused</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleShift("OFF")}
+                  className={`p-4 rounded-xl border text-center transition-all min-h-[52px] ${
+                    shiftStatus === "OFF"
+                      ? "border-rose-500 bg-rose-500/15 text-rose-300 font-bold shadow-lg shadow-rose-500/10 ring-1 ring-rose-500/30"
+                      : "border-slate-800 bg-slate-950/70 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Clock className="h-5 w-5 mx-auto mb-1.5 text-rose-400" />
+                  <span className="text-xs font-bold block">Off Duty</span>
+                  <span className="text-[10px] text-slate-400">Shift closed</span>
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Personal Speed & Pace Calibration */}
+          <Card className="border-amber-500/30 bg-slate-900/70 shadow-xl">
+            <CardHeader className="pb-3 border-b border-slate-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base text-white flex items-center gap-2">
+                    <Sliders className="h-4 w-4 text-amber-400" />
+                    <span>Personal Speed Calibration</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-400 mt-0.5">
+                    Tune your haircut pace. Downstream wait times on customer phones recalculate dynamically!
+                  </CardDescription>
+                </div>
+                <div className="text-right">
+                  <span className="text-2xl sm:text-3xl font-black text-amber-400">{paceMinutes}</span>
+                  <span className="text-xs text-slate-400 ml-1">mins / client</span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 space-y-5">
+              <div className="space-y-2">
+                <input
+                  type="range"
+                  min={15}
+                  max={60}
+                  step={5}
+                  value={paceMinutes}
+                  onChange={(e) => handleUpdatePace(Number(e.target.value))}
+                  className="w-full h-3 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                />
+                <div className="flex justify-between text-[11px] font-semibold text-slate-400 px-1">
+                  <span>15m (Lightning Fast)</span>
+                  <span>25m (Standard)</span>
+                  <span>40m (Detailed Fade)</span>
+                  <span>60m (Relaxed Spa)</span>
+                </div>
+              </div>
+
+              {paceSuccessMsg && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>Pace calibrated to {paceMinutes} minutes! Queue updated in real time.</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 2: SECURITY & PIN MANAGEMENT */}
+      {activeTab === "security" && (
+        <div className="space-y-6 animate-in fade-in-0 duration-150">
+          {/* 4-Digit Mirror Touch PIN */}
+          <Card className="border-slate-800 bg-slate-900/70 shadow-xl">
+            <CardHeader className="pb-3 border-b border-slate-800">
+              <CardTitle className="text-base text-white flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-amber-400" />
+                <span>4-Digit Mirror Screen Lock PIN</span>
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-400 mt-0.5">
+                Staff uses this 4-digit code to quickly unlock the mirror tablet without entering passwords
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6">
+              <form onSubmit={handleSavePin} className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+                    Set New 4-Digit Numeric PIN
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Input
+                      type="password"
+                      maxLength={4}
+                      pattern="\d{4}"
+                      placeholder="••••"
+                      value={newPin}
+                      onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
+                      className="w-36 text-center text-2xl tracking-widest font-mono h-11 bg-slate-950 border-slate-700"
+                      required
+                    />
+                    <Button
+                      type="submit"
+                      disabled={savingPin || newPin.length !== 4}
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black h-11 px-6 rounded-xl"
+                    >
+                      {savingPin ? "Saving..." : "Save 4-Digit PIN"}
+                    </Button>
+                  </div>
+                </div>
+
+                {pinSuccessMsg && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <span>4-Digit Mirror Touch PIN updated successfully!</span>
+                  </div>
+                )}
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Account Password Change */}
+          <Card className="border-slate-800 bg-slate-900/70 shadow-xl">
+            <CardHeader className="pb-3 border-b border-slate-800">
+              <CardTitle className="text-base text-white flex items-center gap-2">
+                <Lock className="h-4 w-4 text-blue-400" />
+                <span>Change Account Password</span>
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-400 mt-0.5">
+                Update your staff portal login password
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6">
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+                      New Password
+                    </label>
+                    <Input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Minimum 6 characters"
+                      className="bg-slate-950 border-slate-700 h-10 text-xs"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+                      Confirm New Password
+                    </label>
+                    <Input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Re-enter password"
+                      className="bg-slate-950 border-slate-700 h-10 text-xs"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={savingPassword || newPassword.length < 6}
+                  className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs h-10 px-5 rounded-xl border border-slate-700"
+                >
+                  {savingPassword ? "Updating Password..." : "Update Password"}
+                </Button>
+
+                {pwdSuccessMsg && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <span>Password updated successfully!</span>
+                  </div>
+                )}
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 3: DEVICE & STATION PREFERENCES */}
+      {activeTab === "device" && (
+        <div className="space-y-6 animate-in fade-in-0 duration-150">
+          <Card className="border-slate-800 bg-slate-900/70 shadow-xl">
+            <CardHeader className="pb-3 border-b border-slate-800">
+              <CardTitle className="text-base text-white flex items-center gap-2">
+                <Smartphone className="h-4 w-4 text-emerald-400" />
+                <span>Station Hardware &amp; Display Preferences</span>
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-400 mt-0.5">
+                Optimize mirror tablet performance, tactile feedback, and audio alerts
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 space-y-4">
+              {/* 1. Android Haptic Vibration */}
+              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm">
+                    <Smartphone className="h-4 w-4 text-emerald-400" />
+                    <span>Android Haptic Vibration</span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Provides tactile vibration pulses on client arrival, ticket call, and service finish
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleToggleHaptic}
+                  className={`text-xs font-bold px-3 py-1.5 h-8 rounded-lg shrink-0 ${
+                    hapticsOn
+                      ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/15"
+                      : "border-slate-700 text-slate-400"
+                  }`}
+                >
+                  {hapticsOn ? "ENABLED" : "DISABLED"}
+                </Button>
+              </div>
+
+              {/* 2. OLED Anti-Glare Mirror Mode */}
+              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm">
+                    <Moon className="h-4 w-4 text-purple-400" />
+                    <span>OLED Anti-Glare Deep Black Mode</span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Pure black (#000000) backdrop to reduce reflection on mirror displays and save tablet battery
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleToggleOled}
+                  className={`text-xs font-bold px-3 py-1.5 h-8 rounded-lg shrink-0 ${
+                    mirrorOledOn
+                      ? "border-purple-500/40 text-purple-300 bg-purple-500/15"
+                      : "border-slate-700 text-slate-400"
+                  }`}
+                >
+                  {mirrorOledOn ? "ACTIVE" : "OFF"}
+                </Button>
+              </div>
+
+              {/* 3. Audio Chime Announcements */}
+              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm">
+                    <Volume2 className="h-4 w-4 text-blue-400" />
+                    <span>Audio Chime &amp; Voice Announcements</span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Plays dual-tone airport sound and announces ticket numbers when calling next customer
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleToggleChime}
+                  className={`text-xs font-bold px-3 py-1.5 h-8 rounded-lg shrink-0 ${
+                    chimeOn
+                      ? "border-blue-500/40 text-blue-300 bg-blue-500/15"
+                      : "border-slate-700 text-slate-400"
+                  }`}
+                >
+                  {chimeOn ? "ON" : "MUTED"}
+                </Button>
+              </div>
+
+              {/* 4. Fullscreen Mode */}
+              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm">
+                    <Maximize2 className="h-4 w-4 text-amber-400" />
+                    <span>Fullscreen Kiosk Mode</span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Expands the station interface to full screen, hiding browser bars on tablets
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleToggleFullscreen}
+                  className="text-xs font-bold px-3 py-1.5 h-8 rounded-lg shrink-0 border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
+                >
+                  Toggle Kiosk
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

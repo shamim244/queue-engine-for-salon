@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Sparkles,
   User as UserIcon,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -63,9 +64,9 @@ function StaffLayoutContent({ children }: { children: React.ReactNode }) {
       active: pathname.includes("/station"),
     },
     {
-      label: "Preferences & PIN",
+      label: "General Settings",
       href: "/staff/preferences",
-      icon: Sliders,
+      icon: Settings,
       active: pathname === "/staff/preferences",
     },
   ];
