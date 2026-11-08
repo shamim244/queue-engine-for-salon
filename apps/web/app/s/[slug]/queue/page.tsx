@@ -77,6 +77,41 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
     }
   }, [user]);
 
+  // Haptic Vibration & Chime Alert State (Rule 1 & Rule 7: Android Mobile-First Haptics)
+  const [vibrationEnabled, setVibrationEnabled] = useState<boolean>(true);
+  const [supportsVibration, setSupportsVibration] = useState<boolean>(false);
+  const [isCopied, setIsCopied] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("queue_vibrate_enabled");
+        if (stored !== null) {
+          setVibrationEnabled(stored !== "false");
+        }
+      } catch {}
+      setSupportsVibration(typeof navigator !== "undefined" && "vibrate" in navigator);
+    }
+  }, []);
+
+  const handleToggleVibration = () => {
+    setVibrationEnabled((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("queue_vibrate_enabled", String(next));
+        } catch {}
+      }
+      if (next && supportsVibration) {
+        try {
+          navigator.vibrate(80);
+        } catch {}
+      }
+      showToast(next ? "📳 Haptic vibration alert enabled" : "🔕 Vibration alert muted", "info");
+      return next;
+    });
+  };
+
   // Audio Chime notification (Rule 1: Client Web Audio API Synthesis)
   const playChime = () => {
     try {
@@ -95,6 +130,49 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
         osc.stop(ctx.currentTime + 0.6);
       }
     } catch {}
+  };
+
+  const triggerSummonAlert = () => {
+    playChime();
+    if (vibrationEnabled && supportsVibration) {
+      try {
+        navigator.vibrate([300, 150, 300, 150, 500]);
+      } catch {}
+    }
+  };
+
+  const handleCopyTicketLink = () => {
+    if (typeof window === "undefined") return;
+    try {
+      navigator.clipboard.writeText(window.location.href);
+      setIsCopied(true);
+      showToast("Ticket link copied to clipboard!", "success");
+      setTimeout(() => setIsCopied(false), 2500);
+    } catch {
+      showToast("Could not copy link", "error");
+    }
+  };
+
+  const handleShareWhatsApp = () => {
+    if (typeof window === "undefined" || !myTicket) return;
+    const url = window.location.href;
+    const salonName = salon?.name || "Salon";
+    const waitInfo = estimatedWaitMin > 0 ? `~${estimatedWaitMin} mins` : "Ready Now!";
+    const shareMessage = `💈 Ticket #${myTicket.ticketNumber} at ${salonName}\n👤 Name: ${myTicket.customerName}\n✂️ Service: ${myTicket.serviceName}\n⏱️ Est. Wait: ${waitInfo}\n\nTrack my live queue spot in real time:\n${url}`;
+
+    if (navigator.share) {
+      navigator
+        .share({
+          title: `Ticket #${myTicket.ticketNumber} - ${salonName}`,
+          text: shareMessage,
+          url: url,
+        })
+        .catch(() => {
+          window.open(`https://wa.me/?text=${encodeURIComponent(shareMessage)}`, "_blank");
+        });
+    } else {
+      window.open(`https://wa.me/?text=${encodeURIComponent(shareMessage)}`, "_blank");
+    }
   };
 
   const fetchSalonAndQueue = async () => {
@@ -125,7 +203,7 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
             const wasSummoned = matching.status === "CALLED" || matching.status === "SUMMONED";
             const prevSummoned = myTicket?.status === "CALLED" || myTicket?.status === "SUMMONED";
             if (wasSummoned && !prevSummoned) {
-              playChime();
+              triggerSummonAlert();
             }
             setMyTicket(matching);
           } else if (myTicket && myTicket.id === storedTicketId) {
@@ -415,7 +493,13 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
             myBarberSpecificAhead={myBarberSpecificAhead}
             estimatedWaitMin={estimatedWaitMin}
             estimatedEtaWindow={estimatedEtaWindow}
-            onPlayChime={playChime}
+            onPlayChime={triggerSummonAlert}
+            vibrationEnabled={vibrationEnabled}
+            onToggleVibration={handleToggleVibration}
+            supportsVibration={supportsVibration}
+            onShareWhatsApp={handleShareWhatsApp}
+            onCopyLink={handleCopyTicketLink}
+            isCopied={isCopied}
             onOpenAddServices={() => {
               const currentAddOnIds = (myTicket.selectedAddOns || []).map((a: any) => a.id);
               setSelectedAddOnIds(currentAddOnIds);

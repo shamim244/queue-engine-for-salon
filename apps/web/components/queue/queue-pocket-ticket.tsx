@@ -14,6 +14,10 @@ import {
   CheckCircle2,
   Clock,
   Trash2,
+  Smartphone,
+  Share2,
+  Copy,
+  Check,
 } from "lucide-react";
 
 interface QueuePocketTicketProps {
@@ -29,6 +33,12 @@ interface QueuePocketTicketProps {
     isReady: boolean;
   };
   onPlayChime: () => void;
+  vibrationEnabled?: boolean;
+  onToggleVibration?: () => void;
+  supportsVibration?: boolean;
+  onShareWhatsApp?: () => void;
+  onCopyLink?: () => void;
+  isCopied?: boolean;
   onOpenAddServices: () => void;
   onPauseTicket: () => void;
   onResumeTicket: () => void;
@@ -46,6 +56,12 @@ export function QueuePocketTicket({
   estimatedWaitMin,
   estimatedEtaWindow,
   onPlayChime,
+  vibrationEnabled = true,
+  onToggleVibration,
+  supportsVibration = false,
+  onShareWhatsApp,
+  onCopyLink,
+  isCopied = false,
   onOpenAddServices,
   onPauseTicket,
   onResumeTicket,
@@ -112,6 +128,60 @@ export function QueuePocketTicket({
             </span>
           </div>
         </div>
+
+        {/* Quick Utility Action Bar: WhatsApp Share, Copy Link, Haptic Vibration Toggle */}
+        <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t border-slate-800/80 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {onShareWhatsApp && (
+              <button
+                type="button"
+                onClick={onShareWhatsApp}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 active:scale-95 transition-all min-h-[36px]"
+                title="Share live ticket tracking link on WhatsApp"
+              >
+                <Share2 className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Share on WhatsApp</span>
+              </button>
+            )}
+
+            {onCopyLink && (
+              <button
+                type="button"
+                onClick={onCopyLink}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-700 text-slate-300 hover:bg-slate-800 active:scale-95 transition-all min-h-[36px]"
+                title="Copy ticket URL to clipboard"
+              >
+                {isCopied ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-emerald-400" />
+                    <span className="text-emerald-400 font-bold">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5 text-slate-400" />
+                    <span>Copy Link</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          {supportsVibration && onToggleVibration && (
+            <button
+              type="button"
+              onClick={onToggleVibration}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all min-h-[36px] ${
+                vibrationEnabled
+                  ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
+                  : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-300"
+              }`}
+              title={vibrationEnabled ? "Turn off vibration alert" : "Turn on vibration alert"}
+            >
+              <Smartphone className={`h-3.5 w-3.5 ${vibrationEnabled ? "text-amber-400 animate-pulse" : "text-slate-500"}`} />
+              <span>{vibrationEnabled ? "Vibrate: ON" : "Vibrate: OFF"}</span>
+            </button>
+          )}
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-4 pt-4">
@@ -131,7 +201,7 @@ export function QueuePocketTicket({
               className="bg-amber-500 text-slate-950 font-black text-xs hover:bg-amber-400 gap-1.5 rounded-xl h-10 px-4"
             >
               <Volume2 className="h-4 w-4" />
-              <span>Play Chime Alert</span>
+              <span>Play Chime {vibrationEnabled && supportsVibration ? "& Vibrate" : "Alert"}</span>
             </Button>
           </div>
         )}

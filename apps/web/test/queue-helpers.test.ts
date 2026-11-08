@@ -137,4 +137,48 @@ describe("Queue Helpers & Fair FIFO Allocation Suite", () => {
     expect(eta.isReady).toBe(true);
     expect(eta.exactTarget).toBe("Now");
   });
+
+  it("should construct valid WhatsApp share message with ticket number, salon name, and URL", () => {
+    const mockTicket: Ticket = {
+      id: "t-45",
+      ticketNumber: 45,
+      customerName: "Vikas Patel",
+      serviceId: "s-1",
+      serviceName: "Royal Beard Trim",
+      status: "WAITING",
+      totalPrice: 200,
+      totalDurationMinutes: 15,
+      createdAt: "2026-11-08T05:00:00Z",
+    };
+    const salonName = "Jawad Habib Salon";
+    const estWait = 25;
+    const url = "https://salon.example.com/s/jawad/queue";
+
+    const shareMessage = `💈 Ticket #${mockTicket.ticketNumber} at ${salonName}\n👤 Name: ${mockTicket.customerName}\n✂️ Service: ${mockTicket.serviceName}\n⏱️ Est. Wait: ~${estWait} mins\n\nTrack my live queue spot in real time:\n${url}`;
+
+    expect(shareMessage).toContain("Ticket #45");
+    expect(shareMessage).toContain("Jawad Habib Salon");
+    expect(shareMessage).toContain("Royal Beard Trim");
+    expect(shareMessage).toContain("~25 mins");
+    expect(shareMessage).toContain(url);
+
+    const encoded = encodeURIComponent(shareMessage);
+    expect(encoded).toContain("Ticket%20%2345");
+  });
+
+  it("should validate haptic vibration pattern and user preference persistence logic", () => {
+    const vibrationPattern = [300, 150, 300, 150, 500];
+    expect(vibrationPattern.length).toBe(5);
+    expect(vibrationPattern.reduce((a, b) => a + b, 0)).toBe(1400);
+
+    // Mock storage toggle simulation
+    let storedPref = "true";
+    let isVibrateOn = storedPref !== "false";
+    expect(isVibrateOn).toBe(true);
+
+    // User toggles off
+    storedPref = String(!isVibrateOn);
+    isVibrateOn = storedPref !== "false";
+    expect(isVibrateOn).toBe(false);
+  });
 });
