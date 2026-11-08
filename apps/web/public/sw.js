@@ -1,7 +1,7 @@
 // Engine Que Enterprise Service Worker
-// Version: eq-pwa-v5 (Zero-maintenance Progressive Web App Shell - Auto Cache Invalidation)
+// Version: eq-pwa-v6 (Zero-maintenance Progressive Web App Shell - Auto Cache Invalidation)
 
-const CACHE_NAME = 'eq-pwa-v5';
+const CACHE_NAME = 'eq-pwa-v6';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE_ASSETS = [
