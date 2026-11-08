@@ -4,6 +4,7 @@ import { renderToString } from "react-dom/server";
 import type { Ticket, Stylist } from "@/lib/api";
 import { StationPinLock } from "@/components/station/station-pin-lock";
 import { StationChairHeader } from "@/components/station/station-chair-header";
+import { StationProfileDropdown } from "@/components/station/station-profile-dropdown";
 import { StationOpenChairCard } from "@/components/station/station-open-chair-card";
 import { StationSummonedCard } from "@/components/station/station-summoned-card";
 import { StationWaitingQueue } from "@/components/station/station-waiting-queue";
@@ -445,7 +446,7 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
       expect(html).toContain("Exact cash received");
     });
 
-    it("should render StationChairHeader with Fullscreen and Break toggles", () => {
+    it("should render StationChairHeader with streamlined status, walk-in action, and profile trigger", () => {
       const html = renderToString(
         React.createElement(StationChairHeader, {
           slug: "ramesh-barber",
@@ -461,31 +462,34 @@ describe("Batch 7: Staff Station Modular Components & Queue Separation", () => {
         })
       );
 
-      expect(html).toContain("Fullscreen Mode");
-      expect(html).toContain("Break");
+      // Streamlined header identity & walk-in action
+      expect(html).toContain("Vikram Stylist");
+      expect(html).toContain("+ Walk-in");
+      expect(html).toContain("Live");
+      // Initial avatar in top-right pill
+      expect(html).toContain("VS");
     });
 
-    it("should render StationChairHeader with daily earnings badge and streamlined status", () => {
+    it("should render StationProfileDropdown flyout matching NBPCDL pattern", () => {
       const html = renderToString(
-        React.createElement(StationChairHeader, {
+        React.createElement(StationProfileDropdown, {
           slug: "royal",
           activeStylist: mockStylist1,
-          hasMultipleStylists: true,
-          socketStatus: "connected",
-          reconnectAttempts: 0,
+          userName: "Vikram Stylist",
           dailyEarningsTotal: 710,
           dailyClientsCount: 7,
           onOpenEarnings: () => {},
-          onOpenQuickAdd: () => {},
+          onToggleBreak: () => {},
+          onToggleMirrorMode: () => {},
+          onToggleFullscreen: () => {},
           onLockChair: () => {},
+          onLogout: () => {},
         })
       );
 
-      // Verify desktop header toolbar earnings button
-      expect(html).toContain("₹710");
-
-      // Verify active stylist title
+      // Pill trigger shows stylist name and initials
       expect(html).toContain("Vikram Stylist");
+      expect(html).toContain("VS");
     });
 
     it("should render StationEarningsSummary with 4 KPI stat cards, service breakdown, completed tickets, and offline status", () => {
