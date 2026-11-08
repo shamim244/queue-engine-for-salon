@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Download, X, Smartphone, Sparkles } from "lucide-react";
+import { Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -19,19 +19,30 @@ export function PwaInstallBanner() {
   const [isInstalling, setIsInstalling] = useState(false);
 
   useEffect(() => {
-    // Check if already dismissed recently
+    // 1. Check if automatic prompt is enabled in admin settings or localStorage (Default: OFF / disabled)
+    // Per user instruction: Automatic banner is disabled so browser's native 3-dot menu handles installation cleanly.
+    let autoPromptAllowed = false;
+    try {
+      const stored = localStorage.getItem("eq_pwa_auto_prompt_enabled");
+      autoPromptAllowed = stored === "true";
+    } catch {}
+
+    if (!autoPromptAllowed) {
+      return;
+    }
+
+    // 2. Check if already dismissed recently
     try {
       const dismissedAt = localStorage.getItem("eq_pwa_dismissed_at");
       if (dismissedAt) {
         const timeDiff = Date.now() - parseInt(dismissedAt, 10);
-        // Suppress for 7 days if user previously dismissed
         if (timeDiff < 7 * 24 * 60 * 60 * 1000) {
           return;
         }
       }
     } catch {}
 
-    // Check if app is already running in standalone PWA mode
+    // 3. Check if app is already running in standalone PWA mode
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as any).standalone === true;
@@ -43,7 +54,6 @@ export function PwaInstallBanner() {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      // Show prompt banner after brief delay so user interacts with page first
       setTimeout(() => setVisible(true), 2500);
     };
 
@@ -72,8 +82,6 @@ export function PwaInstallBanner() {
       if (choiceResult.outcome === "accepted") {
         console.log("[PWA] User accepted the install prompt");
         setVisible(false);
-      } else {
-        console.log("[PWA] User dismissed the install prompt");
       }
     } catch (err) {
       console.warn("[PWA] Error during install trigger:", err);

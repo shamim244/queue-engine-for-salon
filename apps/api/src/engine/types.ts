@@ -203,6 +203,9 @@ export interface PlatformSettings {
     provider: string;
     senderPhone: string;
   };
+  pwa?: {
+    autoInstallPrompt: boolean;
+  };
 }
 
 export interface AuditLog {

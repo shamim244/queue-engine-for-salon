@@ -36,6 +36,9 @@ export const defaultPlatformSettings: PlatformSettings = {
     provider: 'SIMULATOR',
     senderPhone: '+91 98765 00000',
   },
+  pwa: {
+    autoInstallPrompt: false,
+  },
 };
 
 export const defaultAuditLogs: AuditLog[] = [

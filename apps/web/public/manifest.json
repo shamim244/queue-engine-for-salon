@@ -1,0 +1,49 @@
+{
+  "name": "Engine Que — Salon Queue & Operations",
+  "short_name": "Engine Que",
+  "description": "High-performance real-time salon queue engine, live ticket tracker, and barber station desk.",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#020617",
+  "theme_color": "#2563eb",
+  "categories": ["business", "productivity", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Salon Finder & Ticket",
+      "url": "/",
+      "description": "Find local salons and track active queue tickets"
+    },
+    {
+      "name": "Admin Command Center",
+      "url": "/admin",
+      "description": "Super Admin operations and system telemetry"
+    },
+    {
+      "name": "Salon Owner Hub",
+      "url": "/owner",
+      "description": "Manage salon staff, services, and live queue"
+    }
+  ]
+}

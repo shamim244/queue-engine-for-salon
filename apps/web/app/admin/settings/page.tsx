@@ -21,6 +21,7 @@ import {
   DollarSign,
   Mail,
   Phone,
+  Smartphone,
   Zap,
   ArrowRight,
   Layers,
@@ -34,6 +35,7 @@ interface GeneralFormState {
   defaultTimezone: string;
   defaultGracePeriodMinutes: number;
   defaultBufferMinutes: number;
+  autoInstallPrompt: boolean;
 }
 
 const defaultGeneralState: GeneralFormState = {
@@ -44,6 +46,7 @@ const defaultGeneralState: GeneralFormState = {
   defaultTimezone: "Asia/Kolkata",
   defaultGracePeriodMinutes: 3,
   defaultBufferMinutes: 5,
+  autoInstallPrompt: false,
 };
 
 function GeneralSettingsContent() {
@@ -69,6 +72,9 @@ function GeneralSettingsContent() {
               data.general.defaultGracePeriodMinutes ?? defaultGeneralState.defaultGracePeriodMinutes,
             defaultBufferMinutes:
               data.general.defaultBufferMinutes ?? defaultGeneralState.defaultBufferMinutes,
+            autoInstallPrompt:
+              (data as any)?.pwa?.autoInstallPrompt ??
+              (typeof window !== "undefined" && localStorage.getItem("eq_pwa_auto_prompt_enabled") === "true"),
           });
         }
       } catch (err: any) {
@@ -90,6 +96,9 @@ function GeneralSettingsContent() {
     setErrorMessage(null);
 
     try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("eq_pwa_auto_prompt_enabled", form.autoInstallPrompt ? "true" : "false");
+      }
       const response = await api.admin.updateSettings({
         general: {
           platformName: form.platformName,
@@ -99,6 +108,9 @@ function GeneralSettingsContent() {
           defaultTimezone: form.defaultTimezone,
           defaultGracePeriodMinutes: Number(form.defaultGracePeriodMinutes),
           defaultBufferMinutes: Number(form.defaultBufferMinutes),
+        },
+        pwa: {
+          autoInstallPrompt: form.autoInstallPrompt,
         },
       });
 
@@ -248,6 +260,48 @@ function GeneralSettingsContent() {
                 <option value="Asia/Dubai">Asia/Dubai (GST +04:00)</option>
                 <option value="Asia/Singapore">Asia/Singapore (SGT +08:00)</option>
               </select>
+            </div>
+          </CardContent>
+        </Card>
+
+                {/* PWA & Mobile Distribution Settings */}
+        <Card className="bg-slate-900/60 border-slate-800">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg text-white flex items-center gap-2">
+                  <Smartphone className="h-5 w-5 text-blue-400" />
+                  <span>PWA & Android Mobile Distribution</span>
+                </CardTitle>
+                <CardDescription className="text-slate-400 mt-1">
+                  Control how mobile visitors experience app installation and offline queue tracking.
+                </CardDescription>
+              </div>
+              <Badge variant="success" className="text-[10px]">PWA READY</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-slate-800 bg-slate-950/60">
+              <div className="space-y-1">
+                <span className="text-sm font-semibold text-white block">
+                  Automatic Install Prompt Banner
+                </span>
+                <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
+                  When <strong>Disabled (Default)</strong>, visitors can install the app quietly through Chrome's browser menu (⋮ &rarr; Install app) without any intrusive popups. Enable only if you want an automatic floating bottom prompt.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, autoInstallPrompt: !form.autoInstallPrompt })}
+                className={`h-10 px-5 rounded-xl text-xs font-bold transition-all border shrink-0 ${
+                  form.autoInstallPrompt
+                    ? "bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20"
+                    : "bg-slate-900 border-slate-700 text-slate-300 hover:text-white"
+                }`}
+              >
+                {form.autoInstallPrompt ? "✓ Enabled (Show Banner)" : "✕ Disabled (Browser Menu Only)"}
+              </button>
             </div>
           </CardContent>
         </Card>
