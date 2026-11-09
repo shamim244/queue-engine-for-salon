@@ -14,6 +14,9 @@ import type {
   OrganizationSubscription,
   Coupon,
   CouponRedemption,
+  Wallet,
+  WalletTransaction,
+  ReferralAttribution,
 } from '../../engine/types';
 
 export const defaultPlatformSettings: PlatformSettings = {
@@ -89,6 +92,9 @@ export const memoryStore = {
   organizationSubscriptions: new Map<string, OrganizationSubscription>(),
   coupons: new Map<string, Coupon>(),
   couponRedemptions: new Map<string, CouponRedemption>(),
+  wallets: new Map<string, Wallet>(),
+  walletTransactions: new Map<string, WalletTransaction>(),
+  referralAttributions: new Map<string, ReferralAttribution>(),
   settings: JSON.parse(JSON.stringify(defaultPlatformSettings)) as PlatformSettings,
   auditLogs: [...defaultAuditLogs] as AuditLog[],
   maintenanceMode: {

@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Tag,
   TicketPercent,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
@@ -109,9 +110,47 @@ export function UniversalPaymentModal({
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [couponFeedback, setCouponFeedback] = useState<{ message: string; success: boolean } | null>(null);
 
+  // Dual-Wallet State & Deduction Switch
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [useWallet, setUseWallet] = useState<boolean>(true);
+  const [loadingWallet, setLoadingWallet] = useState<boolean>(false);
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const payableAmount = Math.max(0, amount - couponDiscount);
+  // Deduction Math
+  const priceAfterCoupon = Math.max(0, amount - couponDiscount);
+  const walletDeduction = useWallet ? Math.min(walletBalance, priceAfterCoupon) : 0;
+  const netPayable = Math.max(0, priceAfterCoupon - walletDeduction);
+  const isZeroPayable = netPayable === 0;
+  const effectiveProvider = isZeroPayable ? "WALLET" : activeTab;
+
+  // Fetch Wallet Balance on Modal Open
+  useEffect(() => {
+    if (!isOpen || !organizationId) {
+      setWalletBalance(0);
+      return;
+    }
+
+    let isMounted = true;
+    async function fetchWallet() {
+      setLoadingWallet(true);
+      try {
+        const res = await api.wallets.getBalance("OWNER", organizationId);
+        if (isMounted && res.success) {
+          setWalletBalance(res.balance);
+        }
+      } catch (err) {
+        console.warn("Could not fetch wallet balance:", err);
+      } finally {
+        if (isMounted) setLoadingWallet(false);
+      }
+    }
+
+    fetchWallet();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, organizationId]);
 
   const handleApplyCoupon = async () => {
     const cleanCode = couponCodeInput.trim().toUpperCase();
@@ -179,8 +218,8 @@ export function UniversalPaymentModal({
         const res = await api.payments.createOrder({
           targetType: "SUBSCRIPTION",
           targetId: plan.id,
-          amount: payableAmount,
-          provider: activeTab,
+          amount: netPayable,
+          provider: effectiveProvider as any,
           organizationId,
           salonId: salonId || null,
           metadata: {
@@ -191,6 +230,7 @@ export function UniversalPaymentModal({
             couponId: appliedCoupon?.id || null,
             couponDiscount,
             couponCode: appliedCoupon?.code || null,
+            walletDeducted: walletDeduction,
           },
         });
 
@@ -222,7 +262,18 @@ export function UniversalPaymentModal({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, activeTab, plan.id, cycle, amount, payableAmount, organizationId, salonId, appliedCoupon?.id]);
+  }, [
+    isOpen,
+    effectiveProvider,
+    plan.id,
+    cycle,
+    amount,
+    netPayable,
+    walletDeduction,
+    organizationId,
+    salonId,
+    appliedCoupon?.id,
+  ]);
 
   // 2. Client-Side QR Code Rendering (Zero Server Waste)
   useEffect(() => {
@@ -274,8 +325,8 @@ export function UniversalPaymentModal({
     try {
       const res = await api.payments.verify({
         orderId: order.orderId,
-        provider: activeTab,
-        transactionRef: ref || undefined,
+        provider: effectiveProvider as any,
+        transactionRef: ref || (isZeroPayable ? "WALLET_100_CREDIT" : undefined),
         notes: activeTab === "CASH" ? cashNotesInput : undefined,
       });
 
@@ -407,26 +458,34 @@ export function UniversalPaymentModal({
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
-            {/* Amount Banner with Strike-Through if Coupon Applied */}
+            {/* Amount Banner with Strike-Through if Coupon or Wallet Applied */}
             <div className="bg-gradient-to-r from-blue-900/30 via-slate-800/40 to-indigo-900/30 border border-blue-500/20 rounded-xl p-4 flex items-center justify-between">
               <div>
                 <p className="text-xs text-slate-400 font-medium">Total Payable Amount</p>
                 <div className="flex items-baseline gap-2.5 mt-0.5">
                   <p className="text-2xl font-black text-white tracking-tight">
-                    {formatCurrency(payableAmount)}
+                    {formatCurrency(netPayable)}
                   </p>
-                  {couponDiscount > 0 && (
+                  {(couponDiscount > 0 || walletDeduction > 0) && (
                     <span className="text-sm line-through text-slate-500 font-semibold">
                       {formatCurrency(amount)}
                     </span>
                   )}
                 </div>
-                {appliedCoupon && (
-                  <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-full mt-1.5">
-                    <Sparkles className="w-3 h-3" />
-                    Saved {formatCurrency(couponDiscount)} with {appliedCoupon.code}
-                  </span>
-                )}
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {appliedCoupon && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-full">
+                      <Sparkles className="w-3 h-3" />
+                      Saved {formatCurrency(couponDiscount)} ({appliedCoupon.code})
+                    </span>
+                  )}
+                  {walletDeduction > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-purple-400 font-bold bg-purple-950/60 border border-purple-800/50 px-2 py-0.5 rounded-full">
+                      <Wallet className="w-3 h-3" />
+                      {formatCurrency(walletDeduction)} from Wallet
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="text-right">
                 <span className="text-xs bg-slate-800 text-slate-300 border border-slate-700 px-2 py-1 rounded-md font-mono">
@@ -501,6 +560,69 @@ export function UniversalPaymentModal({
               )}
             </div>
 
+            {/* Salon Owner Wallet Deduction Switch Box */}
+            <div
+              className={`p-3.5 rounded-xl border transition-all ${
+                useWallet && walletDeduction > 0
+                  ? "bg-purple-950/30 border-purple-500/40"
+                  : "bg-slate-950/80 border-slate-800"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={`p-2 rounded-lg ${
+                      walletBalance > 0
+                        ? "bg-purple-500/20 text-purple-400"
+                        : "bg-slate-800 text-slate-500"
+                    }`}
+                  >
+                    <Wallet className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white">Salon Owner Wallet</span>
+                      <span className="text-[11px] font-semibold text-purple-400 bg-purple-950/60 border border-purple-800/50 px-2 py-0.5 rounded-full">
+                        {loadingWallet ? "..." : `Available: ${formatCurrency(walletBalance)}`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {walletBalance > 0
+                        ? `Apply up to ${formatCurrency(Math.min(walletBalance, priceAfterCoupon))} from referral credits`
+                        : "Earn ₹500 credits by referring other salon owners"}
+                    </p>
+                  </div>
+                </div>
+
+                {walletBalance > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setUseWallet(!useWallet)}
+                    aria-label="Toggle Wallet Credits"
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none min-h-[30px] items-center ${
+                      useWallet ? "bg-purple-600" : "bg-slate-700"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        useWallet ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                )}
+              </div>
+
+              {useWallet && walletDeduction > 0 && (
+                <div className="mt-2.5 pt-2.5 border-t border-purple-500/20 flex items-center justify-between text-xs text-purple-300">
+                  <span className="flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    Wallet Credit Applied:
+                  </span>
+                  <span className="font-bold text-emerald-400">-{formatCurrency(walletDeduction)}</span>
+                </div>
+              )}
+            </div>
+
             {/* Error Banner */}
             {errorMessage && (
               <div className="p-3.5 bg-rose-950/60 border border-rose-600/40 rounded-xl text-rose-300 text-sm flex items-start gap-2.5">
@@ -509,45 +631,73 @@ export function UniversalPaymentModal({
               </div>
             )}
 
-            {/* Payment Provider Segmented Tabs (Rule 7: Mobile touch >= 48px) */}
-            <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950/80 border border-slate-800 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setActiveTab("UPI_QR")}
-                className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-semibold transition min-h-[44px] ${
-                  activeTab === "UPI_QR"
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                }`}
-              >
-                <QrCode className="w-4 h-4" />
-                <span>UPI QR / App</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("CASH")}
-                className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-semibold transition min-h-[44px] ${
-                  activeTab === "CASH"
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                }`}
-              >
-                <Banknote className="w-4 h-4" />
-                <span>Cash / Counter</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("RAZORPAY")}
-                className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-semibold transition min-h-[44px] ${
-                  activeTab === "RAZORPAY"
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                }`}
-              >
-                <CreditCard className="w-4 h-4" />
-                <span>Card Sandbox</span>
-              </button>
-            </div>
+            {isZeroPayable ? (
+              /* Instant 1-Tap Wallet Settlement when Net Payable is ₹0 */
+              <div className="p-6 text-center space-y-4 bg-gradient-to-b from-purple-950/40 to-slate-950 border border-purple-500/30 rounded-2xl">
+                <div className="w-14 h-14 bg-purple-500/10 border border-purple-500/30 text-purple-400 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-purple-500/10">
+                  <Sparkles className="w-7 h-7" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Full Balance Settlement</h3>
+                  <p className="text-xs text-slate-300 mt-1 max-w-sm mx-auto">
+                    Your wallet balance and discounts cover this subscription completely. Net payable is ₹0.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => handleVerify("WALLET_FULL_CREDIT")}
+                  disabled={verifying}
+                  className="w-full min-h-[48px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/30 text-sm"
+                >
+                  {verifying ? (
+                    <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Check className="w-4 h-4 mr-2" />
+                  )}
+                  Complete 1-Tap Activation (₹0)
+                </Button>
+              </div>
+            ) : (
+              <>
+                {/* Payment Provider Segmented Tabs (Rule 7: Mobile touch >= 48px) */}
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950/80 border border-slate-800 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("UPI_QR")}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-semibold transition min-h-[44px] ${
+                      activeTab === "UPI_QR"
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    }`}
+                  >
+                    <QrCode className="w-4 h-4" />
+                    <span>UPI QR / App</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("CASH")}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-semibold transition min-h-[44px] ${
+                      activeTab === "CASH"
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    }`}
+                  >
+                    <Banknote className="w-4 h-4" />
+                    <span>Cash / Counter</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("RAZORPAY")}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-semibold transition min-h-[44px] ${
+                      activeTab === "RAZORPAY"
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    }`}
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    <span>Card Sandbox</span>
+                  </button>
+                </div>
 
             {loadingOrder ? (
               <div className="py-12 flex flex-col items-center justify-center text-slate-400 space-y-3">
@@ -706,6 +856,8 @@ export function UniversalPaymentModal({
                   </div>
                 )}
               </>
+            )}
+            </>
             )}
           </div>
         )}

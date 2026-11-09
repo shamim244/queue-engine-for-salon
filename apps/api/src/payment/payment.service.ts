@@ -12,10 +12,13 @@ import type {
 import { upiQrAdapter } from './adapters/upi-qr.adapter';
 import { cashAdapter } from './adapters/cash.adapter';
 import { razorpayAdapter } from './adapters/razorpay.adapter';
+import { walletPaymentAdapter } from './adapters/wallet.adapter';
 import { paymentRepo } from '../db/repositories/payment.repo';
 import { planRepo } from '../db/repositories/plan.repo';
 import { organizationRepo } from '../db/repositories/organization.repo';
 import { couponRepo } from '../db/repositories/coupon.repo';
+import { walletService } from '../wallet/wallet.service';
+import { referralService } from '../wallet/referral.service';
 
 export class PaymentService {
   private adapters: Map<PaymentProvider, PaymentGatewayAdapter> = new Map();
@@ -24,6 +27,7 @@ export class PaymentService {
     this.registerAdapter(upiQrAdapter);
     this.registerAdapter(cashAdapter);
     this.registerAdapter(razorpayAdapter);
+    this.registerAdapter(walletPaymentAdapter);
   }
 
   registerAdapter(adapter: PaymentGatewayAdapter): void {
@@ -39,8 +43,8 @@ export class PaymentService {
   }
 
   async createPaymentOrder(input: CreateOrderInput): Promise<PaymentOrderResult> {
-    if (!input.amount || input.amount <= 0) {
-      throw new Error('Order amount must be greater than zero.');
+    if (input.amount < 0 || (input.amount === 0 && input.provider !== 'WALLET' && input.provider !== 'CASH')) {
+      throw new Error('Order amount must be greater than zero for external payment gateways.');
     }
 
     const adapter = this.getAdapter(input.provider);
@@ -267,6 +271,29 @@ export class PaymentService {
         userId: orgId,
         discountApplied: couponDiscount,
       });
+    }
+
+    // Debit wallet if credits were applied
+    const walletDeducted = Number(order.metadata?.walletDeducted || 0);
+    if (walletDeducted > 0) {
+      try {
+        await walletService.deductForCheckout({
+          walletType: 'OWNER',
+          identifier: orgId,
+          amount: walletDeducted,
+          reason: `Applied wallet credits to subscription order ${order.id}`,
+          referenceId: order.id,
+        });
+      } catch (err: any) {
+        console.warn(`[paymentService] Wallet debit warning: ${err.message}`);
+      }
+    }
+
+    // Process B2B referral conversion if this org was referred
+    try {
+      await referralService.processConversion('B2B_OWNER', orgId, order.id);
+    } catch (err: any) {
+      console.warn(`[paymentService] Referral conversion error: ${err.message}`);
     }
 
     // Update organization's active plan and quotas

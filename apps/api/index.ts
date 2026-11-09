@@ -18,6 +18,8 @@ import { adminRoutes } from './src/routes/admin.routes';
 import { planRoutes } from './src/routes/plan.routes';
 import { paymentRoutes } from './src/routes/payment.routes';
 import { couponRoutes } from './src/routes/coupon.routes';
+import { walletRoutes } from './src/routes/wallet.routes';
+import { referralRoutes } from './src/routes/referral.routes';
 import { compressionManager } from './src/engine/compression-manager';
 
 console.log(`\n======================================================`);
@@ -132,6 +134,8 @@ const app = new Elysia()
   .use(planRoutes)
   .use(paymentRoutes)
   .use(couponRoutes)
+  .use(walletRoutes)
+  .use(referralRoutes)
 
   // Subdirectory Shortcuts (/s/:slug)
   .get('/s/:slug', ({ params, redirect }) => redirect(`/customer.html?salon=${params.slug}`))

@@ -242,7 +242,7 @@ async function runMigrations() {
         customer_id VARCHAR(36) NULL,
         amount DECIMAL(10,2) NOT NULL,
         currency VARCHAR(10) DEFAULT 'INR',
-        provider ENUM('UPI_QR', 'CASH', 'RAZORPAY') NOT NULL,
+        provider ENUM('UPI_QR', 'CASH', 'RAZORPAY', 'WALLET') NOT NULL,
         provider_order_id VARCHAR(100) NULL,
         transaction_ref VARCHAR(100) NULL,
         status ENUM('PENDING', 'COMPLETED', 'FAILED', 'EXPIRED', 'REFUNDED') DEFAULT 'PENDING',
@@ -310,6 +310,59 @@ async function runMigrations() {
         redeemed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_redemption_coupon_user (coupon_id, user_id),
         INDEX idx_redemption_order (target_order_id)
+    ) ENGINE=InnoDB;`,
+
+    `CREATE TABLE IF NOT EXISTS wallets (
+        id VARCHAR(36) PRIMARY KEY,
+        wallet_type ENUM('OWNER', 'CONSUMER') NOT NULL,
+        owner_org_id VARCHAR(36) NULL,
+        consumer_phone VARCHAR(20) NULL,
+        salon_id VARCHAR(36) NULL,
+        balance DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        currency VARCHAR(10) DEFAULT 'INR',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_owner_wallet (owner_org_id),
+        UNIQUE KEY uq_consumer_wallet (salon_id, consumer_phone),
+        INDEX idx_wallet_type (wallet_type)
+    ) ENGINE=InnoDB;`,
+
+    `CREATE TABLE IF NOT EXISTS wallet_transactions (
+        id VARCHAR(36) PRIMARY KEY,
+        wallet_id VARCHAR(36) NOT NULL,
+        wallet_type ENUM('OWNER', 'CONSUMER') NOT NULL,
+        owner_org_id VARCHAR(36) NULL,
+        consumer_phone VARCHAR(20) NULL,
+        salon_id VARCHAR(36) NULL,
+        type ENUM('CREDIT', 'DEBIT') NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        balance_after DECIMAL(10,2) NOT NULL,
+        reason VARCHAR(255) NOT NULL,
+        reference_id VARCHAR(100) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_trans_wallet (wallet_id, created_at),
+        INDEX idx_trans_owner (owner_org_id, created_at),
+        INDEX idx_trans_consumer (salon_id, consumer_phone, created_at)
+    ) ENGINE=InnoDB;`,
+
+    `CREATE TABLE IF NOT EXISTS referral_attributions (
+        id VARCHAR(36) PRIMARY KEY,
+        referral_type ENUM('B2B_OWNER', 'B2C_CONSUMER') NOT NULL,
+        referrer_code VARCHAR(50) NOT NULL,
+        referrer_org_id VARCHAR(36) NULL,
+        referrer_phone VARCHAR(20) NULL,
+        referred_org_id VARCHAR(36) NULL,
+        referred_phone VARCHAR(20) NULL,
+        salon_id VARCHAR(36) NULL,
+        reward_amount DECIMAL(10,2) NOT NULL,
+        status ENUM('PENDING', 'CONVERTED', 'EXPIRED') DEFAULT 'PENDING',
+        conversion_reference_id VARCHAR(100) NULL,
+        converted_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_ref_code (referrer_code),
+        INDEX idx_ref_org (referrer_org_id, status),
+        INDEX idx_referred_org (referred_org_id)
     ) ENGINE=InnoDB;`
   ];
 
@@ -324,6 +377,7 @@ async function runMigrations() {
     `ALTER TABLE organizations ADD COLUMN plan_id VARCHAR(36) NULL;`,
     `ALTER TABLE salons ADD COLUMN organization_id VARCHAR(36) NULL;`,
     `ALTER TABLE salons MODIFY COLUMN operating_mode VARCHAR(50) NULL DEFAULT NULL;`,
+    `ALTER TABLE payment_orders MODIFY COLUMN provider ENUM('UPI_QR', 'CASH', 'RAZORPAY', 'WALLET') NOT NULL;`,
     `ALTER TABLE salons ADD COLUMN tagline VARCHAR(255) NULL;`,
     `ALTER TABLE salons ADD COLUMN about TEXT NULL;`,
     `ALTER TABLE salons ADD COLUMN email VARCHAR(150) NULL;`,

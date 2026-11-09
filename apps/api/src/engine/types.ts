@@ -28,7 +28,7 @@ export type BillingCycle = '1m' | '3m' | '6m' | '1y';
 
 export type PlanStatus = 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
 
-export type PaymentProvider = 'UPI_QR' | 'CASH' | 'RAZORPAY';
+export type PaymentProvider = 'UPI_QR' | 'CASH' | 'RAZORPAY' | 'WALLET';
 
 export type PaymentTargetType = 'SUBSCRIPTION' | 'QUEUE_TICKET' | 'WALLET_TOPUP';
 
@@ -127,6 +127,58 @@ export interface CreateCouponPayload {
   validFrom?: Date | string;
   validUntil?: Date | string | null;
   status?: CouponStatus;
+}
+
+export type WalletType = 'OWNER' | 'CONSUMER';
+
+export type WalletTransactionType = 'CREDIT' | 'DEBIT';
+
+export type ReferralType = 'B2B_OWNER' | 'B2C_CONSUMER';
+
+export type ReferralStatus = 'PENDING' | 'CONVERTED' | 'EXPIRED';
+
+export interface Wallet {
+  id: string;
+  walletType: WalletType;
+  ownerOrgId?: string | null;
+  consumerPhone?: string | null;
+  salonId?: string | null;
+  balance: number;
+  currency: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface WalletTransaction {
+  id: string;
+  walletId: string;
+  walletType: WalletType;
+  ownerOrgId?: string | null;
+  consumerPhone?: string | null;
+  salonId?: string | null;
+  type: WalletTransactionType;
+  amount: number;
+  balanceAfter: number;
+  reason: string;
+  referenceId?: string | null;
+  createdAt: Date | string;
+}
+
+export interface ReferralAttribution {
+  id: string;
+  referralType: ReferralType;
+  referrerCode: string;
+  referrerOrgId?: string | null;
+  referrerPhone?: string | null;
+  referredOrgId?: string | null;
+  referredPhone?: string | null;
+  salonId?: string | null;
+  rewardAmount: number;
+  status: ReferralStatus;
+  conversionReferenceId?: string | null;
+  convertedAt?: Date | string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
 
 export interface SubscriptionPlan {

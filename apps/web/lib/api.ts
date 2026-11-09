@@ -296,6 +296,49 @@ export interface CreateCouponPayload {
   status?: CouponStatus;
 }
 
+export type WalletType = "OWNER" | "CONSUMER";
+export type WalletTransactionType = "CREDIT" | "DEBIT";
+
+export interface WalletTransaction {
+  id: string;
+  walletId: string;
+  walletType: WalletType;
+  ownerOrgId?: string | null;
+  consumerPhone?: string | null;
+  salonId?: string | null;
+  type: WalletTransactionType;
+  amount: number;
+  balanceAfter: number;
+  reason: string;
+  referenceId?: string | null;
+  createdAt: string;
+}
+
+export interface WalletBalanceResult {
+  success: boolean;
+  walletId: string;
+  walletType: WalletType;
+  balance: number;
+  currency: string;
+}
+
+export interface ReferralStatsResult {
+  success: boolean;
+  code: string;
+  totalReferred: number;
+  convertedCount: number;
+  pendingCount: number;
+  totalEarned: number;
+  recentAttributions: Array<{
+    id: string;
+    referralType: string;
+    referrerCode: string;
+    rewardAmount: number;
+    status: string;
+    createdAt: string;
+  }>;
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -1321,6 +1364,71 @@ export const api = {
     delete: (id: string) =>
       request<{ success: boolean; message: string }>(`/api/coupons/${id}`, {
         method: "DELETE",
+      }),
+  },
+
+  wallets: {
+    getBalance: (walletType: WalletType, identifier: string, salonId?: string) => {
+      const q = new URLSearchParams({ walletType, identifier });
+      if (salonId) q.set("salonId", salonId);
+      return request<WalletBalanceResult>(`/api/wallets/balance?${q.toString()}`);
+    },
+
+    getPassbook: (walletType: WalletType, identifier: string, salonId?: string, limit?: number) => {
+      const q = new URLSearchParams({ walletType, identifier });
+      if (salonId) q.set("salonId", salonId);
+      if (limit) q.set("limit", limit.toString());
+      return request<{ success: boolean; transactions: WalletTransaction[] }>(
+        `/api/wallets/passbook?${q.toString()}`
+      );
+    },
+
+    credit: (data: {
+      walletType: WalletType;
+      identifier: string;
+      amount: number;
+      reason: string;
+      salonId?: string;
+      referenceId?: string;
+    }) =>
+      request<{ success: boolean; wallet: any; transaction: WalletTransaction }>(
+        "/api/wallets/credit",
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        }
+      ),
+  },
+
+  referrals: {
+    getCode: (params: { orgId?: string; slug?: string; phone?: string }) => {
+      const q = new URLSearchParams();
+      if (params.orgId) q.set("orgId", params.orgId);
+      if (params.slug) q.set("slug", params.slug);
+      if (params.phone) q.set("phone", params.phone);
+      return request<{ success: boolean; code: string; shareUrl: string }>(
+        `/api/referrals/code?${q.toString()}`
+      );
+    },
+
+    getStats: (params: { referrerOrgId?: string; referrerPhone?: string; salonId?: string }) => {
+      const q = new URLSearchParams();
+      if (params.referrerOrgId) q.set("referrerOrgId", params.referrerOrgId);
+      if (params.referrerPhone) q.set("referrerPhone", params.referrerPhone);
+      if (params.salonId) q.set("salonId", params.salonId);
+      return request<ReferralStatsResult>(`/api/referrals/stats?${q.toString()}`);
+    },
+
+    attribute: (data: {
+      referralType: "B2B_OWNER" | "B2C_CONSUMER";
+      referrerCode: string;
+      referredOrgId?: string;
+      referredPhone?: string;
+      salonId?: string;
+    }) =>
+      request<{ success: boolean; attribution: any }>("/api/referrals/attribute", {
+        method: "POST",
+        body: JSON.stringify(data),
       }),
   },
 };
