@@ -276,6 +276,40 @@ async function runMigrations() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_org_sub (organization_id, status)
+    ) ENGINE=InnoDB;`,
+
+    `CREATE TABLE IF NOT EXISTS coupons (
+        id VARCHAR(36) PRIMARY KEY,
+        code VARCHAR(50) NOT NULL UNIQUE,
+        target_type ENUM('SUBSCRIPTION', 'SALON_SERVICE') NOT NULL,
+        organization_id VARCHAR(36) NULL,
+        salon_id VARCHAR(36) NULL,
+        discount_type ENUM('PERCENT', 'FLAT') NOT NULL,
+        discount_value DECIMAL(10,2) NOT NULL,
+        max_discount_amount DECIMAL(10,2) NULL,
+        min_order_amount DECIMAL(10,2) DEFAULT 0.00,
+        max_uses INT NULL,
+        used_count INT DEFAULT 0,
+        max_uses_per_user INT DEFAULT 1,
+        valid_from TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        valid_until TIMESTAMP NULL,
+        status ENUM('ACTIVE', 'INACTIVE', 'EXPIRED') DEFAULT 'ACTIVE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_coupon_lookup (code, status),
+        INDEX idx_coupon_org_salon (organization_id, salon_id)
+    ) ENGINE=InnoDB;`,
+
+    `CREATE TABLE IF NOT EXISTS coupon_redemptions (
+        id VARCHAR(36) PRIMARY KEY,
+        coupon_id VARCHAR(36) NOT NULL,
+        target_type ENUM('SUBSCRIPTION', 'SALON_SERVICE') NOT NULL,
+        target_order_id VARCHAR(36) NOT NULL,
+        user_id VARCHAR(36) NULL,
+        discount_applied DECIMAL(10,2) NOT NULL,
+        redeemed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_redemption_coupon_user (coupon_id, user_id),
+        INDEX idx_redemption_order (target_order_id)
     ) ENGINE=InnoDB;`
   ];
 

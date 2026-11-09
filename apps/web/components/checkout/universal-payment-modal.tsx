@@ -16,6 +16,8 @@ import {
   ShieldCheck,
   Sparkles,
   RefreshCw,
+  Tag,
+  TicketPercent,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
@@ -95,8 +97,64 @@ export function UniversalPaymentModal({
     subscription: OrganizationSubscription;
   } | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number>(600);
+  const [couponCodeInput, setCouponCodeInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    id: string;
+    code: string;
+    discountType: "PERCENT" | "FLAT";
+    discountValue: number;
+    maxDiscountAmount?: number | null;
+  } | null>(null);
+  const [couponDiscount, setCouponDiscount] = useState<number>(0);
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
+  const [couponFeedback, setCouponFeedback] = useState<{ message: string; success: boolean } | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const payableAmount = Math.max(0, amount - couponDiscount);
+
+  const handleApplyCoupon = async () => {
+    const cleanCode = couponCodeInput.trim().toUpperCase();
+    if (!cleanCode) return;
+    setApplyingCoupon(true);
+    setCouponFeedback(null);
+    try {
+      const res = await api.coupons.apply({
+        code: cleanCode,
+        targetType: "SUBSCRIPTION",
+        orderAmount: amount,
+        organizationId,
+      });
+
+      if (res.valid && res.coupon) {
+        setAppliedCoupon(res.coupon);
+        setCouponDiscount(res.discountAmount);
+        setCouponFeedback({
+          success: true,
+          message: `Coupon "${cleanCode}" applied! Saved ${formatCurrency(res.discountAmount)}.`,
+        });
+      } else {
+        setCouponFeedback({
+          success: false,
+          message: res.message || "Invalid coupon code.",
+        });
+      }
+    } catch (err: any) {
+      setCouponFeedback({
+        success: false,
+        message: err.message || "Could not apply coupon.",
+      });
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponDiscount(0);
+    setCouponCodeInput("");
+    setCouponFeedback(null);
+  };
 
   // 1. Create Order whenever activeTab, plan, cycle, or amount changes
   useEffect(() => {
@@ -105,6 +163,10 @@ export function UniversalPaymentModal({
       setSuccessResult(null);
       setErrorMessage(null);
       setTransactionRefInput("");
+      setAppliedCoupon(null);
+      setCouponDiscount(0);
+      setCouponCodeInput("");
+      setCouponFeedback(null);
       return;
     }
 
@@ -117,7 +179,7 @@ export function UniversalPaymentModal({
         const res = await api.payments.createOrder({
           targetType: "SUBSCRIPTION",
           targetId: plan.id,
-          amount,
+          amount: payableAmount,
           provider: activeTab,
           organizationId,
           salonId: salonId || null,
@@ -125,6 +187,10 @@ export function UniversalPaymentModal({
             planName: plan.name,
             planSlug: plan.slug,
             cycle,
+            basePrice: amount,
+            couponId: appliedCoupon?.id || null,
+            couponDiscount,
+            couponCode: appliedCoupon?.code || null,
           },
         });
 
@@ -156,7 +222,7 @@ export function UniversalPaymentModal({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, activeTab, plan.id, cycle, amount, organizationId, salonId]);
+  }, [isOpen, activeTab, plan.id, cycle, amount, payableAmount, organizationId, salonId, appliedCoupon?.id]);
 
   // 2. Client-Side QR Code Rendering (Zero Server Waste)
   useEffect(() => {
@@ -341,11 +407,26 @@ export function UniversalPaymentModal({
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
-            {/* Amount Banner */}
+            {/* Amount Banner with Strike-Through if Coupon Applied */}
             <div className="bg-gradient-to-r from-blue-900/30 via-slate-800/40 to-indigo-900/30 border border-blue-500/20 rounded-xl p-4 flex items-center justify-between">
               <div>
                 <p className="text-xs text-slate-400 font-medium">Total Payable Amount</p>
-                <p className="text-2xl font-black text-white tracking-tight">{formatCurrency(amount)}</p>
+                <div className="flex items-baseline gap-2.5 mt-0.5">
+                  <p className="text-2xl font-black text-white tracking-tight">
+                    {formatCurrency(payableAmount)}
+                  </p>
+                  {couponDiscount > 0 && (
+                    <span className="text-sm line-through text-slate-500 font-semibold">
+                      {formatCurrency(amount)}
+                    </span>
+                  )}
+                </div>
+                {appliedCoupon && (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-full mt-1.5">
+                    <Sparkles className="w-3 h-3" />
+                    Saved {formatCurrency(couponDiscount)} with {appliedCoupon.code}
+                  </span>
+                )}
               </div>
               <div className="text-right">
                 <span className="text-xs bg-slate-800 text-slate-300 border border-slate-700 px-2 py-1 rounded-md font-mono">
@@ -358,6 +439,66 @@ export function UniversalPaymentModal({
                     : "1 Year"}
                 </span>
               </div>
+            </div>
+
+            {/* Omni-Channel Coupon Code Box */}
+            <div className="p-3.5 bg-slate-950/90 border border-slate-800 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                  <TicketPercent className="w-4 h-4 text-indigo-400" />
+                  Have a Promo / Discount Code?
+                </span>
+                {appliedCoupon && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold underline"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    placeholder="Enter Coupon (e.g. WELCOME50)"
+                    value={couponCodeInput}
+                    disabled={!!appliedCoupon || applyingCoupon}
+                    onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-mono font-bold tracking-wide text-white uppercase placeholder-slate-500 focus:outline-none focus:border-indigo-500 min-h-[44px] disabled:opacity-60"
+                  />
+                  {appliedCoupon && (
+                    <Check className="w-4 h-4 text-emerald-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
+                  )}
+                </div>
+                {!appliedCoupon && (
+                  <Button
+                    type="button"
+                    onClick={handleApplyCoupon}
+                    disabled={applyingCoupon || !couponCodeInput.trim()}
+                    className="min-h-[44px] px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl"
+                  >
+                    {applyingCoupon ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "Apply"}
+                  </Button>
+                )}
+              </div>
+
+              {couponFeedback && (
+                <p
+                  className={`text-[11px] font-medium flex items-center gap-1 ${
+                    couponFeedback.success ? "text-emerald-400" : "text-rose-400"
+                  }`}
+                >
+                  {couponFeedback.success ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  )}
+                  {couponFeedback.message}
+                </p>
+              )}
             </div>
 
             {/* Error Banner */}

@@ -12,6 +12,8 @@ import type {
   SubscriptionPlan,
   PaymentOrder,
   OrganizationSubscription,
+  Coupon,
+  CouponRedemption,
 } from '../../engine/types';
 
 export const defaultPlatformSettings: PlatformSettings = {
@@ -85,6 +87,8 @@ export const memoryStore = {
   plans: new Map<string, SubscriptionPlan>(),
   paymentOrders: new Map<string, PaymentOrder>(),
   organizationSubscriptions: new Map<string, OrganizationSubscription>(),
+  coupons: new Map<string, Coupon>(),
+  couponRedemptions: new Map<string, CouponRedemption>(),
   settings: JSON.parse(JSON.stringify(defaultPlatformSettings)) as PlatformSettings,
   auditLogs: [...defaultAuditLogs] as AuditLog[],
   maintenanceMode: {

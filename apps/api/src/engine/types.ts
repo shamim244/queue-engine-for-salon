@@ -77,6 +77,58 @@ export interface OrganizationSubscription {
   updatedAt: Date | string;
 }
 
+export type CouponTargetType = 'SUBSCRIPTION' | 'SALON_SERVICE';
+
+export type CouponDiscountType = 'PERCENT' | 'FLAT';
+
+export type CouponStatus = 'ACTIVE' | 'INACTIVE' | 'EXPIRED';
+
+export interface Coupon {
+  id: string;
+  code: string;
+  targetType: CouponTargetType;
+  organizationId?: string | null;
+  salonId?: string | null;
+  discountType: CouponDiscountType;
+  discountValue: number;
+  maxDiscountAmount?: number | null;
+  minOrderAmount: number;
+  maxUses?: number | null;
+  usedCount: number;
+  maxUsesPerUser: number;
+  validFrom: Date | string;
+  validUntil?: Date | string | null;
+  status: CouponStatus;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface CouponRedemption {
+  id: string;
+  couponId: string;
+  targetType: CouponTargetType;
+  targetOrderId: string;
+  userId?: string | null;
+  discountApplied: number;
+  redeemedAt: Date | string;
+}
+
+export interface CreateCouponPayload {
+  code: string;
+  targetType: CouponTargetType;
+  organizationId?: string | null;
+  salonId?: string | null;
+  discountType: CouponDiscountType;
+  discountValue: number;
+  maxDiscountAmount?: number | null;
+  minOrderAmount?: number;
+  maxUses?: number | null;
+  maxUsesPerUser?: number;
+  validFrom?: Date | string;
+  validUntil?: Date | string | null;
+  status?: CouponStatus;
+}
+
 export interface SubscriptionPlan {
   id: string;
   name: string;

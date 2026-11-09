@@ -15,6 +15,7 @@ import { razorpayAdapter } from './adapters/razorpay.adapter';
 import { paymentRepo } from '../db/repositories/payment.repo';
 import { planRepo } from '../db/repositories/plan.repo';
 import { organizationRepo } from '../db/repositories/organization.repo';
+import { couponRepo } from '../db/repositories/coupon.repo';
 
 export class PaymentService {
   private adapters: Map<PaymentProvider, PaymentGatewayAdapter> = new Map();
@@ -231,6 +232,10 @@ export class PaymentService {
     }
 
     const subId = `sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const basePrice = Number(order.metadata?.basePrice ?? order.amount);
+    const couponDiscount = Number(order.metadata?.couponDiscount || 0);
+    const couponId = order.metadata?.couponId || null;
+
     const subscription: OrganizationSubscription = {
       id: subId,
       organizationId: orgId,
@@ -238,9 +243,9 @@ export class PaymentService {
       cycle,
       startsAt,
       expiresAt,
-      basePrice: order.amount,
-      couponId: order.metadata?.couponId || null,
-      couponDiscount: Number(order.metadata?.couponDiscount || 0),
+      basePrice,
+      couponId,
+      couponDiscount,
       walletDeducted: Number(order.metadata?.walletDeducted || 0),
       netAmountPaid: order.amount,
       paymentMethod: order.provider,
@@ -252,6 +257,17 @@ export class PaymentService {
     };
 
     await paymentRepo.createSubscription(subscription);
+
+    // Record coupon redemption if a coupon was used
+    if (couponId) {
+      await couponRepo.recordRedemption({
+        couponId,
+        targetType: 'SUBSCRIPTION',
+        targetOrderId: order.id,
+        userId: orgId,
+        discountApplied: couponDiscount,
+      });
+    }
 
     // Update organization's active plan and quotas
     await organizationRepo.updateOrganizationPlan(orgId, plan.id);

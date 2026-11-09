@@ -233,6 +233,69 @@ export interface OrganizationSubscription {
   updatedAt: string;
 }
 
+export type CouponTargetType = "SUBSCRIPTION" | "SALON_SERVICE";
+export type CouponDiscountType = "PERCENT" | "FLAT";
+export type CouponStatus = "ACTIVE" | "INACTIVE" | "EXPIRED";
+
+export interface Coupon {
+  id: string;
+  code: string;
+  targetType: CouponTargetType;
+  organizationId?: string | null;
+  salonId?: string | null;
+  discountType: CouponDiscountType;
+  discountValue: number;
+  maxDiscountAmount?: number | null;
+  minOrderAmount: number;
+  maxUses?: number | null;
+  usedCount: number;
+  maxUsesPerUser: number;
+  validFrom: string;
+  validUntil?: string | null;
+  status: CouponStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ApplyCouponInput {
+  code: string;
+  targetType: CouponTargetType;
+  orderAmount: number;
+  userId?: string | null;
+  organizationId?: string | null;
+  salonId?: string | null;
+}
+
+export interface ApplyCouponResult {
+  valid: boolean;
+  message?: string;
+  coupon?: {
+    id: string;
+    code: string;
+    discountType: CouponDiscountType;
+    discountValue: number;
+    maxDiscountAmount?: number | null;
+  };
+  discountAmount: number;
+  netPayable: number;
+}
+
+export interface CreateCouponPayload {
+  code: string;
+  targetType: CouponTargetType;
+  organizationId?: string | null;
+  salonId?: string | null;
+  discountType: CouponDiscountType;
+  discountValue: number;
+  maxDiscountAmount?: number | null;
+  minOrderAmount?: number;
+  maxUses?: number | null;
+  maxUsesPerUser?: number;
+  validFrom?: string;
+  validUntil?: string | null;
+  status?: CouponStatus;
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -1206,5 +1269,58 @@ export const api = {
       request<{ success: boolean; subscription: OrganizationSubscription | null }>(
         `/api/payments/subscriptions/${orgId}`
       ),
+  },
+
+  coupons: {
+    apply: (payload: ApplyCouponInput) =>
+      request<{
+        success: boolean;
+        valid: boolean;
+        message?: string;
+        coupon?: {
+          id: string;
+          code: string;
+          discountType: CouponDiscountType;
+          discountValue: number;
+          maxDiscountAmount?: number | null;
+        };
+        discountAmount: number;
+        netPayable: number;
+      }>("/api/coupons/apply", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    getAll: (params?: {
+      targetType?: CouponTargetType;
+      salonId?: string;
+      organizationId?: string;
+      status?: CouponStatus;
+    }) => {
+      const q = new URLSearchParams();
+      if (params?.targetType) q.set("targetType", params.targetType);
+      if (params?.salonId) q.set("salonId", params.salonId);
+      if (params?.organizationId) q.set("organizationId", params.organizationId);
+      if (params?.status) q.set("status", params.status);
+      const qs = q.toString();
+      return request<{ success: boolean; coupons: Coupon[] }>(`/api/coupons${qs ? `?${qs}` : ""}`);
+    },
+
+    create: (data: CreateCouponPayload) =>
+      request<{ success: boolean; coupon: Coupon }>("/api/coupons", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    update: (id: string, data: Partial<CreateCouponPayload>) =>
+      request<{ success: boolean; coupon: Coupon }>(`/api/coupons/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+
+    delete: (id: string) =>
+      request<{ success: boolean; message: string }>(`/api/coupons/${id}`, {
+        method: "DELETE",
+      }),
   },
 };
