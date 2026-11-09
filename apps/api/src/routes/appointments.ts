@@ -82,6 +82,39 @@ export const appointmentRoutes = new Elysia()
     };
   })
 
+  // 1a. Get Salon Appointment Booking Policy
+  .get('/api/v1/salons/:slug/appointments/policy', async ({ params, set }) => {
+    const salon = await repository.getSalonBySlug(params.slug);
+    if (!salon) {
+      set.status = 404;
+      return { success: false, error: 'Salon not found' };
+    }
+
+    const policy = await repository.getSalonAppointmentPolicy(salon.id);
+    return {
+      success: true,
+      salonId: salon.id,
+      salonName: salon.name,
+      policy,
+    };
+  })
+
+  // 1a-2. Update Salon Appointment Booking Policy (Admin / Salon Owner)
+  .put('/api/v1/salons/:slug/appointments/policy', async ({ params, body, set }) => {
+    const salon = await repository.getSalonBySlug(params.slug);
+    if (!salon) {
+      set.status = 404;
+      return { success: false, error: 'Salon not found' };
+    }
+
+    const updatedPolicy = await repository.updateSalonAppointmentPolicy(salon.id, body as any);
+    return {
+      success: true,
+      message: 'Appointment booking policy updated successfully',
+      policy: updatedPolicy,
+    };
+  })
+
   // 1b. Get Salon Appointments List (for Owner/Dashboard)
   .get('/api/v1/salons/:slug/appointments', async ({ params, query, set }) => {
     const salon = await repository.getSalonBySlug(params.slug);
@@ -161,11 +194,41 @@ export const appointmentRoutes = new Elysia()
         return { success: false, error: 'Selected slot is no longer available' };
       }
 
-      // Advance calculation: TOKEN (₹50/₹100 or min) vs FULL
-      const advanceAmount =
-        advanceType === 'FULL'
-          ? totalPrice
-          : Math.min(totalPrice, Math.max(50, Math.min(100, totalPrice)));
+      // Dynamic advance calculation based on salon booking policy set by Admin/Owner
+      const policy = await repository.getSalonAppointmentPolicy(salon.id);
+
+      let advanceAmount = 0;
+      let paymentMethod: any = 'RAZORPAY';
+      let initialStatus: AppointmentStatus = 'PENDING_PAYMENT';
+      let escrowStatus: any = 'HELD';
+
+      if (
+        policy.policyType === 'FREE' ||
+        advanceType === 'FREE' ||
+        (policy.allowFreeBooking && advanceType === 'FREE')
+      ) {
+        advanceAmount = 0;
+        paymentMethod = 'PAY_AT_SALON';
+        initialStatus = 'CONFIRMED'; // Free booking locks immediately!
+        escrowStatus = 'RELEASED_TO_OWNER';
+      } else if (advanceType === 'FULL' || policy.policyType === 'FULL') {
+        advanceAmount = totalPrice + (policy.convenienceFee || 0);
+      } else if (policy.policyType === 'PERCENTAGE') {
+        advanceAmount =
+          Math.max(0, Math.round((totalPrice * (policy.percentage || 50)) / 100)) +
+          (policy.convenienceFee || 0);
+      } else {
+        // FIXED_TOKEN (Admin configurable token amount, default 100, or 0 for free)
+        const token = typeof policy.tokenAmount === 'number' ? policy.tokenAmount : 100;
+        if (token === 0) {
+          advanceAmount = 0;
+          paymentMethod = 'PAY_AT_SALON';
+          initialStatus = 'CONFIRMED';
+          escrowStatus = 'RELEASED_TO_OWNER';
+        } else {
+          advanceAmount = Math.min(totalPrice, token) + (policy.convenienceFee || 0);
+        }
+      }
 
       const apptId = 'appt-' + Math.random().toString(36).substring(2, 9);
       const razorpayOrderId = 'order_' + Math.random().toString(36).substring(2, 10);
@@ -187,19 +250,42 @@ export const appointmentRoutes = new Elysia()
         durationMinutes,
         advanceAmount,
         totalPrice,
-        paymentMethod: 'RAZORPAY',
+        paymentMethod,
         gatewayOrderId: razorpayOrderId,
-        escrowStatus: 'HELD',
-        status: 'PENDING_PAYMENT',
+        escrowStatus,
+        status: initialStatus,
       };
 
       await repository.createAppointment(appointment);
+
+      // If free booking auto-confirmed, trigger queue recalculation and notification
+      if (initialStatus === 'CONFIRMED') {
+        try {
+          await queueEngine.recalculateQueue(salon.id);
+          websocketHub.broadcast(salon.id, 'APPOINTMENT_CONFIRMED', {
+            appointmentId: apptId,
+            customerName: appointment.customerName,
+            slotTime: appointment.slotStartTime,
+          });
+          await notificationService.sendTicketConfirmation({
+            customerName: appointment.customerName,
+            customerPhone: appointment.customerPhone,
+            ticketNumber: 0,
+            salonName: salon.name,
+            estimatedWaitMinutes: 0,
+          });
+        } catch (postErr) {
+          console.warn('[appointments] Post-confirmation tasks warning:', postErr);
+        }
+      }
 
       return {
         success: true,
         appointment,
         appointmentId: apptId,
         advanceAmount,
+        policy,
+        isFree: advanceAmount === 0,
         razorpayOrderId,
         upiQrString,
       };

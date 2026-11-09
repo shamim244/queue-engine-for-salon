@@ -4,6 +4,7 @@ import type {
   AppointmentStatus,
   SalonPayoutRecord,
   PayoutStatus,
+  AppointmentBookingPolicy,
 } from '../../engine/types';
 import { memoryStore, toMySqlDatetime, toIsoStringSafe } from './store';
 import { salonRepo } from './salon.repo';
@@ -625,5 +626,48 @@ export const appointmentRepo = {
         a.escrowStatus === 'RELEASED_TO_OWNER'
       );
     });
+  },
+
+  async getSalonAppointmentPolicy(salonId: string): Promise<AppointmentBookingPolicy> {
+    const existing = (memoryStore as any).appointmentPolicies?.get(salonId);
+    if (existing) return existing;
+
+    const gw = (memoryStore as any).gatewaySettings || defaultPaymentGatewaySettings;
+
+    const defaultPolicy: AppointmentBookingPolicy = {
+      enabled: true,
+      policyType: gw.appointmentAdvanceType || 'FIXED_TOKEN',
+      tokenAmount: typeof gw.appointmentTokenAmount === 'number' ? gw.appointmentTokenAmount : 100,
+      percentage: typeof gw.appointmentPercentage === 'number' ? gw.appointmentPercentage : 50,
+      convenienceFee: typeof gw.appointmentConvenienceFee === 'number' ? gw.appointmentConvenienceFee : 0,
+      allowFreeBooking: typeof gw.appointmentAllowFreeBooking === 'boolean' ? gw.appointmentAllowFreeBooking : true,
+      cancellationCutoffHours: 2,
+    };
+
+    if (!(memoryStore as any).appointmentPolicies) {
+      (memoryStore as any).appointmentPolicies = new Map<string, AppointmentBookingPolicy>();
+    }
+    (memoryStore as any).appointmentPolicies.set(salonId, defaultPolicy);
+    return defaultPolicy;
+  },
+
+  async updateSalonAppointmentPolicy(
+    salonId: string,
+    policy: Partial<AppointmentBookingPolicy>
+  ): Promise<AppointmentBookingPolicy> {
+    const current = await this.getSalonAppointmentPolicy(salonId);
+    const updated: AppointmentBookingPolicy = {
+      ...current,
+      ...policy,
+      tokenAmount: typeof policy.tokenAmount === 'number' ? policy.tokenAmount : current.tokenAmount,
+      convenienceFee: typeof policy.convenienceFee === 'number' ? policy.convenienceFee : current.convenienceFee,
+      policyType: policy.policyType || current.policyType,
+    };
+
+    if (!(memoryStore as any).appointmentPolicies) {
+      (memoryStore as any).appointmentPolicies = new Map<string, AppointmentBookingPolicy>();
+    }
+    (memoryStore as any).appointmentPolicies.set(salonId, updated);
+    return updated;
   },
 };

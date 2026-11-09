@@ -53,6 +53,11 @@ export interface PaymentGatewaySettings {
   razorpayEnabled: boolean;
   razorpayKeyId?: string | null;
   razorpayKeySecret?: string | null;
+  appointmentAdvanceType?: 'FREE' | 'FIXED_TOKEN' | 'PERCENTAGE' | 'FULL';
+  appointmentTokenAmount?: number;
+  appointmentPercentage?: number;
+  appointmentConvenienceFee?: number;
+  appointmentAllowFreeBooking?: boolean;
   createdAt?: Date | string;
   updatedAt?: Date | string;
 }
@@ -338,6 +343,16 @@ export interface Stylist {
   currentTicketId?: string | null;
 }
 
+export interface AppointmentBookingPolicy {
+  enabled: boolean;
+  policyType: 'FREE' | 'FIXED_TOKEN' | 'PERCENTAGE' | 'FULL';
+  tokenAmount: number; // e.g. 50, 100, 0
+  percentage?: number; // e.g. 50
+  convenienceFee: number; // e.g. 0
+  allowFreeBooking: boolean;
+  cancellationCutoffHours: number; // e.g. 2
+}
+
 export interface Salon {
   id: string;
   organizationId?: string | null;
@@ -363,6 +378,7 @@ export interface Salon {
   wifiPassword?: string;
   enableLoungeWifi?: boolean;
   enableScreenWakeLock?: boolean;
+  appointmentPolicy?: AppointmentBookingPolicy;
   services: ServiceDefinition[];
   stylists: Stylist[];
   createdAt: Date;

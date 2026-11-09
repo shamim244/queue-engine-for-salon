@@ -190,6 +190,11 @@ export interface PaymentGatewayConfig {
   razorpayEnabled: boolean;
   razorpayKeyId?: string;
   razorpayKeySecret?: string;
+  appointmentAdvanceType?: "FREE" | "FIXED_TOKEN" | "PERCENTAGE" | "FULL";
+  appointmentTokenAmount?: number;
+  appointmentPercentage?: number;
+  appointmentConvenienceFee?: number;
+  appointmentAllowFreeBooking?: boolean;
 }
 
 export interface PaymentOrder {
@@ -1518,6 +1523,32 @@ export const api = {
   },
 
   appointments: {
+    getPolicy: (slug: string) =>
+      request<{
+        success: boolean;
+        salonId: string;
+        salonName: string;
+        policy: {
+          enabled: boolean;
+          policyType: "FREE" | "FIXED_TOKEN" | "PERCENTAGE" | "FULL";
+          tokenAmount: number;
+          percentage?: number;
+          convenienceFee: number;
+          allowFreeBooking: boolean;
+          cancellationCutoffHours: number;
+        };
+      }>(`/api/v1/salons/${slug}/appointments/policy`),
+
+    updatePolicy: (slug: string, policy: any) =>
+      request<{
+        success: boolean;
+        message: string;
+        policy: any;
+      }>(`/api/v1/salons/${slug}/appointments/policy`, {
+        method: "PUT",
+        body: JSON.stringify(policy),
+      }),
+
     getSlots: (slug: string, date: string, stylistId?: string) => {
       const q = new URLSearchParams({ date });
       if (stylistId) q.set("stylistId", stylistId);
@@ -1550,13 +1581,15 @@ export const api = {
       slotTime: string;
       customerName: string;
       customerPhone: string;
-      advanceType: "TOKEN" | "FULL";
+      advanceType: "TOKEN" | "FULL" | "FREE";
     }) =>
       request<{
         success: boolean;
         appointment: Appointment;
         appointmentId: string;
         advanceAmount: number;
+        policy?: any;
+        isFree?: boolean;
         razorpayOrderId: string;
         upiQrString: string;
       }>("/api/v1/appointments/initiate", {

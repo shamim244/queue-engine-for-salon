@@ -173,6 +173,9 @@ export const repository = {
   ) => appointmentRepo.updatePayoutStatus(id, status, referenceId, settledAt),
   getCompletedAppointmentsForPeriod: (salonId: string, startDate: string, endDate: string) =>
     appointmentRepo.getCompletedAppointmentsForPeriod(salonId, startDate, endDate),
+  getSalonAppointmentPolicy: (salonId: string) => appointmentRepo.getSalonAppointmentPolicy(salonId),
+  updateSalonAppointmentPolicy: (salonId: string, policy: Parameters<typeof appointmentRepo.updateSalonAppointmentPolicy>[1]) =>
+    appointmentRepo.updateSalonAppointmentPolicy(salonId, policy),
 };
 
 export {

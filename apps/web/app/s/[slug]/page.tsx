@@ -196,26 +196,89 @@ export default function CustomerStorefrontPage({ params }: { params: Promise<{ s
                 </div>
               </div>
 
-              {/* High-Converting CTA Button (min-height 52px for thumbs) */}
-              <Link
-                href={`/s/${slug}/queue`}
-                className="w-full min-h-[52px] bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm sm:text-base rounded-2xl shadow-xl shadow-amber-500/20 flex items-center justify-center gap-2 active:scale-98 transition-transform"
-              >
-                <Zap className="h-4 w-4 fill-slate-950" />
-                <span>Join Live Queue Now</span>
-              </Link>
+              {/* High-Converting Dual Action CTAs (min-height 50px for thumbs) */}
+              <div className="space-y-2.5">
+                <Link
+                  href={`/s/${slug}/queue`}
+                  className="w-full min-h-[50px] bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm sm:text-base rounded-2xl shadow-xl shadow-amber-500/20 flex items-center justify-center gap-2 active:scale-98 transition-transform"
+                >
+                  <Zap className="h-4 w-4 fill-slate-950" />
+                  <span>Join Live Queue Now</span>
+                </Link>
 
-              <div className="text-center">
+                <Link
+                  href={`/s/${slug}/book`}
+                  className="w-full min-h-[50px] bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-extrabold text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 active:scale-98 transition-all shadow-md"
+                >
+                  <Calendar className="h-4 w-4 text-amber-400" />
+                  <span>Book Guaranteed Slot (Skip Wait)</span>
+                </Link>
+              </div>
+
+              <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/80">
+                <Link
+                  href="/me"
+                  className="text-amber-400/90 hover:text-amber-300 transition-colors flex items-center gap-1 font-semibold"
+                >
+                  <span>🎟️ My Passes &amp; Wallet (/me)</span>
+                </Link>
                 <Link
                   href={`/s/${slug}/services`}
-                  className="text-xs text-slate-400 hover:text-amber-400 transition-colors underline underline-offset-4"
+                  className="text-slate-400 hover:text-white transition-colors"
                 >
-                  Explore Full Services &amp; Prices →
+                  Menu →
                 </Link>
               </div>
             </div>
           </div>
         </section>
+
+        {/* TWO WAYS TO VISIT SHOWCASE */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-5 rounded-3xl bg-slate-900/60 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Zap className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                Live Walk-in Line
+              </span>
+              <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px]">
+                Postpaid at Chair
+              </Badge>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Arriving now? Take a virtual ticket, relax nearby or in our lounge, and get a WhatsApp alert right before your turn.
+            </p>
+            <Link
+              href={`/s/${slug}/queue`}
+              className="inline-flex items-center gap-1 text-xs font-bold text-amber-400 hover:text-amber-300 pt-1"
+            >
+              <span>Join live line (~{totalWaitMinutes}m wait)</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          <div className="p-5 rounded-3xl bg-slate-900/60 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 text-blue-400" />
+                Guaranteed Advance Slot
+              </span>
+              <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px]">
+                VIP Reserved
+              </Badge>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Planning ahead? Lock in a guaranteed chair time with your favorite stylist. Reschedule anytime with ₹0 penalty.
+            </p>
+            <Link
+              href={`/s/${slug}/book`}
+              className="inline-flex items-center gap-1 text-xs font-bold text-blue-400 hover:text-blue-300 pt-1"
+            >
+              <span>Pick date &amp; guaranteed time</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </div>
 
         {/* 3. MODULAR SERVICES SECTION */}
         <SalonServicesList services={salon?.services || []} slug={slug} showAllLink={true} />

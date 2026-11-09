@@ -2,14 +2,14 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Scissors, Menu, X, ExternalLink, Zap, User as UserIcon } from "lucide-react";
+import { Scissors, Menu, X, ExternalLink, Zap, User as UserIcon, Calendar, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Salon, AuthUser } from "@/lib/api";
 interface SalonNavbarProps {
   slug: string;
   salon: Salon | null;
   user: AuthUser | null;
-  activeRoute?: "home" | "queue" | "services";
+  activeRoute?: "home" | "queue" | "services" | "book";
 }
 
 export function SalonNavbar({ slug, salon, user, activeRoute = "home" }: SalonNavbarProps) {
@@ -19,6 +19,8 @@ export function SalonNavbar({ slug, salon, user, activeRoute = "home" }: SalonNa
     { label: "Home", href: `/s/${slug}`, active: activeRoute === "home" },
     { label: "Services", href: `/s/${slug}/services`, active: activeRoute === "services" },
     { label: "Live Queue", href: `/s/${slug}/queue`, active: activeRoute === "queue" },
+    { label: "Book Slot", href: `/s/${slug}/book`, active: activeRoute === "book" },
+    { label: "My Passes (/me)", href: `/me`, active: false },
     { label: "Stylists", href: `/s/${slug}#team`, active: false },
     { label: "About", href: `/s/${slug}#about`, active: false },
   ];
@@ -63,6 +65,17 @@ export function SalonNavbar({ slug, salon, user, activeRoute = "home" }: SalonNa
 
         {/* RIGHT: Primary Action & Quick Links */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Book Appointment CTA Button */}
+          {activeRoute !== "book" && (
+            <Link
+              href={`/s/${slug}/book`}
+              className="min-h-[44px] px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold text-xs sm:text-sm rounded-xl border border-amber-500/30 flex items-center gap-1.5 transition-all active:scale-95"
+            >
+              <Calendar className="h-4 w-4 text-amber-400" />
+              <span className="hidden sm:inline">Book Slot</span>
+            </Link>
+          )}
+
           {/* Join Queue CTA Button */}
           {activeRoute !== "queue" && (
             <Link
@@ -135,46 +148,49 @@ export function SalonNavbar({ slug, salon, user, activeRoute = "home" }: SalonNa
             ))}
           </nav>
 
-          <div className="pt-2 border-t border-slate-800/80 flex items-center gap-2">
-            {activeRoute !== "queue" && (
+          <div className="pt-2 border-t border-slate-800/80 flex flex-col gap-2">
+            <div className="flex items-center gap-2">
               <Link
-                href={`/s/${slug}/queue`}
+                href={`/s/${slug}/book`}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="flex-1 min-h-[48px] bg-amber-500 hover:bg-amber-600 text-slate-950 text-sm font-bold rounded-xl flex items-center justify-center gap-2 shadow-md shadow-amber-500/20"
+                className="flex-1 min-h-[48px] bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 text-sm font-bold rounded-xl flex items-center justify-center gap-2"
               >
-                <Zap className="h-4 w-4 fill-slate-950" />
-                <span>Join Live Queue</span>
+                <Calendar className="h-4 w-4 text-amber-400" />
+                <span>Book Guaranteed Slot</span>
               </Link>
-            )}
 
-            <Link
-              href={`/s/${slug}/tv`}
-              target="_blank"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="min-h-[48px] px-4 rounded-xl bg-slate-800 border border-slate-700 text-xs text-slate-300 flex items-center gap-1.5 font-semibold"
-            >
-              <ExternalLink className="h-4 w-4 text-blue-400" />
-              <span>TV</span>
-            </Link>
+              {activeRoute !== "queue" && (
+                <Link
+                  href={`/s/${slug}/queue`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex-1 min-h-[48px] bg-amber-500 hover:bg-amber-600 text-slate-950 text-sm font-bold rounded-xl flex items-center justify-center gap-2 shadow-md shadow-amber-500/20"
+                >
+                  <Zap className="h-4 w-4 fill-slate-950" />
+                  <span>Join Queue</span>
+                </Link>
+              )}
+            </div>
 
-            {user ? (
+            <div className="flex items-center gap-2">
               <Link
                 href="/me"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="min-h-[48px] px-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-400 flex items-center gap-1.5 font-semibold"
+                className="flex-1 min-h-[48px] px-4 rounded-xl bg-slate-800/80 border border-slate-700 text-xs text-amber-400 flex items-center justify-center gap-2 font-bold"
               >
-                <UserIcon className="h-4 w-4" />
-                <span>Account</span>
+                <Ticket className="h-4 w-4" />
+                <span>My Passes &amp; Tickets (/me)</span>
               </Link>
-            ) : (
+
               <Link
-                href={`/login?redirect=${encodeURIComponent(`/s/${slug}`)}&salon=${encodeURIComponent(slug)}`}
+                href={`/s/${slug}/tv`}
+                target="_blank"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="min-h-[48px] px-4 rounded-xl bg-slate-800 border border-slate-700 text-xs text-slate-300 flex items-center font-semibold"
+                className="min-h-[48px] px-4 rounded-xl bg-slate-800 border border-slate-700 text-xs text-slate-300 flex items-center justify-center gap-1.5 font-semibold"
               >
-                <span>Sign In</span>
+                <ExternalLink className="h-4 w-4 text-blue-400" />
+                <span>TV</span>
               </Link>
-            )}
+            </div>
           </div>
         </div>
       )}

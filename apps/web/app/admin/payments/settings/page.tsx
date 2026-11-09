@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Save,
   HelpCircle,
+  Sparkles,
 } from "lucide-react";
 
 export default function PaymentGatewaySettingsPage() {
@@ -36,6 +37,11 @@ export default function PaymentGatewaySettingsPage() {
     razorpayEnabled: false,
     razorpayKeyId: "",
     razorpayKeySecret: "",
+    appointmentAdvanceType: "FIXED_TOKEN",
+    appointmentTokenAmount: 100,
+    appointmentPercentage: 50,
+    appointmentConvenienceFee: 0,
+    appointmentAllowFreeBooking: true,
   });
 
   const showToast = (type: "success" | "error" | "info", message: string) => {
@@ -318,6 +324,90 @@ export default function PaymentGatewaySettingsPage() {
                     className="bg-slate-950 border-slate-700 text-white font-mono text-xs"
                   />
                   <p className="text-[10px] text-slate-500">Encrypted and validated on the Bun server backend.</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Dynamic Appointment Booking & Advance Policy */}
+            <Card className="bg-slate-900 border-slate-800 text-white lg:col-span-2 shadow-xl">
+              <CardHeader className="pb-3 border-b border-slate-800/80">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base text-white flex items-center gap-2">
+                        Dynamic Appointment &amp; Advance Policy
+                        <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px]">
+                          Admin Configurable
+                        </Badge>
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Configure booking charges, fixed token amount, or allow free reservations (₹0 advance)
+                      </CardDescription>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Advance Policy Model</label>
+                    <select
+                      value={config.appointmentAdvanceType || "FIXED_TOKEN"}
+                      onChange={(e) => setConfig({ ...config, appointmentAdvanceType: e.target.value as any })}
+                      className="w-full h-9 rounded-md bg-slate-950 border border-slate-700 text-white px-3 text-xs focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="FREE">Free Appointments (₹0 Advance / Pay at Salon)</option>
+                      <option value="FIXED_TOKEN">Fixed Token Deposit (₹ Amount)</option>
+                      <option value="PERCENTAGE">Percentage of Total Service (%)</option>
+                      <option value="FULL">100% Full Prepayment Required</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Token Amount (₹)</label>
+                    <Input
+                      type="number"
+                      value={config.appointmentTokenAmount ?? 100}
+                      onChange={(e) => setConfig({ ...config, appointmentTokenAmount: Number(e.target.value) })}
+                      placeholder="100"
+                      disabled={config.appointmentAdvanceType === "FREE" || config.appointmentAdvanceType === "FULL"}
+                      className="bg-slate-950 border-slate-700 text-white font-mono text-xs"
+                    />
+                    <p className="text-[10px] text-slate-500">Set to 0 if you want bookings to be free.</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Platform Convenience Fee (₹)</label>
+                    <Input
+                      type="number"
+                      value={config.appointmentConvenienceFee ?? 0}
+                      onChange={(e) => setConfig({ ...config, appointmentConvenienceFee: Number(e.target.value) })}
+                      placeholder="0"
+                      className="bg-slate-950 border-slate-700 text-white font-mono text-xs"
+                    />
+                    <p className="text-[10px] text-slate-500">Extra charge per online booking (Default: ₹0).</p>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold text-white block">Allow Free Booking Option (Pay at Salon)</span>
+                    <span className="text-[11px] text-slate-400 block">
+                      Consumers can choose to book without immediate payment and settle the full bill at the salon.
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={config.appointmentAllowFreeBooking ?? true}
+                      onChange={(e) => setConfig({ ...config, appointmentAllowFreeBooking: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                  </label>
                 </div>
               </CardContent>
             </Card>

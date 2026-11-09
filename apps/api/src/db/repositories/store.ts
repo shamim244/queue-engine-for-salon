@@ -90,6 +90,11 @@ export const defaultPaymentGatewaySettings: PaymentGatewaySettings = {
   razorpayEnabled: false,
   razorpayKeyId: 'rzp_test_placeholder',
   razorpayKeySecret: '',
+  appointmentAdvanceType: 'FIXED_TOKEN',
+  appointmentTokenAmount: 100,
+  appointmentPercentage: 50,
+  appointmentConvenienceFee: 0,
+  appointmentAllowFreeBooking: true,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
