@@ -9,6 +9,7 @@ import type {
   AuditLog,
   MaintenanceMode,
   StaffLeave,
+  SubscriptionPlan,
 } from '../../engine/types';
 
 export const defaultPlatformSettings: PlatformSettings = {
@@ -79,6 +80,7 @@ export const memoryStore = {
   ticketSequence: new Map<string, number>(),
   stylistServiceDurations: new Map<string, number>(), // key: `${stylistId}:${serviceId}` -> durationMinutes
   staffLeaves: new Map<string, StaffLeave>(),
+  plans: new Map<string, SubscriptionPlan>(),
   settings: JSON.parse(JSON.stringify(defaultPlatformSettings)) as PlatformSettings,
   auditLogs: [...defaultAuditLogs] as AuditLog[],
   maintenanceMode: {
@@ -144,6 +146,7 @@ export function seedDemoData() {
   memoryStore.stylistServiceDurations.clear();
   memoryStore.staffLeaves.clear();
   memoryStore.organizations.clear();
+  memoryStore.plans.clear();
   memoryStore.settings = JSON.parse(JSON.stringify(defaultPlatformSettings));
   memoryStore.auditLogs = [...defaultAuditLogs];
   memoryStore.maintenanceMode = {
@@ -152,12 +155,128 @@ export function seedDemoData() {
     activatedAt: null,
   };
 
+  // Seed Plans
+  const demoPlans: SubscriptionPlan[] = [
+    {
+      id: 'plan-starter-01',
+      name: 'Solo Traditional Barber',
+      slug: 'solo-barber',
+      badge: 'Starter',
+      description: 'Perfect for single-chair barbers and independent grooming stations.',
+      price1m: 499,
+      price3m: 1347,
+      price6m: 2515,
+      price1y: 4192,
+      discountPct3m: 10,
+      discountPct6m: 16,
+      discountPct1y: 30,
+      cycle1mEnabled: true,
+      cycle3mEnabled: true,
+      cycle6mEnabled: true,
+      cycle1yEnabled: true,
+      maxBranches: 1,
+      maxStylistsPerBranch: 1,
+      features: [
+        'station_chair_transfers',
+        'station_soft_bump',
+        'station_hold_pause',
+        'digital_storefront',
+      ],
+      status: 'ACTIVE',
+      isFeatured: false,
+      sortOrder: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    {
+      id: 'plan-pro-01',
+      name: 'Growth Studio Pro',
+      slug: 'growth-studio-pro',
+      badge: 'Most Popular',
+      description: 'Ideal for fast-paced multi-chair barbershops with TV departure mirrors and speed calibration.',
+      price1m: 1499,
+      price3m: 4047,
+      price6m: 7555,
+      price1y: 12592,
+      discountPct3m: 10,
+      discountPct6m: 16,
+      discountPct1y: 30,
+      cycle1mEnabled: true,
+      cycle3mEnabled: true,
+      cycle6mEnabled: true,
+      cycle1yEnabled: true,
+      maxBranches: 3,
+      maxStylistsPerBranch: 10,
+      features: [
+        'station_chair_transfers',
+        'station_soft_bump',
+        'station_hold_pause',
+        'tv_departure_mirror',
+        'whatsapp_sms_notifications',
+        'staff_shift_analytics',
+        'stylist_duration_overrides',
+        'digital_storefront',
+        'custom_coupons',
+      ],
+      status: 'ACTIVE',
+      isFeatured: true,
+      sortOrder: 2,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    {
+      id: 'plan-enterprise-01',
+      name: 'Franchise Scale',
+      slug: 'franchise-scale',
+      badge: 'Enterprise',
+      description: 'Full-featured suite for luxury salon chains, franchises, and regional grooming centers.',
+      price1m: 4999,
+      price3m: 13497,
+      price6m: 25195,
+      price1y: 41992,
+      discountPct3m: 10,
+      discountPct6m: 16,
+      discountPct1y: 30,
+      cycle1mEnabled: true,
+      cycle3mEnabled: true,
+      cycle6mEnabled: true,
+      cycle1yEnabled: true,
+      maxBranches: 10,
+      maxStylistsPerBranch: 20,
+      features: [
+        'station_chair_transfers',
+        'station_soft_bump',
+        'station_hold_pause',
+        'tv_departure_mirror',
+        'whatsapp_sms_notifications',
+        'staff_shift_analytics',
+        'stylist_duration_overrides',
+        'staff_leave_recovery',
+        'customer_loyalty_stamps',
+        'consumer_referrals',
+        'digital_storefront',
+        'custom_coupons',
+      ],
+      status: 'ACTIVE',
+      isFeatured: false,
+      sortOrder: 3,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ];
+
+  for (const plan of demoPlans) {
+    memoryStore.plans.set(plan.id, plan);
+    memoryStore.plans.set(plan.slug, plan);
+  }
+
   // 0. Seed Organizations
   const rameshOrg: Organization = {
     id: 'org-ramesh',
     name: 'Ramesh Traditional Grooming',
     slug: 'ramesh-grooming',
     tier: 'STARTER',
+    planId: 'plan-starter-01',
     maxBranches: 1,
     maxStylistsPerBranch: 1,
     createdAt: new Date(),
@@ -250,13 +369,42 @@ export function seedDemoData() {
 export async function syncDemoToMySql(salons: Salon[]) {
   const db = getDb();
 
-  // Sync Organizations first
+  // Sync Plans first
+  for (const plan of memoryStore.plans.values()) {
+    await db.query(
+      `INSERT INTO subscription_plans (
+        id, name, slug, badge, description,
+        price_1m, price_3m, price_6m, price_1y,
+        discount_pct_3m, discount_pct_6m, discount_pct_1y,
+        cycle_1m_enabled, cycle_3m_enabled, cycle_6m_enabled, cycle_1y_enabled,
+        max_branches, max_stylists_per_branch, features,
+        status, is_featured, sort_order
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+        name=VALUES(name), badge=VALUES(badge), description=VALUES(description),
+        price_1m=VALUES(price_1m), price_3m=VALUES(price_3m), price_6m=VALUES(price_6m), price_1y=VALUES(price_1y),
+        discount_pct_3m=VALUES(discount_pct_3m), discount_pct_6m=VALUES(discount_pct_6m), discount_pct_1y=VALUES(discount_pct_1y),
+        cycle_1m_enabled=VALUES(cycle_1m_enabled), cycle_3m_enabled=VALUES(cycle_3m_enabled), cycle_6m_enabled=VALUES(cycle_6m_enabled), cycle_1y_enabled=VALUES(cycle_1y_enabled),
+        max_branches=VALUES(max_branches), max_stylists_per_branch=VALUES(max_stylists_per_branch), features=VALUES(features),
+        status=VALUES(status), is_featured=VALUES(is_featured), sort_order=VALUES(sort_order)`,
+      [
+        plan.id, plan.name, plan.slug, plan.badge || null, plan.description || null,
+        plan.price1m, plan.price3m ?? null, plan.price6m ?? null, plan.price1y ?? null,
+        plan.discountPct3m, plan.discountPct6m, plan.discountPct1y,
+        plan.cycle1mEnabled, plan.cycle3mEnabled, plan.cycle6mEnabled, plan.cycle1yEnabled,
+        plan.maxBranches, plan.maxStylistsPerBranch, JSON.stringify(plan.features),
+        plan.status, plan.isFeatured, plan.sortOrder
+      ]
+    );
+  }
+
+  // Sync Organizations
   for (const org of memoryStore.organizations.values()) {
     await db.query(
-      `INSERT INTO organizations (id, name, slug, tier, max_branches, max_stylists_per_branch)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE name=VALUES(name), tier=VALUES(tier)`,
-      [org.id, org.name, org.slug, org.tier, org.maxBranches, org.maxStylistsPerBranch]
+      `INSERT INTO organizations (id, name, slug, tier, plan_id, max_branches, max_stylists_per_branch)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE name=VALUES(name), tier=VALUES(tier), plan_id=VALUES(plan_id)`,
+      [org.id, org.name, org.slug, org.tier, org.planId || null, org.maxBranches, org.maxStylistsPerBranch]
     );
   }
 

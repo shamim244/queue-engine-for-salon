@@ -10,6 +10,8 @@ export {
   serviceRepo,
   queueRepo,
   analyticsRepo,
+  planRepo,
+  invalidatePlanCache,
   defaultPlatformSettings,
   defaultAuditLogs,
   memoryStore,

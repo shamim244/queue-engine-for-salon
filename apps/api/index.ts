@@ -15,6 +15,7 @@ import { salonRoutes } from './src/routes/salon.routes';
 import { queueRoutes } from './src/routes/queue.routes';
 import { authRoutes } from './src/routes/auth.routes';
 import { adminRoutes } from './src/routes/admin.routes';
+import { planRoutes } from './src/routes/plan.routes';
 import { compressionManager } from './src/engine/compression-manager';
 
 console.log(`\n======================================================`);
@@ -126,6 +127,7 @@ const app = new Elysia()
   .use(queueRoutes)
   .use(authRoutes)
   .use(adminRoutes)
+  .use(planRoutes)
 
   // Subdirectory Shortcuts (/s/:slug)
   .get('/s/:slug', ({ params, redirect }) => redirect(`/customer.html?salon=${params.slug}`))

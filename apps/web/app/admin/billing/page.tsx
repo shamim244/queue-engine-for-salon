@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { Organization } from "@/lib/api";
+import type { Organization, SubscriptionPlan } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { CreatePlanModal, ALL_PLAN_FEATURES } from "@/components/admin/billing/create-plan-modal";
 import {
   CreditCard,
   Building,
@@ -26,6 +27,12 @@ import {
   Clock,
   AlertCircle,
   ExternalLink,
+  Plus,
+  Edit2,
+  Archive,
+  Layers,
+  Store,
+  Users,
 } from "lucide-react";
 
 interface BillingTransaction {
@@ -82,12 +89,22 @@ const sampleTransactions: BillingTransaction[] = [
   },
 ];
 
+const featureLabelMap: Record<string, string> = {};
+for (const f of ALL_PLAN_FEATURES) {
+  featureLabelMap[f.id] = f.label;
+}
+
 export default function AdminBillingPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingOrgId, setUpdatingOrgId] = useState<string | null>(null);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceFilter, setInvoiceFilter] = useState<string>("ALL");
+
+  // Plan Creator Modal state
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
 
   // In-App Toast Banner
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
@@ -96,19 +113,32 @@ export default function AdminBillingPage() {
     setTimeout(() => setToast(null), 3500);
   };
 
+  const fetchPlans = async () => {
+    try {
+      const res = await api.plans.getAll({ status: "all" });
+      setPlans(res.plans || []);
+    } catch (err) {
+      console.error("Failed to load subscription plans:", err);
+    }
+  };
+
   const fetchOrgs = async () => {
     try {
       const data = await api.salons.getOrganizations();
       setOrganizations(data.organizations || []);
     } catch (err) {
       console.error("Failed to load organizations:", err);
-    } finally {
-      setLoading(false);
     }
   };
 
+  const loadAllData = async () => {
+    setLoading(true);
+    await Promise.all([fetchOrgs(), fetchPlans()]);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    fetchOrgs();
+    loadAllData();
   }, []);
 
   const handleUpdateTier = async (orgId: string, nextTier: "STARTER" | "PRO" | "ENTERPRISE") => {
@@ -121,6 +151,16 @@ export default function AdminBillingPage() {
       showToast("Failed to update tier: " + (err as Error).message, "error");
     } finally {
       setUpdatingOrgId(null);
+    }
+  };
+
+  const handleArchivePlan = async (plan: SubscriptionPlan) => {
+    try {
+      await api.plans.archive(plan.id);
+      showToast(`Plan "${plan.name}" archived successfully`, "success");
+      await fetchPlans();
+    } catch (err) {
+      showToast("Failed to archive plan: " + (err as Error).message, "error");
     }
   };
 
@@ -139,49 +179,6 @@ export default function AdminBillingPage() {
       tx.method.toLowerCase().includes(invoiceSearch.toLowerCase());
     return matchesFilter && matchesSearch;
   });
-
-  const tiers = [
-    {
-      id: "STARTER",
-      name: "Starter Plan",
-      price: "₹499 / mo",
-      branches: "1 Branch",
-      stylists: "Up to 3 Chairs / Stylist",
-      features: ["Door QR Poster", "Simple 4-Digit Chair UI", "Basic SMS Alerts", "Standard Queue Algorithm"],
-      badge: "secondary",
-    },
-    {
-      id: "PRO",
-      name: "Pro Plan",
-      price: "₹1,499 / mo",
-      branches: "Up to 5 Branches",
-      stylists: "Up to 10 Chairs / Branch",
-      features: [
-        "Everything in Starter",
-        "Public Lobby TV Departure Board",
-        "Real-time WhatsApp Alerts",
-        "Speed Calibration Sliders",
-        "Tactile 2-Second Chair Swap",
-      ],
-      badge: "default",
-      popular: true,
-    },
-    {
-      id: "ENTERPRISE",
-      name: "Enterprise Plan",
-      price: "₹4,999 / mo",
-      branches: "Unlimited Branches (25+)",
-      stylists: "Unlimited Chairs (30+)",
-      features: [
-        "Everything in Pro",
-        "Custom SMS Gateway Interconnect",
-        "White-label Domain Mapping",
-        "Super Admin Global Telemetry",
-        "Priority 24/7 SLA Support",
-      ],
-      badge: "purple",
-    },
-  ];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -210,17 +207,36 @@ export default function AdminBillingPage() {
           </button>
         </div>
       )}
+
+      {/* Header with Title and Create Plan Button */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Subscription Tiers & Revenue Operations
+            Subscription Plans & Revenue Operations
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            Nationwide tenant billing cycles, subscription quotas, and recurring revenue settlement.
+            Dynamic subscription plans catalog, 2-way discount calibrator, quotas, and multi-tenant billing.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchOrgs} disabled={loading} className="gap-2 border-slate-700">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditingPlan(null);
+              setIsPlanModalOpen(true);
+            }}
+            className="gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold min-h-[42px] px-4 shadow-lg shadow-indigo-600/20"
+          >
+            <Plus className="h-4 w-4" />
+            Create New Plan
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadAllData}
+            disabled={loading}
+            className="gap-2 border-slate-700 min-h-[42px]"
+          >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Sync Gateway
           </Button>
@@ -267,16 +283,16 @@ export default function AdminBillingPage() {
         <Card className="bg-slate-900/60 border-slate-800">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs text-slate-400 uppercase font-semibold flex items-center justify-between">
-              <span>Settlement Schedule</span>
-              <Clock className="h-4 w-4 text-purple-400" />
+              <span>Published Plans</span>
+              <Layers className="h-4 w-4 text-indigo-400" />
             </CardDescription>
-            <CardTitle className="text-xl text-white font-bold">
-              1st of Every Month
+            <CardTitle className="text-2xl text-white font-extrabold">
+              {plans.filter((p) => p.status === "ACTIVE").length} Active / {plans.length} Total
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-slate-400">
-              Automated UPI AutoPay & Card mandate batch
+              Dynamic quotas evaluated live
             </p>
           </CardContent>
         </Card>
@@ -288,70 +304,205 @@ export default function AdminBillingPage() {
               <ShieldCheck className="h-4 w-4 text-emerald-400" />
             </CardDescription>
             <CardTitle className="text-base text-white font-bold flex items-center gap-2">
-              <span>Razorpay Live</span>
+              <span>Universal Gateway</span>
               <Badge variant="success" className="text-[10px] py-0">99.98%</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-slate-400">
-              Webhooks operational & TLS verified
+              UPI QR & Webhooks Operational
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Tier Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {tiers.map((t) => (
-          <Card
-            key={t.id}
-            className={`relative flex flex-col justify-between ${
-              t.popular ? "border-blue-500/60 shadow-xl shadow-blue-500/10" : "border-slate-800"
-            }`}
-          >
-            {t.popular && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <Badge variant="default" className="px-3 py-0.5 shadow-md">
-                  MOST POPULAR
-                </Badge>
-              </div>
-            )}
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-lg">{t.name}</CardTitle>
-                  <CardDescription className="mt-1">{t.price}</CardDescription>
-                </div>
-                <Badge variant={t.badge as any}>{t.id}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-xs space-y-1 text-slate-300 bg-slate-800/40 p-3 rounded-xl border border-slate-700/50">
-                <p>
-                  <span className="text-slate-400">Branches Quota:</span>{" "}
-                  <strong className="text-white">{t.branches}</strong>
-                </p>
-                <p>
-                  <span className="text-slate-400">Staff Limit:</span>{" "}
-                  <strong className="text-white">{t.stylists}</strong>
-                </p>
-              </div>
-              <ul className="space-y-2 text-xs text-slate-300">
-                {t.features.map((feat, idx) => (
-                  <li key={idx} className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>{feat}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-            <CardFooter className="pt-2 border-t border-slate-800/80">
-              <span className="text-[11px] text-slate-500 w-full text-center">
-                Automated monthly recurring billing
-              </span>
-            </CardFooter>
+      {/* Dynamic Subscription Plans Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-indigo-400" />
+              Dynamic Subscription Plans Catalog
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              SuperAdmin configured plans. Tenant quotas and billing durations are dynamically resolved.
+            </p>
+          </div>
+          <Badge variant="outline" className="text-slate-400 border-slate-800 text-xs">
+            {plans.length} Plans Defined
+          </Badge>
+        </div>
+
+        {plans.length === 0 ? (
+          <Card className="border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
+            <p className="text-slate-400 text-sm mb-4">No subscription plans found. Create your first plan now!</p>
+            <Button
+              onClick={() => {
+                setEditingPlan(null);
+                setIsPlanModalOpen(true);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Create Plan
+            </Button>
           </Card>
-        ))}
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {plans.map((p) => {
+              const isArchived = p.status === "ARCHIVED";
+              return (
+                <Card
+                  key={p.id}
+                  className={`relative flex flex-col justify-between transition-all ${
+                    p.isFeatured
+                      ? "border-indigo-500/70 shadow-xl shadow-indigo-500/10 ring-1 ring-indigo-500/20"
+                      : isArchived
+                      ? "border-slate-850 opacity-60 bg-slate-950/20"
+                      : "border-slate-800 bg-slate-900/50"
+                  }`}
+                >
+                  {p.isFeatured && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <Badge className="bg-indigo-600 hover:bg-indigo-600 text-white font-bold px-3 py-0.5 shadow-md">
+                        FEATURED PLAN
+                      </Badge>
+                    </div>
+                  )}
+
+                  <CardHeader>
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-lg font-bold text-white">{p.name}</CardTitle>
+                          {p.badge && (
+                            <Badge variant="secondary" className="text-[10px] py-0 px-2 font-semibold">
+                              {p.badge}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="mt-1 flex items-baseline gap-1.5">
+                          <span className="text-2xl font-black text-white">
+                            {formatCurrency(p.price1m)}
+                          </span>
+                          <span className="text-xs text-slate-400 font-medium">/ month</span>
+                        </div>
+                        {p.description && (
+                          <CardDescription className="text-xs text-slate-400 mt-1 line-clamp-2">
+                            {p.description}
+                          </CardDescription>
+                        )}
+                      </div>
+
+                      <Badge
+                        variant={
+                          p.status === "ACTIVE"
+                            ? "success"
+                            : p.status === "DRAFT"
+                            ? "default"
+                            : "destructive"
+                        }
+                        className="text-[10px] uppercase font-bold shrink-0"
+                      >
+                        {p.status}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-4">
+                    {/* Active Billing Durations */}
+                    <div className="space-y-1.5">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                        Billing Cycles Enabled:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {p.cycle1mEnabled && (
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700/60 font-medium">
+                            1 Month
+                          </span>
+                        )}
+                        {p.cycle3mEnabled && (
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 font-medium">
+                            3M ({formatCurrency(p.price3m || 0)} · {p.discountPct3m}% off)
+                          </span>
+                        )}
+                        {p.cycle6mEnabled && (
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 font-medium">
+                            6M ({formatCurrency(p.price6m || 0)} · {p.discountPct6m}% off)
+                          </span>
+                        )}
+                        {p.cycle1yEnabled && (
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-purple-950/40 text-purple-300 border border-purple-800/40 font-medium">
+                            1Y ({formatCurrency(p.price1y || 0)} · {p.discountPct1y}% off)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Quotas */}
+                    <div className="text-xs space-y-1 text-slate-300 bg-slate-950/60 p-3 rounded-xl border border-slate-800/70">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 flex items-center gap-1.5">
+                          <Store className="h-3.5 w-3.5 text-blue-400" />
+                          Max Branches:
+                        </span>
+                        <strong className="text-white font-bold">{p.maxBranches} Location(s)</strong>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 flex items-center gap-1.5">
+                          <Users className="h-3.5 w-3.5 text-amber-400" />
+                          Max Chairs/Branch:
+                        </span>
+                        <strong className="text-white font-bold">{p.maxStylistsPerBranch} Stylists</strong>
+                      </div>
+                    </div>
+
+                    {/* Features Checklist */}
+                    <div className="space-y-1.5">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                        Features Included ({p.features.length}):
+                      </span>
+                      <ul className="space-y-1.5 text-xs text-slate-300 max-h-36 overflow-y-auto pr-1">
+                        {p.features.map((featId, idx) => (
+                          <li key={idx} className="flex items-center gap-2">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                            <span className="truncate">{featureLabelMap[featId] || featId}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </CardContent>
+
+                  <CardFooter className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingPlan(p);
+                        setIsPlanModalOpen(true);
+                      }}
+                      className="text-xs gap-1.5 border-slate-700 min-h-[38px] flex-1"
+                    >
+                      <Edit2 className="h-3.5 w-3.5 text-slate-300" />
+                      Edit Plan
+                    </Button>
+                    {!isArchived && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleArchivePlan(p)}
+                        className="text-xs gap-1.5 border-rose-900/50 hover:bg-rose-950/40 text-rose-300 min-h-[38px]"
+                      >
+                        <Archive className="h-3.5 w-3.5" />
+                        Archive
+                      </Button>
+                    )}
+                  </CardFooter>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Active Organizations Tier Controller */}
@@ -384,6 +535,11 @@ export default function AdminBillingPage() {
                       <Badge variant={org.tier === "ENTERPRISE" ? "purple" : org.tier === "PRO" ? "default" : "secondary"}>
                         {org.tier}
                       </Badge>
+                      {org.planId && (
+                        <Badge variant="outline" className="text-[10px] text-indigo-400 border-indigo-500/30">
+                          Plan: {org.planId}
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-xs text-slate-400 mt-1">
                       Organization ID: <code className="text-slate-300">{org.id}</code> · Slug:{" "}
@@ -448,17 +604,17 @@ export default function AdminBillingPage() {
                 placeholder="Search tenant, plan, method..."
                 value={invoiceSearch}
                 onChange={(e) => setInvoiceSearch(e.target.value)}
-                className="pl-9 bg-slate-950 border-slate-800 text-xs"
+                className="pl-9 bg-slate-950 border-slate-800 text-xs min-h-[40px]"
               />
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               {(["ALL", "STARTER", "PRO", "ENTERPRISE"] as const).map((f) => (
                 <button
                   key={f}
                   type="button"
                   onClick={() => setInvoiceFilter(f)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors min-h-[36px] ${
                     invoiceFilter === f
                       ? "bg-blue-600 text-white shadow-sm"
                       : "bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-800"
@@ -536,6 +692,20 @@ export default function AdminBillingPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Plan Creator / Editor Modal */}
+      <CreatePlanModal
+        isOpen={isPlanModalOpen}
+        onClose={() => {
+          setIsPlanModalOpen(false);
+          setEditingPlan(null);
+        }}
+        editingPlan={editingPlan}
+        onSuccess={() => {
+          fetchPlans();
+        }}
+        showToast={showToast}
+      />
     </div>
   );
 }

@@ -24,11 +24,67 @@ export type TicketSource = 'QR_SCAN' | 'BARBER_QUICK_ADD' | 'RECEPTIONIST' | 'RE
 
 export type PaymentStatus = 'PENDING' | 'CASH_PAID' | 'ONLINE_PAID';
 
+export type BillingCycle = '1m' | '3m' | '6m' | '1y';
+
+export type PlanStatus = 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  slug: string;
+  badge?: string | null;
+  description?: string | null;
+  price1m: number;
+  price3m?: number | null;
+  price6m?: number | null;
+  price1y?: number | null;
+  discountPct3m: number;
+  discountPct6m: number;
+  discountPct1y: number;
+  cycle1mEnabled: boolean;
+  cycle3mEnabled: boolean;
+  cycle6mEnabled: boolean;
+  cycle1yEnabled: boolean;
+  maxBranches: number;
+  maxStylistsPerBranch: number;
+  features: string[];
+  status: PlanStatus;
+  isFeatured: boolean;
+  sortOrder: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface CreatePlanPayload {
+  name: string;
+  slug?: string;
+  badge?: string;
+  description?: string;
+  price1m: number;
+  price3m?: number;
+  price6m?: number;
+  price1y?: number;
+  discountPct3m?: number;
+  discountPct6m?: number;
+  discountPct1y?: number;
+  cycle1mEnabled?: boolean;
+  cycle3mEnabled?: boolean;
+  cycle6mEnabled?: boolean;
+  cycle1yEnabled?: boolean;
+  maxBranches: number;
+  maxStylistsPerBranch: number;
+  features: string[];
+  status?: PlanStatus;
+  isFeatured?: boolean;
+  sortOrder?: number;
+}
+
 export interface Organization {
   id: string;
   name: string;
   slug: string;
   tier: SubscriptionTier;
+  planId?: string | null;
   ownerId?: string | null;
   maxBranches: number;
   maxStylistsPerBranch: number;

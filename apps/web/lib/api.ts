@@ -113,15 +113,71 @@ export interface Salon {
   createdAt?: string;
 }
 
+export type BillingCycle = '1m' | '3m' | '6m' | '1y';
+
+export type PlanStatus = 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  slug: string;
+  badge?: string | null;
+  description?: string | null;
+  price1m: number;
+  price3m?: number | null;
+  price6m?: number | null;
+  price1y?: number | null;
+  discountPct3m: number;
+  discountPct6m: number;
+  discountPct1y: number;
+  cycle1mEnabled: boolean;
+  cycle3mEnabled: boolean;
+  cycle6mEnabled: boolean;
+  cycle1yEnabled: boolean;
+  maxBranches: number;
+  maxStylistsPerBranch: number;
+  features: string[];
+  status: PlanStatus;
+  isFeatured: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreatePlanPayload {
+  name: string;
+  slug?: string;
+  badge?: string;
+  description?: string;
+  price1m: number;
+  price3m?: number;
+  price6m?: number;
+  price1y?: number;
+  discountPct3m?: number;
+  discountPct6m?: number;
+  discountPct1y?: number;
+  cycle1mEnabled?: boolean;
+  cycle3mEnabled?: boolean;
+  cycle6mEnabled?: boolean;
+  cycle1yEnabled?: boolean;
+  maxBranches: number;
+  maxStylistsPerBranch: number;
+  features: string[];
+  status?: PlanStatus;
+  isFeatured?: boolean;
+  sortOrder?: number;
+}
+
 export interface Organization {
   id: string;
   name: string;
   slug: string;
   tier: "STARTER" | "PRO" | "ENTERPRISE";
+  planId?: string | null;
   maxBranches: number;
   maxStylistsPerBranch: number;
-  allowCustomSmsGateway: boolean;
-  allowWhiteLabeling: boolean;
+  allowCustomSmsGateway?: boolean;
+  allowWhiteLabeling?: boolean;
   branchCount?: number;
   branches?: { id: string; name: string; slug: string; stylistsCount: number }[];
 }
@@ -995,5 +1051,32 @@ export const api = {
           method: "DELETE",
         }),
     },
+  },
+
+  plans: {
+    getAll: (options?: { status?: string }) => {
+      const q = new URLSearchParams();
+      if (options?.status) q.set("status", options.status);
+      const queryStr = q.toString();
+      return request<{ success: boolean; plans: SubscriptionPlan[] }>(
+        `/api/plans${queryStr ? `?${queryStr}` : ""}`
+      );
+    },
+    get: (idOrSlug: string) =>
+      request<{ success: boolean; plan: SubscriptionPlan }>(`/api/plans/${idOrSlug}`),
+    create: (data: CreatePlanPayload) =>
+      request<{ success: boolean; plan: SubscriptionPlan }>("/api/plans", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: Partial<CreatePlanPayload>) =>
+      request<{ success: boolean; plan: SubscriptionPlan }>(`/api/plans/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    archive: (id: string) =>
+      request<{ success: boolean; message: string }>(`/api/plans/${id}`, {
+        method: "DELETE",
+      }),
   },
 };

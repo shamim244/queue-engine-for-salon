@@ -4,6 +4,7 @@ import { stylistRepo } from './stylist.repo';
 import { serviceRepo } from './service.repo';
 import { queueRepo } from './queue.repo';
 import { analyticsRepo } from './analytics.repo';
+import { planRepo, invalidatePlanCache } from './plan.repo';
 import {
   defaultPlatformSettings,
   defaultAuditLogs,
@@ -33,6 +34,17 @@ export const repository = {
     organizationRepo.checkOrganizationBranchQuota(orgId, () => salonRepo.getAllSalons()),
   checkSalonStylistQuota: (salonId: string) =>
     organizationRepo.checkSalonStylistQuota(salonId, () => salonRepo.getAllSalons()),
+  updateOrganizationPlan: (orgId: string, planId: string) =>
+    organizationRepo.updateOrganizationPlan(orgId, planId),
+
+  // Subscription Plans
+  getAllPlans: (options?: Parameters<typeof planRepo.getAllPlans>[0]) => planRepo.getAllPlans(options),
+  getPlanById: (id: string) => planRepo.getPlanById(id),
+  getPlanBySlug: (slug: string) => planRepo.getPlanBySlug(slug),
+  createPlan: (payload: Parameters<typeof planRepo.createPlan>[0]) => planRepo.createPlan(payload),
+  updatePlan: (id: string, updates: Parameters<typeof planRepo.updatePlan>[1]) => planRepo.updatePlan(id, updates),
+  archivePlan: (id: string) => planRepo.archivePlan(id),
+  invalidatePlanCache: () => planRepo.invalidatePlanCache(),
 
   // Salons
   invalidateSalonCache,
@@ -128,6 +140,8 @@ export {
   serviceRepo,
   queueRepo,
   analyticsRepo,
+  planRepo,
+  invalidatePlanCache,
   defaultPlatformSettings,
   defaultAuditLogs,
   memoryStore,

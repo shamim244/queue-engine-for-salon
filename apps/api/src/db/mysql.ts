@@ -203,6 +203,34 @@ async function runMigrations() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_salon_date (salon_id, leave_date),
         INDEX idx_stylist_date (stylist_id, leave_date)
+    ) ENGINE=InnoDB;`,
+
+    `CREATE TABLE IF NOT EXISTS subscription_plans (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        slug VARCHAR(100) NOT NULL UNIQUE,
+        badge VARCHAR(50) NULL,
+        description TEXT NULL,
+        price_1m DECIMAL(10,2) NOT NULL,
+        price_3m DECIMAL(10,2) NULL,
+        price_6m DECIMAL(10,2) NULL,
+        price_1y DECIMAL(10,2) NULL,
+        discount_pct_3m DECIMAL(5,2) DEFAULT 10.00,
+        discount_pct_6m DECIMAL(5,2) DEFAULT 16.00,
+        discount_pct_1y DECIMAL(5,2) DEFAULT 30.00,
+        cycle_1m_enabled BOOLEAN DEFAULT TRUE,
+        cycle_3m_enabled BOOLEAN DEFAULT TRUE,
+        cycle_6m_enabled BOOLEAN DEFAULT TRUE,
+        cycle_1y_enabled BOOLEAN DEFAULT TRUE,
+        max_branches INT NOT NULL DEFAULT 1,
+        max_stylists_per_branch INT NOT NULL DEFAULT 2,
+        features JSON NOT NULL,
+        status ENUM('ACTIVE', 'DRAFT', 'ARCHIVED') DEFAULT 'ACTIVE',
+        is_featured BOOLEAN DEFAULT FALSE,
+        sort_order INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_plan_status (status, sort_order)
     ) ENGINE=InnoDB;`
   ];
 
@@ -214,6 +242,7 @@ async function runMigrations() {
   const safeColumns = [
     `UPDATE organizations SET tier = 'STARTER' WHERE tier = 'SOLO';`,
     `ALTER TABLE organizations MODIFY COLUMN tier ENUM('STARTER', 'PRO', 'ENTERPRISE') DEFAULT 'STARTER';`,
+    `ALTER TABLE organizations ADD COLUMN plan_id VARCHAR(36) NULL;`,
     `ALTER TABLE salons ADD COLUMN organization_id VARCHAR(36) NULL;`,
     `ALTER TABLE salons MODIFY COLUMN operating_mode VARCHAR(50) NULL DEFAULT NULL;`,
     `ALTER TABLE salons ADD COLUMN tagline VARCHAR(255) NULL;`,

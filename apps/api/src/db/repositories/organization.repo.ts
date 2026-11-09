@@ -1,6 +1,7 @@
 import { isMySqlConnected, getDb } from '../mysql';
 import type { Organization, SubscriptionTier, Salon } from '../../engine/types';
 import { memoryStore } from './store';
+import { planRepo } from './plan.repo';
 
 export const organizationRepo = {
   async getOrganizationById(id: string): Promise<Organization | null> {
@@ -14,6 +15,7 @@ export const organizationRepo = {
         name: r.name,
         slug: r.slug,
         tier: r.tier,
+        planId: r.plan_id || null,
         ownerId: r.owner_id,
         maxBranches: Number(r.max_branches),
         maxStylistsPerBranch: Number(r.max_stylists_per_branch),
@@ -34,6 +36,7 @@ export const organizationRepo = {
         name: r.name,
         slug: r.slug,
         tier: r.tier,
+        planId: r.plan_id || null,
         ownerId: r.owner_id,
         maxBranches: Number(r.max_branches),
         maxStylistsPerBranch: Number(r.max_stylists_per_branch),
@@ -52,6 +55,7 @@ export const organizationRepo = {
         name: r.name,
         slug: r.slug,
         tier: r.tier,
+        planId: r.plan_id || null,
         ownerId: r.owner_id,
         maxBranches: Number(r.max_branches),
         maxStylistsPerBranch: Number(r.max_stylists_per_branch),
@@ -66,6 +70,7 @@ export const organizationRepo = {
     name: string;
     slug?: string;
     tier?: SubscriptionTier;
+    planId?: string | null;
     ownerId?: string | null;
     maxBranches?: number;
     maxStylistsPerBranch?: number;
@@ -78,20 +83,36 @@ export const organizationRepo = {
     }
 
     const tier: SubscriptionTier = params.tier === 'PRO' || params.tier === 'ENTERPRISE' ? params.tier : 'STARTER';
-    const limits = {
-      STARTER: { maxBranches: 1, maxStylistsPerBranch: 1 },
-      PRO: { maxBranches: 3, maxStylistsPerBranch: 10 },
-      ENTERPRISE: { maxBranches: 999, maxStylistsPerBranch: 999 },
-    }[tier] || { maxBranches: 1, maxStylistsPerBranch: 1 };
+    let maxBranches = params.maxBranches;
+    let maxStylistsPerBranch = params.maxStylistsPerBranch;
+
+    if (params.planId) {
+      const plan = await planRepo.getPlanById(params.planId);
+      if (plan) {
+        if (maxBranches === undefined) maxBranches = plan.maxBranches;
+        if (maxStylistsPerBranch === undefined) maxStylistsPerBranch = plan.maxStylistsPerBranch;
+      }
+    }
+
+    if (maxBranches === undefined || maxStylistsPerBranch === undefined) {
+      const limits = {
+        STARTER: { maxBranches: 1, maxStylistsPerBranch: 1 },
+        PRO: { maxBranches: 3, maxStylistsPerBranch: 10 },
+        ENTERPRISE: { maxBranches: 999, maxStylistsPerBranch: 999 },
+      }[tier] || { maxBranches: 1, maxStylistsPerBranch: 1 };
+      if (maxBranches === undefined) maxBranches = limits.maxBranches;
+      if (maxStylistsPerBranch === undefined) maxStylistsPerBranch = limits.maxStylistsPerBranch;
+    }
 
     const org: Organization = {
       id: 'org-' + Math.random().toString(36).substring(2, 9),
       name: params.name,
       slug,
       tier,
+      planId: params.planId || null,
       ownerId: params.ownerId || null,
-      maxBranches: params.maxBranches ?? limits.maxBranches,
-      maxStylistsPerBranch: params.maxStylistsPerBranch ?? limits.maxStylistsPerBranch,
+      maxBranches,
+      maxStylistsPerBranch,
       createdAt: new Date(),
     };
 
@@ -101,9 +122,9 @@ export const organizationRepo = {
     if (isMySqlConnected) {
       const db = getDb();
       await db.query(
-        `INSERT INTO organizations (id, name, slug, tier, owner_id, max_branches, max_stylists_per_branch)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [org.id, org.name, org.slug, org.tier, org.ownerId, org.maxBranches, org.maxStylistsPerBranch]
+        `INSERT INTO organizations (id, name, slug, tier, plan_id, owner_id, max_branches, max_stylists_per_branch)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [org.id, org.name, org.slug, org.tier, org.planId || null, org.ownerId, org.maxBranches, org.maxStylistsPerBranch]
       );
     }
 
@@ -117,15 +138,16 @@ export const organizationRepo = {
 
   async updateOrganizationTier(orgId: string, tier: SubscriptionTier): Promise<Organization | null> {
     const limits = {
-      STARTER: { maxBranches: 1, maxStylistsPerBranch: 1 },
-      PRO: { maxBranches: 3, maxStylistsPerBranch: 10 },
-      ENTERPRISE: { maxBranches: 999, maxStylistsPerBranch: 999 },
-    }[tier] || { maxBranches: 1, maxStylistsPerBranch: 1 };
+      STARTER: { maxBranches: 1, maxStylistsPerBranch: 1, planId: 'plan-starter-01' },
+      PRO: { maxBranches: 3, maxStylistsPerBranch: 10, planId: 'plan-pro-01' },
+      ENTERPRISE: { maxBranches: 999, maxStylistsPerBranch: 999, planId: 'plan-enterprise-01' },
+    }[tier] || { maxBranches: 1, maxStylistsPerBranch: 1, planId: 'plan-starter-01' };
 
     const org = await this.getOrganizationById(orgId);
     if (!org) return null;
 
     org.tier = tier;
+    org.planId = limits.planId;
     org.maxBranches = limits.maxBranches;
     org.maxStylistsPerBranch = limits.maxStylistsPerBranch;
 
@@ -135,40 +157,90 @@ export const organizationRepo = {
     if (isMySqlConnected) {
       const db = getDb();
       await db.query(
-        'UPDATE organizations SET tier = ?, max_branches = ?, max_stylists_per_branch = ? WHERE id = ?',
-        [tier, limits.maxBranches, limits.maxStylistsPerBranch, orgId]
+        'UPDATE organizations SET tier = ?, plan_id = ?, max_branches = ?, max_stylists_per_branch = ? WHERE id = ?',
+        [tier, limits.planId, limits.maxBranches, limits.maxStylistsPerBranch, orgId]
       );
     }
     return org;
   },
 
-  async checkOrganizationBranchQuota(orgId: string, getAllSalonsFn: () => Promise<Salon[]>): Promise<{ allowed: boolean; current: number; max: number; tier: SubscriptionTier }> {
+  async updateOrganizationPlan(orgId: string, planId: string): Promise<Organization | null> {
     const org = await this.getOrganizationById(orgId);
-    if (!org) return { allowed: true, current: 0, max: 999, tier: 'ENTERPRISE' };
+    if (!org) return null;
+
+    const plan = await planRepo.getPlanById(planId);
+    if (!plan) return null;
+
+    org.planId = plan.id;
+    org.maxBranches = plan.maxBranches;
+    org.maxStylistsPerBranch = plan.maxStylistsPerBranch;
+
+    memoryStore.organizations.set(org.id, org);
+    memoryStore.organizations.set(org.slug, org);
+
+    if (isMySqlConnected) {
+      const db = getDb();
+      await db.query(
+        'UPDATE organizations SET plan_id = ?, max_branches = ?, max_stylists_per_branch = ? WHERE id = ?',
+        [plan.id, plan.maxBranches, plan.maxStylistsPerBranch, orgId]
+      );
+    }
+    return org;
+  },
+
+  async checkOrganizationBranchQuota(
+    orgId: string,
+    getAllSalonsFn: () => Promise<Salon[]>
+  ): Promise<{ allowed: boolean; current: number; max: number; tier: SubscriptionTier; planId?: string | null }> {
+    const org = await this.getOrganizationById(orgId);
+    if (!org) return { allowed: true, current: 0, max: 999, tier: 'ENTERPRISE', planId: null };
+
+    let maxBranches = org.maxBranches;
+    if (org.planId) {
+      const plan = await planRepo.getPlanById(org.planId);
+      if (plan) {
+        maxBranches = plan.maxBranches;
+      }
+    }
+
     const branches = await this.getSalonsByOrganizationId(orgId, getAllSalonsFn);
     return {
-      allowed: branches.length < org.maxBranches,
+      allowed: branches.length < maxBranches,
       current: branches.length,
-      max: org.maxBranches,
+      max: maxBranches,
       tier: org.tier,
+      planId: org.planId,
     };
   },
 
-  async checkSalonStylistQuota(salonId: string, getAllSalonsFn: () => Promise<Salon[]>): Promise<{ allowed: boolean; current: number; max: number; tier: SubscriptionTier }> {
+  async checkSalonStylistQuota(
+    salonId: string,
+    getAllSalonsFn: () => Promise<Salon[]>
+  ): Promise<{ allowed: boolean; current: number; max: number; tier: SubscriptionTier; planId?: string | null }> {
     const all = await getAllSalonsFn();
     const salon = all.find((s) => s.id === salonId);
     if (!salon || !salon.organizationId) {
-      return { allowed: true, current: salon ? salon.stylists.length : 0, max: 999, tier: 'ENTERPRISE' };
+      return { allowed: true, current: salon ? salon.stylists.length : 0, max: 999, tier: 'ENTERPRISE', planId: null };
     }
     const org = await this.getOrganizationById(salon.organizationId);
     if (!org) {
-      return { allowed: true, current: salon.stylists.length, max: 999, tier: 'ENTERPRISE' };
+      return { allowed: true, current: salon.stylists.length, max: 999, tier: 'ENTERPRISE', planId: null };
     }
+
+    let maxStylists = org.maxStylistsPerBranch;
+    if (org.planId) {
+      const plan = await planRepo.getPlanById(org.planId);
+      if (plan) {
+        maxStylists = plan.maxStylistsPerBranch;
+      }
+    }
+
     return {
-      allowed: salon.stylists.length < org.maxStylistsPerBranch,
+      allowed: salon.stylists.length < maxStylists,
       current: salon.stylists.length,
-      max: org.maxStylistsPerBranch,
+      max: maxStylists,
       tier: org.tier,
+      planId: org.planId,
     };
   },
 };
