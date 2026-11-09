@@ -1516,4 +1516,223 @@ export const api = {
         body: JSON.stringify(data),
       }),
   },
+
+  appointments: {
+    getSlots: (slug: string, date: string, stylistId?: string) => {
+      const q = new URLSearchParams({ date });
+      if (stylistId) q.set("stylistId", stylistId);
+      return request<{ date: string; slots: AppointmentSlot[] }>(
+        `/api/v1/salons/${slug}/appointments/slots?${q.toString()}`
+      );
+    },
+
+    list: (slug: string, params?: { date?: string; status?: string; stylistId?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.date) q.set("date", params.date);
+      if (params?.status) q.set("status", params.status);
+      if (params?.stylistId) q.set("stylistId", params.stylistId);
+      return request<{ success: boolean; count: number; appointments: Appointment[] }>(
+        `/api/v1/salons/${slug}/appointments?${q.toString()}`
+      );
+    },
+
+    getById: (id: string) =>
+      request<{ success: boolean; appointment: Appointment; salon: Salon }>(
+        `/api/v1/appointments/${id}`
+      ),
+
+    initiate: (data: {
+      salonSlug: string;
+      serviceId: string;
+      addOnIds?: string[];
+      stylistId?: string | null;
+      date: string;
+      slotTime: string;
+      customerName: string;
+      customerPhone: string;
+      advanceType: "TOKEN" | "FULL";
+    }) =>
+      request<{
+        success: boolean;
+        appointment: Appointment;
+        appointmentId: string;
+        advanceAmount: number;
+        razorpayOrderId: string;
+        upiQrString: string;
+      }>("/api/v1/appointments/initiate", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    confirm: (data: { appointmentId: string; paymentId?: string; signature?: string }) =>
+      request<{ success: boolean; appointment: Appointment }>("/api/v1/appointments/confirm", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    reschedule: (
+      id: string,
+      data: { newDate: string; newSlotTime: string; newStylistId?: string | null }
+    ) =>
+      request<{ success: boolean; appointment: Appointment }>(
+        `/api/v1/appointments/${id}/reschedule`,
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        }
+      ),
+
+    checkIn: (id: string) =>
+      request<{ success: boolean; appointment: Appointment }>(
+        `/api/v1/appointments/${id}/check-in`,
+        {
+          method: "POST",
+        }
+      ),
+
+    cancel: (id: string) =>
+      request<{ success: boolean; appointment: Appointment; refundPercentage: number }>(
+        `/api/v1/appointments/${id}/cancel`,
+        {
+          method: "POST",
+        }
+      ),
+
+    noShow: (id: string) =>
+      request<{ success: boolean; appointment: Appointment }>(
+        `/api/v1/appointments/${id}/no-show`,
+        {
+          method: "POST",
+        }
+      ),
+
+    seat: (id: string, stylistId?: string) =>
+      request<{ success: boolean; appointment: Appointment }>(
+        `/api/v1/appointments/${id}/seat`,
+        {
+          method: "POST",
+          body: JSON.stringify({ stylistId }),
+        }
+      ),
+
+    complete: (id: string) =>
+      request<{ success: boolean; appointment: Appointment }>(
+        `/api/v1/appointments/${id}/complete`,
+        {
+          method: "POST",
+        }
+      ),
+
+    getPayouts: (slug: string, status?: string) => {
+      const q = new URLSearchParams();
+      if (status) q.set("status", status);
+      return request<{
+        success: boolean;
+        salonId: string;
+        salonName: string;
+        payoutVpa: string;
+        summary: {
+          grossTotal: number;
+          netTotal: number;
+          gatewayTotal: number;
+          platformTotal: number;
+          payoutCount: number;
+        };
+        payouts: PayoutRecord[];
+      }>(`/api/v1/salons/${slug}/payouts?${q.toString()}`);
+    },
+
+    getAdminPayouts: (status?: string) => {
+      const q = new URLSearchParams();
+      if (status) q.set("status", status);
+      return request<{
+        success: boolean;
+        summary: {
+          grossTotal: number;
+          netDisbursed: number;
+          pendingDisbursal: number;
+          platformRevenue: number;
+          gatewayFees: number;
+          totalBatches: number;
+        };
+        payouts: PayoutRecord[];
+      }>(`/api/v1/admin/payouts?${q.toString()}`);
+    },
+
+    settleDaily: (date?: string, salonId?: string) =>
+      request<{ success: boolean; settledBatchesCount: number; batches: PayoutRecord[] }>(
+        "/api/v1/admin/payouts/settle-daily",
+        {
+          method: "POST",
+          body: JSON.stringify({ date, salonId }),
+        }
+      ),
+
+    releasePayout: (id: string) =>
+      request<{ success: boolean; payout: PayoutRecord }>(
+        `/api/v1/admin/payouts/${id}/release`,
+        {
+          method: "POST",
+        }
+      ),
+  },
 };
+
+export type AppointmentStatus =
+  | "PENDING_PAYMENT"
+  | "CONFIRMED"
+  | "CHECKED_IN"
+  | "IN_CHAIR"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "NO_SHOW"
+  | "RESCHEDULED";
+
+export type EscrowStatus = "HELD" | "RELEASED_TO_OWNER" | "REFUNDED_TO_CUSTOMER" | "PARTIAL_SPLIT";
+
+export interface Appointment {
+  id: string;
+  salonId: string;
+  stylistId?: string | null;
+  customerName: string;
+  customerPhone: string;
+  serviceId: string;
+  serviceName: string;
+  scheduledDate: string;
+  slotStartTime: string;
+  slotEndTime: string;
+  durationMinutes: number;
+  advanceAmount: number;
+  totalPrice: number;
+  paymentMethod: string;
+  gatewayOrderId?: string | null;
+  gatewayPaymentId?: string | null;
+  escrowStatus: EscrowStatus;
+  status: AppointmentStatus;
+  rescheduledFromId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AppointmentSlot {
+  time: string;
+  available: boolean;
+  reason?: string;
+  stylistId?: string;
+}
+
+export interface PayoutRecord {
+  id: string;
+  salonId: string;
+  periodStart: string;
+  periodEnd: string;
+  grossAmount: number;
+  gatewayFee: number;
+  platformFee: number;
+  netPayout: number;
+  payoutVpa?: string | null;
+  payoutReferenceId?: string | null;
+  status: "PENDING" | "PROCESSING" | "SETTLED" | "FAILED";
+  settledAt?: string | null;
+  createdAt?: string;
+}

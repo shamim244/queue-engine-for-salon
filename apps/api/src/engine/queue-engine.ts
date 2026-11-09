@@ -6,7 +6,7 @@ import { selectNextTicketCandidate } from './routing';
 import { validateTicketTransition } from './state-machine';
 import { jobQueue } from '../worker/job-queue';
 import { registerNotificationHandler } from '../worker/handlers/notification.handler';
-import type { QueueTicket, TicketSource, PaymentStatus } from './types';
+import type { QueueTicket, TicketSource, PaymentStatus, Appointment } from './types';
 
 // Ensure standard background workers are registered
 registerNotificationHandler();
@@ -813,8 +813,30 @@ export const queueEngine = {
     const salon = await repository.getSalonById(salonId);
     if (!salon) return [];
 
+    // Automatically check and forfeit late appointments past 10m grace window without check-in
+    await this.checkAppointmentGracePeriod(salonId, undefined, true);
+
     const activeTickets = await repository.getActiveTickets(salonId);
-    const calculations = calculateWaitTimes(activeTickets, salon.stylists);
+
+    // Fetch confirmed, checked-in, and in-chair appointments for today to interleave into wait times
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const today = `${y}-${m}-${d}`;
+
+    let appointments: Appointment[] = [];
+    try {
+      appointments = await repository.getAppointments({
+        salonId,
+        scheduledDate: today,
+        status: ['CONFIRMED', 'CHECKED_IN', 'IN_CHAIR'],
+      });
+    } catch (err) {
+      console.warn('[QueueEngine] Failed to load appointments for recalculation:', err);
+    }
+
+    const calculations = calculateWaitTimes(activeTickets, salon.stylists, appointments, now);
 
     const updates: Array<{ id: string; estimatedWaitMinutes: number }> = [];
 
@@ -832,5 +854,81 @@ export const queueEngine = {
     }
 
     return activeTickets;
+  },
+
+  // 10. Enforce 10-Minute Grace Window on Appointments:
+  // If customer does not check in by slot_start_time + 10m, forfeit slot & auto-summon next walk-in ticket
+  async checkAppointmentGracePeriod(
+    salonId: string,
+    testCurrentTime?: Date,
+    skipRecalculate?: boolean
+  ): Promise<{
+    expiredAppointments: string[];
+    autoSummonedTicket: QueueTicket | null;
+  }> {
+    const now = testCurrentTime || new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const today = `${y}-${m}-${d}`;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    let appointments: Appointment[] = [];
+    try {
+      appointments = await repository.getAppointments({
+        salonId,
+        scheduledDate: today,
+        status: 'CONFIRMED',
+      });
+    } catch {
+      return { expiredAppointments: [], autoSummonedTicket: null };
+    }
+
+    const expired: string[] = [];
+    let autoSummoned: QueueTicket | null = null;
+
+    for (const appt of appointments) {
+      const [startH, startM] = appt.slotStartTime.split(':').map((p) => parseInt(p, 10));
+      const startMinutes = (startH || 0) * 60 + (startM || 0);
+
+      // Customer > 10 minutes late without check-in
+      if (nowMinutes > startMinutes + 10) {
+        await repository.updateAppointment(appt.id, {
+          status: 'NO_SHOW',
+          escrowStatus: 'RELEASED_TO_OWNER',
+        });
+        expired.push(appt.id);
+
+        // Auto-summon next walk-in ticket
+        const salon = await repository.getSalonById(salonId);
+        if (salon && !autoSummoned) {
+          const activeTickets = await repository.getActiveTickets(salonId);
+          const waitingTickets = activeTickets.filter(
+            (t) => t.status === 'WAITING' || t.status === 'SOFT_BUMPED'
+          );
+
+          if (waitingTickets.length > 0) {
+            const targetStylistId = appt.stylistId || salon.stylists.find((s) => s.isActive)?.id;
+            if (targetStylistId) {
+              const stylistBusy = activeTickets.find(
+                (t) => t.stylistId === targetStylistId && (t.status === 'IN_CHAIR' || t.status === 'SUMMONED')
+              );
+              if (!stylistBusy) {
+                const nextCandidate = selectNextTicketCandidate(waitingTickets, targetStylistId);
+                if (nextCandidate) {
+                  autoSummoned = await this.summonTicket(nextCandidate.id, targetStylistId);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (!skipRecalculate && expired.length > 0) {
+      await this.recalculateQueue(salonId);
+    }
+
+    return { expiredAppointments: expired, autoSummonedTicket: autoSummoned };
   },
 };

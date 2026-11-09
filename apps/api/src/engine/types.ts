@@ -510,3 +510,59 @@ export interface StaffLeave {
   updatedAt: Date | string;
 }
 
+export type AppointmentStatus =
+  | 'PENDING_PAYMENT'
+  | 'CONFIRMED'
+  | 'CHECKED_IN'
+  | 'IN_CHAIR'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'NO_SHOW'
+  | 'RESCHEDULED';
+
+export type EscrowStatus = 'HELD' | 'RELEASED_TO_OWNER' | 'REFUNDED_TO_CUSTOMER' | 'PARTIAL_SPLIT';
+
+export type AppointmentPaymentMethod = 'RAZORPAY' | 'UPI_QR' | 'WALLET' | 'PAY_AT_SALON';
+
+export interface Appointment {
+  id: string;
+  salonId: string;
+  stylistId?: string | null;
+  customerName: string;
+  customerPhone: string;
+  serviceId: string;
+  serviceName: string;
+  scheduledDate: string; // YYYY-MM-DD
+  slotStartTime: string; // HH:mm (24-hr)
+  slotEndTime: string;   // HH:mm (24-hr)
+  durationMinutes: number;
+  advanceAmount: number;
+  totalPrice: number;
+  paymentMethod: AppointmentPaymentMethod;
+  gatewayOrderId?: string | null;
+  gatewayPaymentId?: string | null;
+  escrowStatus: EscrowStatus;
+  status: AppointmentStatus;
+  rescheduledFromId?: string | null;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}
+
+export type PayoutStatus = 'PENDING' | 'PROCESSING' | 'SETTLED' | 'FAILED';
+
+export interface SalonPayoutRecord {
+  id: string;
+  salonId: string;
+  periodStart: string; // YYYY-MM-DD
+  periodEnd: string;   // YYYY-MM-DD
+  grossAmount: number;
+  gatewayFee: number;  // 2.0%
+  platformFee: number; // 1.0%
+  netPayout: number;   // 97.0%
+  payoutVpa?: string | null;
+  payoutReferenceId?: string | null;
+  status: PayoutStatus;
+  settledAt?: Date | string | null;
+  createdAt?: Date | string;
+}
+

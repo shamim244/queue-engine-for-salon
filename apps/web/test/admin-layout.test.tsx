@@ -1,6 +1,7 @@
 import { describe, it, expect, mock } from "bun:test";
 import React from "react";
 import { renderToString } from "react-dom/server";
+import path from "node:path";
 
 // Mock next/navigation
 mock.module("next/navigation", () => ({
@@ -72,7 +73,8 @@ describe("Admin Layout & Lucide Module Resolution", () => {
   });
 
   it("ensures public/sw.js enforces eq-pwa-v9 cache invalidation and dev host protection", async () => {
-    const swContent = await Bun.file("public/sw.js").text();
+    const swPath = path.resolve(import.meta.dir, "../public/sw.js");
+    const swContent = await Bun.file(swPath).text();
     expect(swContent).toContain("eq-pwa-v9");
     expect(swContent).toContain("isDevHost");
     expect(swContent).toContain("localhost");
@@ -82,7 +84,8 @@ describe("Admin Layout & Lucide Module Resolution", () => {
   });
 
   it("ensures app/layout.tsx contains synchronous dev service worker cleanup in <head>", async () => {
-    const layoutContent = await Bun.file("app/layout.tsx").text();
+    const layoutPath = path.resolve(import.meta.dir, "../app/layout.tsx");
+    const layoutContent = await Bun.file(layoutPath).text();
     expect(layoutContent).toContain("dev-sw-cleanup");
     expect(layoutContent).toContain("navigator.serviceWorker.getRegistrations");
     expect(layoutContent).toContain("caches.delete");

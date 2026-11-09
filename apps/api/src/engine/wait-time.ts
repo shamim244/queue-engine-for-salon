@@ -1,4 +1,4 @@
-import type { QueueTicket, Stylist } from './types';
+import type { QueueTicket, Stylist, Appointment } from './types';
 
 export interface CalculatedWaitTime {
   estimatedMinutes: number;
@@ -6,17 +6,40 @@ export interface CalculatedWaitTime {
   position: number;
 }
 
+interface StylistTimeline {
+  stylistId: string;
+  nextFreeMinutes: number;
+  appointmentBlocks: Array<{ start: number; end: number; id: string }>;
+}
+
+function parseTimeToMinutes(timeStr: string): number {
+  if (!timeStr) return 0;
+  const parts = timeStr.split(':').map((p) => parseInt(p, 10));
+  return (parts[0] || 0) * 60 + (parts[1] || 0);
+}
+
 /**
  * High-precision discrete-event queue simulation for multi-stylist and solo salons.
+ * Interleaves confirmed advance appointments onto stylist timelines dynamically.
  * Zero continuous server ticking loops (client-compute hardware offloading compliant).
  */
 export function calculateWaitTimes(
   tickets: QueueTicket[],
-  stylists: Stylist[]
+  stylists: Stylist[],
+  appointments?: Appointment[],
+  currentTime?: Date
 ): Map<string, CalculatedWaitTime> {
   const result = new Map<string, CalculatedWaitTime>();
-  
-  // Only calculate for tickets that are not completed/cancelled
+  const now = currentTime || new Date();
+
+  // Local date string YYYY-MM-DD
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const todayDateStr = `${year}-${month}-${day}`;
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  // 1. Separate ticket groups
   const inChairTickets = tickets.filter((t) => t.status === 'IN_CHAIR' || t.status === 'IN_SERVICE');
   const summonedTickets = tickets.filter((t) => t.status === 'SUMMONED' || t.status === 'CALLED');
   const activeWaiting = tickets.filter((t) => t.status === 'WAITING' || t.status === 'SOFT_BUMPED');
@@ -31,8 +54,6 @@ export function calculateWaitTimes(
     });
   }
 
-  const activeStylists = (stylists || []).filter((s) => s.isActive);
-
   // Set summoned tickets as ready / 0-1 min
   for (const summoned of summonedTickets) {
     result.set(summoned.id, {
@@ -42,36 +63,49 @@ export function calculateWaitTimes(
     });
   }
 
-  // Calculate each stylist's next available time (minutes from now)
+  const activeStylists = (stylists || []).filter((s) => s.isActive);
   const chairPrepBuffer = 3;
-  const stylistAvailableMinutes = new Map<string, number>();
+
+  // 2. Build initial timelines for stylists
+  const timelines = new Map<string, StylistTimeline>();
 
   if (activeStylists.length > 0) {
     for (const stylist of activeStylists) {
-      const inChair = inChairTickets.find((t) => t.stylistId === stylist.id);
+      const inChairTicket = inChairTickets.find((t) => t.stylistId === stylist.id);
+      const inChairAppt = (appointments || []).find(
+        (a) => a.stylistId === stylist.id && a.status === 'IN_CHAIR'
+      );
       const summoned = summonedTickets.find((t) => t.stylistId === stylist.id);
 
-      let nextFree = 0;
-      if (inChair) {
-        if (inChair.startedTime) {
+      let nextFree = chairPrepBuffer;
+      if (inChairTicket) {
+        if (inChairTicket.startedTime) {
           const elapsedMinutes = Math.max(
             0,
-            Math.floor((Date.now() - new Date(inChair.startedTime).getTime()) / 60000)
+            Math.floor((now.getTime() - new Date(inChairTicket.startedTime).getTime()) / 60000)
           );
-          nextFree = Math.max(3, (inChair.totalDurationMinutes || 20) - elapsedMinutes);
+          nextFree = Math.max(3, (inChairTicket.totalDurationMinutes || 20) - elapsedMinutes);
         } else {
-          nextFree = inChair.totalDurationMinutes || 20;
+          nextFree = inChairTicket.totalDurationMinutes || 20;
         }
+      } else if (inChairAppt) {
+        const chairTime = inChairAppt.updatedAt || inChairAppt.createdAt;
+        const elapsedMinutes = chairTime
+          ? Math.max(0, Math.floor((now.getTime() - new Date(chairTime).getTime()) / 60000))
+          : 0;
+        nextFree = Math.max(3, (inChairAppt.durationMinutes || 30) - elapsedMinutes);
       } else if (summoned) {
         nextFree = chairPrepBuffer + (summoned.totalDurationMinutes || 20);
-      } else {
-        nextFree = chairPrepBuffer;
       }
 
-      stylistAvailableMinutes.set(stylist.id, nextFree);
+      timelines.set(stylist.id, {
+        stylistId: stylist.id,
+        nextFreeMinutes: nextFree,
+        appointmentBlocks: [],
+      });
     }
   } else {
-    // If salon has no registered active stylists, fallback to a virtual chair
+    // Fallback virtual chair
     let virtualBusyRemaining = 0;
     for (const inChair of inChairTickets) {
       virtualBusyRemaining += (inChair.totalDurationMinutes || 20);
@@ -79,54 +113,142 @@ export function calculateWaitTimes(
     for (const summoned of summonedTickets) {
       virtualBusyRemaining += (summoned.totalDurationMinutes || 20);
     }
-    stylistAvailableMinutes.set('default-virtual', Math.max(chairPrepBuffer, virtualBusyRemaining));
+
+    timelines.set('default-virtual', {
+      stylistId: 'default-virtual',
+      nextFreeMinutes: Math.max(chairPrepBuffer, virtualBusyRemaining),
+      appointmentBlocks: [],
+    });
   }
 
-  // If a ticket is summoned or in chair, but we had stylists that were marked idle without ticketId link:
-  // ensure remaining chair time is reflected
+  // Handle unlinked summoned tickets across stylists
   const unlinkedSummoned = summonedTickets.filter(
     (st) => !activeStylists.some((s) => s.id === st.stylistId)
   );
   for (const st of unlinkedSummoned) {
-    // Distribute to the earliest stylist
-    let minTime = Infinity;
-    let minId = Array.from(stylistAvailableMinutes.keys())[0];
-    for (const [id, time] of stylistAvailableMinutes.entries()) {
-      if (time < minTime) {
-        minTime = time;
-        minId = id;
+    let earliestTimeline: StylistTimeline | null = null;
+    for (const tl of timelines.values()) {
+      if (!earliestTimeline || tl.nextFreeMinutes < earliestTimeline.nextFreeMinutes) {
+        earliestTimeline = tl;
       }
     }
-    stylistAvailableMinutes.set(minId, minTime + (st.totalDurationMinutes || 20));
+    if (earliestTimeline) {
+      earliestTimeline.nextFreeMinutes += (st.totalDurationMinutes || 20);
+    }
   }
 
-  // Simulate queue dispatch for waiting clients
+  // 3. Interleave confirmed appointments onto stylist timelines
+  const validAppointments = (appointments || []).filter((appt) => {
+    // Only today's active appointments
+    if (appt.scheduledDate !== todayDateStr) return false;
+    if (appt.status !== 'CONFIRMED' && appt.status !== 'CHECKED_IN') return false;
+
+    const startTotal = parseTimeToMinutes(appt.slotStartTime);
+    const endTotal = parseTimeToMinutes(appt.slotEndTime);
+
+    // If slot has already ended in the past, ignore
+    if (endTotal <= nowMinutes) return false;
+
+    // 10-minute grace window enforcement:
+    // If status is CONFIRMED (not checked-in) and more than 10 mins past slot start,
+    // the grace window has expired -> ignore and do not block the timeline.
+    if (appt.status === 'CONFIRMED' && nowMinutes > startTotal + 10) {
+      return false;
+    }
+
+    return true;
+  });
+
+  // Assign appointments to stylist timelines
+  for (const appt of validAppointments) {
+    const startTotal = parseTimeToMinutes(appt.slotStartTime);
+    const endTotal = parseTimeToMinutes(appt.slotEndTime);
+
+    // Relative minutes from now
+    const startFromNow = Math.max(0, startTotal - nowMinutes);
+    const endFromNow = Math.max(startFromNow + 5, endTotal - nowMinutes);
+
+    if (appt.stylistId && timelines.has(appt.stylistId)) {
+      timelines.get(appt.stylistId)!.appointmentBlocks.push({
+        id: appt.id,
+        start: startFromNow,
+        end: endFromNow,
+      });
+    } else {
+      // Universal appointment: assign to the stylist with fewest blocks or earliest availability
+      let bestTimeline: StylistTimeline | null = null;
+      for (const tl of timelines.values()) {
+        if (!bestTimeline || tl.appointmentBlocks.length < bestTimeline.appointmentBlocks.length) {
+          bestTimeline = tl;
+        }
+      }
+      if (bestTimeline) {
+        bestTimeline.appointmentBlocks.push({
+          id: appt.id,
+          start: startFromNow,
+          end: endFromNow,
+        });
+      }
+    }
+  }
+
+  // Sort each stylist's appointment blocks chronologically
+  for (const tl of timelines.values()) {
+    tl.appointmentBlocks.sort((a, b) => a.start - b.start);
+  }
+
+  // Helper to schedule a walk-in duration onto a stylist timeline
+  function findEarliestStartForWalkIn(
+    timeline: StylistTimeline,
+    duration: number
+  ): number {
+    let cursor = timeline.nextFreeMinutes;
+
+    for (const block of timeline.appointmentBlocks) {
+      // If cursor + duration fits before the appointment starts, we take this gap!
+      if (cursor + duration <= block.start) {
+        return cursor;
+      }
+
+      // If there is an overlap or cursor is already inside the block
+      if (cursor < block.end) {
+        cursor = Math.max(cursor, block.end);
+      }
+    }
+
+    return cursor;
+  }
+
+  // 4. Simulate queue dispatch for waiting clients (FIFO)
   for (let i = 0; i < activeWaiting.length; i++) {
     const ticket = activeWaiting[i];
     const duration = ticket.totalDurationMinutes || 20;
 
-    let targetStylistId: string;
-    let waitMinutes: number;
+    let selectedTimeline: StylistTimeline;
+    let scheduledStartMinutes: number;
 
-    if (ticket.stylistId && stylistAvailableMinutes.has(ticket.stylistId)) {
-      // Preferred stylist: must wait for this specific stylist
-      targetStylistId = ticket.stylistId;
-      waitMinutes = stylistAvailableMinutes.get(targetStylistId)!;
+    if (ticket.stylistId && timelines.has(ticket.stylistId)) {
+      // Preferred stylist
+      selectedTimeline = timelines.get(ticket.stylistId)!;
+      scheduledStartMinutes = findEarliestStartForWalkIn(selectedTimeline, duration);
     } else {
-      // Universal Line: whichever stylist becomes free earliest
-      let minMinutes = Infinity;
-      let minStylistId = Array.from(stylistAvailableMinutes.keys())[0];
-      for (const [sId, avail] of stylistAvailableMinutes.entries()) {
-        if (avail < minMinutes) {
-          minMinutes = avail;
-          minStylistId = sId;
+      // Universal Line: select the stylist that gives earliest start time
+      let minStart = Infinity;
+      let bestTl: StylistTimeline = Array.from(timelines.values())[0];
+
+      for (const tl of timelines.values()) {
+        const candidateStart = findEarliestStartForWalkIn(tl, duration);
+        if (candidateStart < minStart) {
+          minStart = candidateStart;
+          bestTl = tl;
         }
       }
-      targetStylistId = minStylistId;
-      waitMinutes = minMinutes;
+
+      selectedTimeline = bestTl;
+      scheduledStartMinutes = minStart;
     }
 
-    const wait = Math.max(3, Math.round(waitMinutes));
+    const wait = Math.max(3, Math.round(scheduledStartMinutes));
     const minWait = Math.max(3, Math.floor(wait * 0.85));
     const maxWait = Math.max(minWait + 3, Math.ceil(wait * 1.15));
 
@@ -136,8 +258,8 @@ export function calculateWaitTimes(
       position: summonedTickets.length + i + 1,
     });
 
-    // Advance this stylist's availability
-    stylistAvailableMinutes.set(targetStylistId, waitMinutes + duration);
+    // Advance this stylist's availability cursor past this walk-in ticket
+    selectedTimeline.nextFreeMinutes = scheduledStartMinutes + duration;
   }
 
   return result;

@@ -5,6 +5,7 @@ import { serviceRepo } from './service.repo';
 import { queueRepo } from './queue.repo';
 import { analyticsRepo } from './analytics.repo';
 import { planRepo, invalidatePlanCache } from './plan.repo';
+import { appointmentRepo } from './appointment.repo';
 import {
   defaultPlatformSettings,
   defaultAuditLogs,
@@ -131,6 +132,47 @@ export const repository = {
   getMaintenanceMode: () => analyticsRepo.getMaintenanceMode(),
   toggleMaintenanceMode: (active: boolean, message?: string, actor?: string) =>
     analyticsRepo.toggleMaintenanceMode(active, message, actor),
+
+  // Appointments
+  createAppointment: (params: Parameters<typeof appointmentRepo.createAppointment>[0]) =>
+    appointmentRepo.createAppointment(params),
+  getAppointmentById: (id: string) => appointmentRepo.getAppointmentById(id),
+  getAppointments: (filter?: Parameters<typeof appointmentRepo.getAppointments>[0]) =>
+    appointmentRepo.getAppointments(filter),
+  updateAppointment: (id: string, updates: Parameters<typeof appointmentRepo.updateAppointment>[1]) =>
+    appointmentRepo.updateAppointment(id, updates),
+  isSlotAvailable: (
+    salonId: string,
+    scheduledDate: string,
+    slotStartTime: string,
+    slotEndTime: string,
+    stylistId?: string | null,
+    excludeAppointmentId?: string
+  ) =>
+    appointmentRepo.isSlotAvailable(salonId, scheduledDate, slotStartTime, slotEndTime, stylistId, excludeAppointmentId),
+  rescheduleAppointment: (
+    appointmentId: string,
+    newDate: string,
+    newSlotStartTime: string,
+    newSlotEndTime: string,
+    newStylistId?: string | null
+  ) =>
+    appointmentRepo.rescheduleAppointment(appointmentId, newDate, newSlotStartTime, newSlotEndTime, newStylistId),
+
+  // Payouts & Settlement
+  createPayoutRecord: (payout: Parameters<typeof appointmentRepo.createPayoutRecord>[0]) =>
+    appointmentRepo.createPayoutRecord(payout),
+  getPayoutRecords: (filter?: Parameters<typeof appointmentRepo.getPayoutRecords>[0]) =>
+    appointmentRepo.getPayoutRecords(filter),
+  getPayoutById: (id: string) => appointmentRepo.getPayoutById(id),
+  updatePayoutStatus: (
+    id: string,
+    status: Parameters<typeof appointmentRepo.updatePayoutStatus>[1],
+    referenceId?: string,
+    settledAt?: string
+  ) => appointmentRepo.updatePayoutStatus(id, status, referenceId, settledAt),
+  getCompletedAppointmentsForPeriod: (salonId: string, startDate: string, endDate: string) =>
+    appointmentRepo.getCompletedAppointmentsForPeriod(salonId, startDate, endDate),
 };
 
 export {
@@ -141,6 +183,7 @@ export {
   queueRepo,
   analyticsRepo,
   planRepo,
+  appointmentRepo,
   invalidatePlanCache,
   defaultPlatformSettings,
   defaultAuditLogs,

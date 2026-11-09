@@ -11,6 +11,7 @@ export {
   queueRepo,
   analyticsRepo,
   planRepo,
+  appointmentRepo,
   invalidatePlanCache,
   defaultPlatformSettings,
   defaultAuditLogs,

@@ -11,6 +11,7 @@ import { websocketHub } from './src/websocket/hub';
 import { jobQueue } from './src/worker/job-queue';
 import { registerNotificationHandler } from './src/worker/handlers/notification.handler';
 import { registerResetHandler } from './src/worker/handlers/reset.handler';
+import { registerPayoutHandler } from './src/worker/payout-worker';
 import { salonRoutes } from './src/routes/salon.routes';
 import { queueRoutes } from './src/routes/queue.routes';
 import { authRoutes } from './src/routes/auth.routes';
@@ -20,21 +21,28 @@ import { paymentRoutes } from './src/routes/payment.routes';
 import { couponRoutes } from './src/routes/coupon.routes';
 import { walletRoutes } from './src/routes/wallet.routes';
 import { referralRoutes } from './src/routes/referral.routes';
+import { appointmentRoutes } from './src/routes/appointments';
 import { compressionManager } from './src/engine/compression-manager';
 
 console.log(`\n======================================================`);
 console.log(`🚀 ENGINE QUE SYSTEM FOR SALONS (BUN RUNTIME)`);
 console.log(`======================================================\n`);
 
-// Initialize Database & Seeds
-await initDatabase();
-seedDemoData();
-await authService.seedDefaultUsers();
-
-// Initialize SaaS Background Worker Pipeline
+// Initialize SaaS Background Worker Pipeline Handlers
 registerNotificationHandler();
 registerResetHandler();
-jobQueue.startWorker(2000);
+registerPayoutHandler();
+
+// Initialize Database & Seeds (skip MySQL connection & background worker polling in test environment)
+if (process.env.NODE_ENV !== 'test') {
+  await initDatabase();
+  seedDemoData();
+  await authService.seedDefaultUsers();
+  jobQueue.startWorker(2000);
+} else {
+  seedDemoData();
+  await authService.seedDefaultUsers();
+}
 
 const publicDir = path.resolve(import.meta.dir, 'src/public');
 
@@ -136,6 +144,7 @@ const app = new Elysia()
   .use(couponRoutes)
   .use(walletRoutes)
   .use(referralRoutes)
+  .use(appointmentRoutes)
 
   // Subdirectory Shortcuts (/s/:slug)
   .get('/s/:slug', ({ params, redirect }) => redirect(`/customer.html?salon=${params.slug}`))
@@ -175,9 +184,10 @@ const app = new Elysia()
     close(ws) {
       websocketHub.removeClient(ws.id);
     },
-  })
+  });
 
-  .listen(config.port, ({ hostname, port }) => {
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(config.port, ({ hostname, port }) => {
     console.log(`\n✨ Engine Que Server running at: http://${hostname}:${port}`);
     console.log(`📖 Swagger API Docs available at: http://${hostname}:${port}/swagger`);
     console.log(`💈 Salon Portal: http://${hostname}:${port}/index.html`);
@@ -185,6 +195,7 @@ const app = new Elysia()
     console.log(`🚪 Customer Door QR Check-in: http://${hostname}:${port}/s/ramesh-barber`);
     console.log(`📺 Lobby Live TV Display: http://${hostname}:${port}/s/aura-salon/tv\n`);
   });
+}
 
 export type App = typeof app;
 export { app };

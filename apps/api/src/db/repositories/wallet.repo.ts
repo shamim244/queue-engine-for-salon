@@ -322,6 +322,7 @@ export const walletRepo = {
 
     return Array.from(memoryStore.walletTransactions.values())
       .filter((tx) => tx.walletId === walletId)
+      .reverse()
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, limit);
   },

@@ -20,6 +20,7 @@ import {
   ExternalLink,
   Store,
   Armchair,
+  Banknote,
   CreditCard,
   TicketPercent,
   Gift,
@@ -96,6 +97,7 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
       title: "OPERATIONS",
       items: [
         { label: "Dashboard", href: `/owner?salon=${currentSlug}`, icon: LayoutDashboard },
+        { label: "Live Station", href: `/owner/station?salon=${currentSlug}`, icon: Armchair },
         { label: "Staff & Users", href: `/owner/staff?salon=${currentSlug}`, icon: Users },
         { label: "Services & Catalog", href: `/owner/services?salon=${currentSlug}`, icon: Tag },
       ],
@@ -111,6 +113,7 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
     {
       title: "MONETIZATION",
       items: [
+        { label: "Bank Payouts (97%)", href: `/owner/payouts?salon=${currentSlug}`, icon: Banknote },
         { label: "Subscription & Tier", href: `/owner/billing?salon=${currentSlug}`, icon: CreditCard },
       ],
     },

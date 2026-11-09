@@ -18,6 +18,8 @@ import type {
   WalletTransaction,
   ReferralAttribution,
   PaymentGatewaySettings,
+  Appointment,
+  SalonPayoutRecord,
 } from '../../engine/types';
 
 export const defaultPlatformSettings: PlatformSettings = {
@@ -110,6 +112,8 @@ export const memoryStore = {
   wallets: new Map<string, Wallet>(),
   walletTransactions: new Map<string, WalletTransaction>(),
   referralAttributions: new Map<string, ReferralAttribution>(),
+  appointments: new Map<string, Appointment>(),
+  payoutRecords: new Map<string, SalonPayoutRecord>(),
   gatewaySettings: { ...defaultPaymentGatewaySettings } as PaymentGatewaySettings,
   settings: JSON.parse(JSON.stringify(defaultPlatformSettings)) as PlatformSettings,
   auditLogs: [...defaultAuditLogs] as AuditLog[],
@@ -177,6 +181,8 @@ export function seedDemoData() {
   memoryStore.staffLeaves.clear();
   memoryStore.organizations.clear();
   memoryStore.plans.clear();
+  memoryStore.appointments.clear();
+  memoryStore.payoutRecords.clear();
   memoryStore.settings = JSON.parse(JSON.stringify(defaultPlatformSettings));
   memoryStore.auditLogs = [...defaultAuditLogs];
   memoryStore.maintenanceMode = {
