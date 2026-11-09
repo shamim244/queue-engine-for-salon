@@ -168,6 +168,71 @@ export interface CreatePlanPayload {
   sortOrder?: number;
 }
 
+export type PaymentProvider = "UPI_QR" | "CASH" | "RAZORPAY";
+
+export type PaymentTargetType = "SUBSCRIPTION" | "QUEUE_TICKET" | "WALLET_TOPUP";
+
+export type PaymentOrderStatus = "PENDING" | "COMPLETED" | "FAILED" | "EXPIRED" | "REFUNDED";
+
+export interface PaymentOrder {
+  id: string;
+  targetType: PaymentTargetType;
+  targetId: string;
+  organizationId?: string | null;
+  salonId?: string | null;
+  customerId?: string | null;
+  amount: number;
+  currency: string;
+  provider: PaymentProvider;
+  providerOrderId?: string | null;
+  transactionRef?: string | null;
+  status: PaymentOrderStatus;
+  paymentData?: Record<string, any> | null;
+  metadata?: Record<string, any> | null;
+  expiresAt: string;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentOrderResult {
+  orderId: string;
+  provider: PaymentProvider;
+  amount: number;
+  currency: string;
+  expiresAt: string;
+  paymentData: {
+    upiString?: string;
+    upiIntentUrl?: string;
+    vpa?: string;
+    payeeName?: string;
+    razorpayOrderId?: string;
+    razorpayKeyId?: string;
+    cashInstructions?: string;
+    [key: string]: any;
+  };
+}
+
+export interface OrganizationSubscription {
+  id: string;
+  organizationId: string;
+  planId: string;
+  cycle: BillingCycle | "custom";
+  startsAt: string;
+  expiresAt: string;
+  basePrice: number;
+  couponId?: string | null;
+  couponDiscount: number;
+  walletDeducted: number;
+  netAmountPaid: number;
+  paymentMethod: string;
+  paymentOrderId?: string | null;
+  transactionRef?: string | null;
+  status: "ACTIVE" | "EXPIRED" | "CANCELLED" | "GRACE_PERIOD";
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -1094,6 +1159,52 @@ export const api = {
           method: "POST",
           body: JSON.stringify({ planId }),
         }
+      ),
+  },
+
+  payments: {
+    createOrder: (payload: {
+      targetType: PaymentTargetType;
+      targetId: string;
+      amount: number;
+      provider: PaymentProvider;
+      currency?: string;
+      organizationId?: string | null;
+      salonId?: string | null;
+      customerId?: string | null;
+      metadata?: Record<string, any>;
+    }) =>
+      request<{ success: boolean; order: PaymentOrderResult }>("/api/payments/create-order", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    verify: (payload: {
+      orderId: string;
+      provider: PaymentProvider;
+      transactionRef?: string;
+      razorpayPaymentId?: string;
+      razorpaySignature?: string;
+      notes?: string;
+    }) =>
+      request<{
+        success: boolean;
+        orderId: string;
+        status: PaymentOrderStatus;
+        transactionRef: string;
+        message?: string;
+        subscription?: OrganizationSubscription | null;
+      }>("/api/payments/verify", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    getOrder: (id: string) =>
+      request<{ success: boolean; order: PaymentOrder }>(`/api/payments/${id}`),
+
+    getSubscription: (orgId: string) =>
+      request<{ success: boolean; subscription: OrganizationSubscription | null }>(
+        `/api/payments/subscriptions/${orgId}`
       ),
   },
 };

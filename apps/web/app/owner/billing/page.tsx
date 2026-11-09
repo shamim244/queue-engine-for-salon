@@ -4,12 +4,13 @@ import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import type { Organization, SubscriptionPlan, BillingCycle } from "@/lib/api";
+import type { Organization, SubscriptionPlan, BillingCycle, OrganizationSubscription } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ALL_PLAN_FEATURES } from "@/components/admin/billing/create-plan-modal";
+import { UniversalPaymentModal } from "@/components/checkout/universal-payment-modal";
 import {
   CreditCard,
   Building2,
@@ -39,16 +40,35 @@ const CYCLE_OPTIONS: { id: BillingCycle; label: string; months: number; badge?: 
   { id: "1y", label: "1 Year", months: 12, badge: "Save 30%" },
 ];
 
+export function getCyclePrice(p: SubscriptionPlan, cycle: BillingCycle): number {
+  if (cycle === "1m") {
+    return p.price1m;
+  } else if (cycle === "3m") {
+    return p.price3m ?? Math.round(p.price1m * 3 * (1 - (p.discountPct3m ?? 10) / 100));
+  } else if (cycle === "6m") {
+    return p.price6m ?? Math.round(p.price1m * 6 * (1 - (p.discountPct6m ?? 16) / 100));
+  } else if (cycle === "1y") {
+    return p.price1y ?? Math.round(p.price1m * 12 * (1 - (p.discountPct1y ?? 30) / 100));
+  }
+  return p.price1m;
+}
+
 function OwnerBillingContent() {
   const searchParams = useSearchParams();
   const { salon } = useAuth();
 
   const [org, setOrg] = useState<Organization | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [activeSubscription, setActiveSubscription] = useState<OrganizationSubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedCycle, setSelectedCycle] = useState<BillingCycle>("3m");
   const [selectingPlanId, setSelectingPlanId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [checkoutData, setCheckoutData] = useState<{
+    plan: SubscriptionPlan;
+    cycle: BillingCycle;
+    amount: number;
+  } | null>(null);
 
   const currentSlug = salon?.slug || searchParams.get("salon") || "ramesh-barber";
 
@@ -65,9 +85,17 @@ function OwnerBillingContent() {
         }
 
         if (salonRes.salon?.organizationId) {
-          const orgRes = await api.salons.getOrganization(salonRes.salon.organizationId);
+          const [orgRes, subRes] = await Promise.all([
+            api.salons.getOrganization(salonRes.salon.organizationId),
+            api.payments
+              .getSubscription(salonRes.salon.organizationId)
+              .catch(() => ({ success: false, subscription: null })),
+          ]);
           if (orgRes.organization) {
             setOrg(orgRes.organization);
+          }
+          if (subRes.subscription) {
+            setActiveSubscription(subRes.subscription);
           }
         } else {
           // Default demo organization
@@ -96,32 +124,13 @@ function OwnerBillingContent() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleSelectPlan = async (plan: SubscriptionPlan) => {
-    setSelectingPlanId(plan.id);
-    try {
-      if (org?.id && org.id !== "org-demo") {
-        const res = await api.salons.updatePlan(org.id, plan.id);
-        if (res.organization) {
-          setOrg(res.organization);
-        }
-      } else {
-        setOrg((prev) =>
-          prev
-            ? {
-                ...prev,
-                planId: plan.id,
-                maxBranches: plan.maxBranches,
-                maxStylistsPerBranch: plan.maxStylistsPerBranch,
-              }
-            : null
-        );
-      }
-      showToast(`Subscribed to "${plan.name}" (${selectedCycle.toUpperCase()} cycle)! Quotas updated.`);
-    } catch (err: any) {
-      showToast("Failed to activate plan: " + (err.message || "Unknown error"));
-    } finally {
-      setSelectingPlanId(null);
-    }
+  const handleSelectPlan = (plan: SubscriptionPlan) => {
+    const cyclePrice = getCyclePrice(plan, selectedCycle);
+    setCheckoutData({
+      plan,
+      cycle: selectedCycle,
+      amount: cyclePrice,
+    });
   };
 
   // Determine current active plan
@@ -171,10 +180,32 @@ function OwnerBillingContent() {
             </div>
 
             <div className="text-left sm:text-right">
-              <span className="text-xs text-slate-400 block">Current Cycle AutoPay</span>
+              <span className="text-xs text-slate-400 block">
+                {activeSubscription
+                  ? `Valid until ${new Date(activeSubscription.expiresAt).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}`
+                  : "Current Cycle AutoPay"}
+              </span>
               <span className="text-sm font-bold text-emerald-400 flex items-center sm:justify-end gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Active & Verified
+                {activeSubscription ? (
+                  <>
+                    Active ({activeSubscription.cycle.toUpperCase()}) •{" "}
+                    {Math.max(
+                      0,
+                      Math.ceil(
+                        (new Date(activeSubscription.expiresAt).getTime() - Date.now()) /
+                          (1000 * 60 * 60 * 24)
+                      )
+                    )}{" "}
+                    Days Left
+                  </>
+                ) : (
+                  "Active & Verified"
+                )}
               </span>
             </div>
           </div>
@@ -432,6 +463,27 @@ function OwnerBillingContent() {
           );
         })}
       </div>
+
+      {/* Universal Pluggable Payment Checkout Modal */}
+      {checkoutData && (
+        <UniversalPaymentModal
+          isOpen={!!checkoutData}
+          onClose={() => setCheckoutData(null)}
+          plan={checkoutData.plan}
+          cycle={checkoutData.cycle}
+          amount={checkoutData.amount}
+          organizationId={org?.id || "org-demo"}
+          onSuccess={(sub) => {
+            setActiveSubscription(sub);
+            if (org) {
+              setOrg((prev) => (prev ? { ...prev, planId: sub.planId } : null));
+            }
+            showToast(
+              `Subscribed to "${checkoutData.plan.name}" (${checkoutData.cycle.toUpperCase()} cycle) successfully!`
+            );
+          }}
+        />
+      )}
     </div>
   );
 }

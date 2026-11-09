@@ -28,6 +28,55 @@ export type BillingCycle = '1m' | '3m' | '6m' | '1y';
 
 export type PlanStatus = 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
 
+export type PaymentProvider = 'UPI_QR' | 'CASH' | 'RAZORPAY';
+
+export type PaymentTargetType = 'SUBSCRIPTION' | 'QUEUE_TICKET' | 'WALLET_TOPUP';
+
+export type PaymentOrderStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'EXPIRED' | 'REFUNDED';
+
+export type SubscriptionStatus = 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'GRACE_PERIOD';
+
+export interface PaymentOrder {
+  id: string;
+  targetType: PaymentTargetType;
+  targetId: string;
+  organizationId?: string | null;
+  salonId?: string | null;
+  customerId?: string | null;
+  amount: number;
+  currency: string;
+  provider: PaymentProvider;
+  providerOrderId?: string | null;
+  transactionRef?: string | null;
+  status: PaymentOrderStatus;
+  paymentData?: Record<string, any> | null;
+  metadata?: Record<string, any> | null;
+  expiresAt: Date | string;
+  completedAt?: Date | string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface OrganizationSubscription {
+  id: string;
+  organizationId: string;
+  planId: string;
+  cycle: BillingCycle | 'custom';
+  startsAt: Date | string;
+  expiresAt: Date | string;
+  basePrice: number;
+  couponId?: string | null;
+  couponDiscount: number;
+  walletDeducted: number;
+  netAmountPaid: number;
+  paymentMethod: string;
+  paymentOrderId?: string | null;
+  transactionRef?: string | null;
+  status: SubscriptionStatus;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
 export interface SubscriptionPlan {
   id: string;
   name: string;

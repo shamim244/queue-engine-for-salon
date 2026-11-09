@@ -10,6 +10,8 @@ import type {
   MaintenanceMode,
   StaffLeave,
   SubscriptionPlan,
+  PaymentOrder,
+  OrganizationSubscription,
 } from '../../engine/types';
 
 export const defaultPlatformSettings: PlatformSettings = {
@@ -81,6 +83,8 @@ export const memoryStore = {
   stylistServiceDurations: new Map<string, number>(), // key: `${stylistId}:${serviceId}` -> durationMinutes
   staffLeaves: new Map<string, StaffLeave>(),
   plans: new Map<string, SubscriptionPlan>(),
+  paymentOrders: new Map<string, PaymentOrder>(),
+  organizationSubscriptions: new Map<string, OrganizationSubscription>(),
   settings: JSON.parse(JSON.stringify(defaultPlatformSettings)) as PlatformSettings,
   auditLogs: [...defaultAuditLogs] as AuditLog[],
   maintenanceMode: {
