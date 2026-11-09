@@ -226,8 +226,8 @@ export function CreatePlanModal({
       const payload: CreatePlanPayload = {
         name: name.trim(),
         slug: slug.trim() || undefined,
-        badge: badge.trim() || undefined,
-        description: description.trim() || undefined,
+        badge: badge.trim() ? badge.trim() : null,
+        description: description.trim() ? description.trim() : null,
         price1m: Number(price1m),
         price3m: cycle3mEnabled ? Number(price3m) : undefined,
         price6m: cycle6mEnabled ? Number(price6m) : undefined,
@@ -381,7 +381,7 @@ export function CreatePlanModal({
                   max={99}
                   value={sortOrder}
                   onChange={(e) => setSortOrder(Number(e.target.value))}
-                  className="w-16 h-8 text-center"
+                  className="w-20 min-h-[44px] text-center"
                 />
               </div>
             </div>
@@ -459,7 +459,7 @@ export function CreatePlanModal({
                       disabled={!cycle3mEnabled}
                       value={discountPct3m}
                       onChange={(e) => handleDiscount3mChange(Number(e.target.value))}
-                      className="w-16 h-9 text-center font-bold text-emerald-400"
+                      className="w-20 min-h-[44px] text-center font-bold text-emerald-400"
                     />
                     <span className="text-xs text-slate-400">%</span>
                   </div>
@@ -472,7 +472,7 @@ export function CreatePlanModal({
                       disabled={!cycle3mEnabled}
                       value={price3m}
                       onChange={(e) => handlePrice3mChange(Number(e.target.value))}
-                      className="w-24 h-9 font-extrabold text-white"
+                      className="w-28 min-h-[44px] font-extrabold text-white"
                     />
                   </div>
                 </div>
@@ -507,7 +507,7 @@ export function CreatePlanModal({
                       disabled={!cycle6mEnabled}
                       value={discountPct6m}
                       onChange={(e) => handleDiscount6mChange(Number(e.target.value))}
-                      className="w-16 h-9 text-center font-bold text-emerald-400"
+                      className="w-20 min-h-[44px] text-center font-bold text-emerald-400"
                     />
                     <span className="text-xs text-slate-400">%</span>
                   </div>
@@ -520,7 +520,7 @@ export function CreatePlanModal({
                       disabled={!cycle6mEnabled}
                       value={price6m}
                       onChange={(e) => handlePrice6mChange(Number(e.target.value))}
-                      className="w-24 h-9 font-extrabold text-white"
+                      className="w-28 min-h-[44px] font-extrabold text-white"
                     />
                   </div>
                 </div>
@@ -555,7 +555,7 @@ export function CreatePlanModal({
                       disabled={!cycle1yEnabled}
                       value={discountPct1y}
                       onChange={(e) => handleDiscount1yChange(Number(e.target.value))}
-                      className="w-16 h-9 text-center font-bold text-emerald-400"
+                      className="w-20 min-h-[44px] text-center font-bold text-emerald-400"
                     />
                     <span className="text-xs text-slate-400">%</span>
                   </div>
@@ -568,7 +568,7 @@ export function CreatePlanModal({
                       disabled={!cycle1yEnabled}
                       value={price1y}
                       onChange={(e) => handlePrice1yChange(Number(e.target.value))}
-                      className="w-24 h-9 font-extrabold text-white"
+                      className="w-28 min-h-[44px] font-extrabold text-white"
                     />
                   </div>
                 </div>

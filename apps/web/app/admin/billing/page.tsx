@@ -154,6 +154,19 @@ export default function AdminBillingPage() {
     }
   };
 
+  const handleAssignPlan = async (orgId: string, planId: string) => {
+    setUpdatingOrgId(orgId);
+    try {
+      await api.salons.updatePlan(orgId, planId);
+      showToast(`Assigned plan to organization successfully`, "success");
+      await fetchOrgs();
+    } catch (err) {
+      showToast("Failed to assign plan: " + (err as Error).message, "error");
+    } finally {
+      setUpdatingOrgId(null);
+    }
+  };
+
   const handleArchivePlan = async (plan: SubscriptionPlan) => {
     try {
       await api.plans.archive(plan.id);
@@ -481,7 +494,7 @@ export default function AdminBillingPage() {
                         setEditingPlan(p);
                         setIsPlanModalOpen(true);
                       }}
-                      className="text-xs gap-1.5 border-slate-700 min-h-[38px] flex-1"
+                      className="text-xs gap-1.5 border-slate-700 min-h-[44px] flex-1"
                     >
                       <Edit2 className="h-3.5 w-3.5 text-slate-300" />
                       Edit Plan
@@ -491,7 +504,7 @@ export default function AdminBillingPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleArchivePlan(p)}
-                        className="text-xs gap-1.5 border-rose-900/50 hover:bg-rose-950/40 text-rose-300 min-h-[38px]"
+                        className="text-xs gap-1.5 border-rose-900/50 hover:bg-rose-950/40 text-rose-300 min-h-[44px]"
                       >
                         <Archive className="h-3.5 w-3.5" />
                         Archive
@@ -548,7 +561,7 @@ export default function AdminBillingPage() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {(["STARTER", "PRO", "ENTERPRISE"] as const).map((t) => {
                       const isCurrent = org.tier === t;
                       return (
@@ -556,7 +569,7 @@ export default function AdminBillingPage() {
                           key={t}
                           size="sm"
                           variant={isCurrent ? "default" : "outline"}
-                          className={`text-xs h-8 ${
+                          className={`text-xs min-h-[44px] px-3 font-semibold ${
                             isCurrent ? "pointer-events-none opacity-80" : "border-slate-700 hover:border-slate-500"
                           }`}
                           onClick={() => handleUpdateTier(org.id, t)}
@@ -567,6 +580,28 @@ export default function AdminBillingPage() {
                         </Button>
                       );
                     })}
+
+                    {plans.filter((p) => p.status === "ACTIVE").length > 0 && (
+                      <select
+                        value={org.planId || ""}
+                        onChange={(e) => {
+                          if (e.target.value) handleAssignPlan(org.id, e.target.value);
+                        }}
+                        disabled={isUpdating}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-indigo-300 min-h-[44px] focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                      >
+                        <option value="" disabled>
+                          Assign Dynamic Plan...
+                        </option>
+                        {plans
+                          .filter((p) => p.status === "ACTIVE")
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} ({formatCurrency(p.price1m)}/mo)
+                            </option>
+                          ))}
+                      </select>
+                    )}
                   </div>
                 </div>
               );

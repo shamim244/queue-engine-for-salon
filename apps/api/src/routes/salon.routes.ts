@@ -110,6 +110,25 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
     })
   })
 
+  // 1.3.1 Assign Dynamic Subscription Plan to Organization
+  .post('/organizations/:id/plan', async ({ params, body, set }) => {
+    const { planId } = body as any;
+    const updated = await repository.updateOrganizationPlan(params.id, planId);
+    if (!updated) {
+      set.status = 404;
+      return { success: false, message: 'Organization or Subscription Plan not found' };
+    }
+    return {
+      success: true,
+      message: `Organization plan updated to ${updated.planId}`,
+      organization: updated,
+    };
+  }, {
+    body: t.Object({
+      planId: t.String({ minLength: 1 }),
+    })
+  })
+
   // 1.4 Add Stylist to Salon (Gated by Tier Limits)
   .post('/:id/stylists', async ({ params, body, set }) => {
     try {

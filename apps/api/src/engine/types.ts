@@ -58,15 +58,15 @@ export interface SubscriptionPlan {
 export interface CreatePlanPayload {
   name: string;
   slug?: string;
-  badge?: string;
-  description?: string;
+  badge?: string | null;
+  description?: string | null;
   price1m: number;
-  price3m?: number;
-  price6m?: number;
-  price1y?: number;
-  discountPct3m?: number;
-  discountPct6m?: number;
-  discountPct1y?: number;
+  price3m?: number | null;
+  price6m?: number | null;
+  price1y?: number | null;
+  discountPct3m?: number | null;
+  discountPct6m?: number | null;
+  discountPct1y?: number | null;
   cycle1mEnabled?: boolean;
   cycle3mEnabled?: boolean;
   cycle6mEnabled?: boolean;

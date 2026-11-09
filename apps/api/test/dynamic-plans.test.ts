@@ -1,16 +1,34 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterAll } from 'bun:test';
 import { Elysia } from 'elysia';
 import { planRoutes } from '../src/routes/plan.routes';
+import { salonRoutes } from '../src/routes/salon.routes';
 import { planRepo } from '../src/db/repositories/plan.repo';
 import { organizationRepo } from '../src/db/repositories/organization.repo';
 import { salonRepo } from '../src/db/repositories/salon.repo';
 import { seedDemoData, memoryStore } from '../src/db/repositories/store';
+import { isMySqlConnected, getDb } from '../src/db/mysql';
 import type { CreatePlanPayload } from '../src/engine/types';
 
+async function cleanupTestPlans() {
+  if (isMySqlConnected) {
+    try {
+      const db = getDb();
+      await db.query(
+        "DELETE FROM subscription_plans WHERE id NOT IN ('plan-starter-01', 'plan-pro-01', 'plan-enterprise-01')"
+      );
+    } catch {}
+  }
+}
+
 describe('Dynamic Subscription Plans & Feature Quota Engine - Unit Tests', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     seedDemoData();
     planRepo.invalidatePlanCache();
+    await cleanupTestPlans();
+  });
+
+  afterAll(async () => {
+    await cleanupTestPlans();
   });
 
   it('should seed default demo plans with correct pricing and features', async () => {
@@ -178,14 +196,115 @@ describe('Dynamic Subscription Plans & Feature Quota Engine - Unit Tests', () =>
     const branchCheck2 = await organizationRepo.checkOrganizationBranchQuota(org.id, () => salonRepo.getAllSalons());
     expect(branchCheck2.max).toBe(5);
   });
+
+  it('should support 0% discount across cycles without falling back to defaults', async () => {
+    const zeroDiscountPlan = await planRepo.createPlan({
+      name: 'Zero Discount Pro',
+      price1m: 1000,
+      discountPct3m: 0,
+      discountPct6m: 0,
+      discountPct1y: 0,
+      maxBranches: 1,
+      maxStylistsPerBranch: 2,
+      features: ['station_chair_transfers'],
+    });
+
+    expect(zeroDiscountPlan.discountPct3m).toBe(0);
+    expect(zeroDiscountPlan.discountPct6m).toBe(0);
+    expect(zeroDiscountPlan.discountPct1y).toBe(0);
+    // 1000 * 3 * (1 - 0) = 3000
+    expect(zeroDiscountPlan.price3m).toBe(3000);
+    // 1000 * 6 * (1 - 0) = 6000
+    expect(zeroDiscountPlan.price6m).toBe(6000);
+    // 1000 * 12 * (1 - 0) = 12000
+    expect(zeroDiscountPlan.price1y).toBe(12000);
+  });
+
+  it('should handle free plan (price1m = 0) with zero cycle prices', async () => {
+    const freePlan = await planRepo.createPlan({
+      name: 'Community Free Trial',
+      price1m: 0,
+      discountPct3m: 0,
+      discountPct6m: 0,
+      discountPct1y: 0,
+      maxBranches: 1,
+      maxStylistsPerBranch: 1,
+      features: ['digital_storefront'],
+    });
+
+    expect(freePlan.price1m).toBe(0);
+    expect(freePlan.price3m).toBe(0);
+    expect(freePlan.price6m).toBe(0);
+    expect(freePlan.price1y).toBe(0);
+  });
+
+  it('should enforce branch quota block after downgrading organization to plan with fewer branches', async () => {
+    // 1. High quota plan (5 branches)
+    const proPlan = await planRepo.createPlan({
+      name: 'Multi-Location Pro',
+      price1m: 2999,
+      maxBranches: 5,
+      maxStylistsPerBranch: 10,
+      features: ['station_soft_bump'],
+    });
+
+    // 2. Organization attached to pro plan with 2 branches
+    const org = await organizationRepo.createOrganization({
+      name: 'Downgrade Test Org',
+      planId: proPlan.id,
+    });
+
+    // Create 2 branches
+    await salonRepo.createSalon({
+      name: 'Branch 1',
+      phone: '9888800001',
+      organizationId: org.id,
+    });
+    await salonRepo.createSalon({
+      name: 'Branch 2',
+      phone: '9888800002',
+      organizationId: org.id,
+    });
+
+    // 3. Downgrade to 1-branch micro plan
+    const microPlan = await planRepo.createPlan({
+      name: 'Single Location Micro',
+      price1m: 499,
+      maxBranches: 1,
+      maxStylistsPerBranch: 2,
+      features: ['digital_storefront'],
+    });
+
+    await organizationRepo.updateOrganizationPlan(org.id, microPlan.id);
+
+    // 4. Branch quota should now be exceeded (2 current >= 1 max)
+    const quota = await organizationRepo.checkOrganizationBranchQuota(org.id, () => salonRepo.getAllSalons());
+    expect(quota.allowed).toBe(false);
+    expect(quota.current).toBe(2);
+    expect(quota.max).toBe(1);
+
+    // Attempting to create a 3rd branch throws error
+    expect(
+      salonRepo.createSalon({
+        name: 'Branch 3 (Blocked)',
+        phone: '9888800003',
+        organizationId: org.id,
+      })
+    ).rejects.toThrow(/Branch quota limit/);
+  });
 });
 
 describe('Dynamic Subscription Plans REST API (/api/plans)', () => {
-  const app = new Elysia().use(planRoutes);
+  const app = new Elysia().use(planRoutes).use(salonRoutes);
 
-  beforeEach(() => {
+  beforeEach(async () => {
     seedDemoData();
     planRepo.invalidatePlanCache();
+    await cleanupTestPlans();
+  });
+
+  afterAll(async () => {
+    await cleanupTestPlans();
   });
 
   it('GET /api/plans should return active subscription plans catalog', async () => {
@@ -275,6 +394,29 @@ describe('Dynamic Subscription Plans REST API (/api/plans)', () => {
     expect(verifyData.plan.price1m).toBe(549);
   });
 
+  it('PATCH /api/plans/:id should allow clearing nullable badge and description with null', async () => {
+    const getRes = await app.handle(new Request('http://localhost/api/plans/growth-studio-pro'));
+    const plan = (await getRes.json()).plan;
+    expect(plan.badge).not.toBeNull();
+
+    const patchRes = await app.handle(
+      new Request(`http://localhost/api/plans/${plan.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          badge: null,
+          description: null,
+        }),
+      })
+    );
+
+    expect(patchRes.status).toBe(200);
+    const patchData = await patchRes.json();
+    expect(patchData.success).toBe(true);
+    expect(patchData.plan.badge).toBeNull();
+    expect(patchData.plan.description).toBeNull();
+  });
+
   it('DELETE /api/plans/:id should soft-archive the plan', async () => {
     const getRes = await app.handle(new Request('http://localhost/api/plans/growth-studio-pro'));
     const plan = (await getRes.json()).plan;
@@ -300,5 +442,37 @@ describe('Dynamic Subscription Plans REST API (/api/plans)', () => {
     const found = allData.plans.find((p: any) => p.id === plan.id);
     expect(found).toBeDefined();
     expect(found.status).toBe('ARCHIVED');
+  });
+
+  it('POST /api/salons/organizations/:id/plan should assign dynamic plan and update organization quotas', async () => {
+    // 1. Create a dynamic plan with 7 branches, 12 stylists
+    const plan = await planRepo.createPlan({
+      name: 'Mega Franchise Dynamic Plan',
+      price1m: 7999,
+      maxBranches: 7,
+      maxStylistsPerBranch: 12,
+      features: ['tv_departure_mirror', 'whatsapp_sms_notifications'],
+    });
+
+    // 2. Assign this plan to Ramesh Org via the REST API endpoint
+    const res = await app.handle(
+      new Request('http://localhost/api/salons/organizations/org-ramesh/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId: plan.id }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.organization.planId).toBe(plan.id);
+    expect(data.organization.maxBranches).toBe(7);
+    expect(data.organization.maxStylistsPerBranch).toBe(12);
+
+    // 3. Quota check reflects new dynamic plan limits immediately
+    const quota = await organizationRepo.checkOrganizationBranchQuota('org-ramesh', () => salonRepo.getAllSalons());
+    expect(quota.max).toBe(7);
+    expect(quota.planId).toBe(plan.id);
   });
 });

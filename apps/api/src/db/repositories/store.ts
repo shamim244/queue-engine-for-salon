@@ -403,7 +403,9 @@ export async function syncDemoToMySql(salons: Salon[]) {
     await db.query(
       `INSERT INTO organizations (id, name, slug, tier, plan_id, max_branches, max_stylists_per_branch)
        VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE name=VALUES(name), tier=VALUES(tier), plan_id=VALUES(plan_id)`,
+       ON DUPLICATE KEY UPDATE
+        name=VALUES(name), tier=VALUES(tier), plan_id=VALUES(plan_id),
+        max_branches=VALUES(max_branches), max_stylists_per_branch=VALUES(max_stylists_per_branch)`,
       [org.id, org.name, org.slug, org.tier, org.planId || null, org.maxBranches, org.maxStylistsPerBranch]
     );
   }

@@ -168,7 +168,10 @@ export const organizationRepo = {
     const org = await this.getOrganizationById(orgId);
     if (!org) return null;
 
-    const plan = await planRepo.getPlanById(planId);
+    let plan = await planRepo.getPlanById(planId);
+    if (!plan) {
+      plan = await planRepo.getPlanBySlug(planId);
+    }
     if (!plan) return null;
 
     org.planId = plan.id;
@@ -195,13 +198,12 @@ export const organizationRepo = {
     const org = await this.getOrganizationById(orgId);
     if (!org) return { allowed: true, current: 0, max: 999, tier: 'ENTERPRISE', planId: null };
 
-    let maxBranches = org.maxBranches;
-    if (org.planId) {
-      const plan = await planRepo.getPlanById(org.planId);
-      if (plan) {
-        maxBranches = plan.maxBranches;
-      }
+    const planRef = org.planId || org.tier;
+    let plan = planRef ? await planRepo.getPlanById(planRef) : null;
+    if (!plan && planRef) {
+      plan = await planRepo.getPlanBySlug(planRef.toLowerCase());
     }
+    const maxBranches = plan?.maxBranches ?? org.maxBranches ?? 1;
 
     const branches = await this.getSalonsByOrganizationId(orgId, getAllSalonsFn);
     return {
@@ -227,13 +229,12 @@ export const organizationRepo = {
       return { allowed: true, current: salon.stylists.length, max: 999, tier: 'ENTERPRISE', planId: null };
     }
 
-    let maxStylists = org.maxStylistsPerBranch;
-    if (org.planId) {
-      const plan = await planRepo.getPlanById(org.planId);
-      if (plan) {
-        maxStylists = plan.maxStylistsPerBranch;
-      }
+    const planRef = org.planId || org.tier;
+    let plan = planRef ? await planRepo.getPlanById(planRef) : null;
+    if (!plan && planRef) {
+      plan = await planRepo.getPlanBySlug(planRef.toLowerCase());
     }
+    const maxStylists = plan?.maxStylistsPerBranch ?? org.maxStylistsPerBranch ?? 2;
 
     return {
       allowed: salon.stylists.length < maxStylists,

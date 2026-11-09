@@ -96,12 +96,32 @@ function OwnerBillingContent() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleSelectPlan = (plan: SubscriptionPlan) => {
+  const handleSelectPlan = async (plan: SubscriptionPlan) => {
     setSelectingPlanId(plan.id);
-    showToast(`Selected "${plan.name}" (${selectedCycle.toUpperCase()} cycle). Proceeding to settlement.`);
-    setTimeout(() => {
+    try {
+      if (org?.id && org.id !== "org-demo") {
+        const res = await api.salons.updatePlan(org.id, plan.id);
+        if (res.organization) {
+          setOrg(res.organization);
+        }
+      } else {
+        setOrg((prev) =>
+          prev
+            ? {
+                ...prev,
+                planId: plan.id,
+                maxBranches: plan.maxBranches,
+                maxStylistsPerBranch: plan.maxStylistsPerBranch,
+              }
+            : null
+        );
+      }
+      showToast(`Subscribed to "${plan.name}" (${selectedCycle.toUpperCase()} cycle)! Quotas updated.`);
+    } catch (err: any) {
+      showToast("Failed to activate plan: " + (err.message || "Unknown error"));
+    } finally {
       setSelectingPlanId(null);
-    }, 1500);
+    }
   };
 
   // Determine current active plan
@@ -246,19 +266,19 @@ function OwnerBillingContent() {
             cycleMonths = 1;
           } else if (selectedCycle === "3m") {
             isCycleEnabled = p.cycle3mEnabled;
-            cyclePrice = p.price3m ?? Math.round(p.price1m * 3 * (1 - (p.discountPct3m || 10) / 100));
+            cyclePrice = p.price3m ?? Math.round(p.price1m * 3 * (1 - (p.discountPct3m ?? 10) / 100));
             cycleMonths = 3;
-            discountPct = p.discountPct3m || 10;
+            discountPct = p.discountPct3m ?? 10;
           } else if (selectedCycle === "6m") {
             isCycleEnabled = p.cycle6mEnabled;
-            cyclePrice = p.price6m ?? Math.round(p.price1m * 6 * (1 - (p.discountPct6m || 16) / 100));
+            cyclePrice = p.price6m ?? Math.round(p.price1m * 6 * (1 - (p.discountPct6m ?? 16) / 100));
             cycleMonths = 6;
-            discountPct = p.discountPct6m || 16;
+            discountPct = p.discountPct6m ?? 16;
           } else if (selectedCycle === "1y") {
             isCycleEnabled = p.cycle1yEnabled;
-            cyclePrice = p.price1y ?? Math.round(p.price1m * 12 * (1 - (p.discountPct1y || 30) / 100));
+            cyclePrice = p.price1y ?? Math.round(p.price1m * 12 * (1 - (p.discountPct1y ?? 30) / 100));
             cycleMonths = 12;
-            discountPct = p.discountPct1y || 30;
+            discountPct = p.discountPct1y ?? 30;
           }
 
           const effectiveMonthly = Math.round(cyclePrice / cycleMonths);
@@ -380,15 +400,21 @@ function OwnerBillingContent() {
                   className={`w-full text-xs font-bold min-h-[44px] ${
                     isCurrent
                       ? "bg-slate-800 text-slate-300 pointer-events-none"
+                      : !isCycleEnabled
+                      ? "bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed"
                       : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20"
                   }`}
-                  disabled={isCurrent || selectingPlanId === p.id}
+                  disabled={isCurrent || !isCycleEnabled || selectingPlanId === p.id}
                   onClick={() => handleSelectPlan(p)}
                 >
                   {isCurrent ? (
                     <span className="flex items-center gap-1.5">
                       <Check className="h-4 w-4 text-emerald-400" />
                       Current Plan
+                    </span>
+                  ) : !isCycleEnabled ? (
+                    <span className="flex items-center gap-1.5 text-slate-500">
+                      Cycle Unavailable
                     </span>
                   ) : selectingPlanId === p.id ? (
                     <span className="flex items-center gap-1.5">

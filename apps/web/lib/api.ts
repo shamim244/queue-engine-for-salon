@@ -147,15 +147,15 @@ export interface SubscriptionPlan {
 export interface CreatePlanPayload {
   name: string;
   slug?: string;
-  badge?: string;
-  description?: string;
+  badge?: string | null;
+  description?: string | null;
   price1m: number;
-  price3m?: number;
-  price6m?: number;
-  price1y?: number;
-  discountPct3m?: number;
-  discountPct6m?: number;
-  discountPct1y?: number;
+  price3m?: number | null;
+  price6m?: number | null;
+  price1y?: number | null;
+  discountPct3m?: number | null;
+  discountPct6m?: number | null;
+  discountPct1y?: number | null;
   cycle1mEnabled?: boolean;
   cycle3mEnabled?: boolean;
   cycle6mEnabled?: boolean;
@@ -649,6 +649,15 @@ export const api = {
         }
       ),
 
+    updatePlan: (orgId: string, planId: string) =>
+      request<{ success: boolean; organization: Organization; message: string }>(
+        `/api/salons/organizations/${orgId}/plan`,
+        {
+          method: "POST",
+          body: JSON.stringify({ planId }),
+        }
+      ),
+
     updateMode: (salonId: string, mode: string) =>
       request<{ success: boolean; mode: string }>(`/api/salons/${salonId}/mode`, {
         method: "POST",
@@ -1078,5 +1087,13 @@ export const api = {
       request<{ success: boolean; message: string }>(`/api/plans/${id}`, {
         method: "DELETE",
       }),
+    subscribe: (organizationId: string, planId: string) =>
+      request<{ success: boolean; organization: Organization; message: string }>(
+        `/api/salons/organizations/${organizationId}/plan`,
+        {
+          method: "POST",
+          body: JSON.stringify({ planId }),
+        }
+      ),
   },
 };
