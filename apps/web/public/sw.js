@@ -1,7 +1,7 @@
 // Engine Que Enterprise Service Worker
-// Version: eq-pwa-v8 (Zero-maintenance Progressive Web App Shell - Auto Cache Invalidation)
+// Version: eq-pwa-v9 (Zero-maintenance Progressive Web App Shell - Auto Cache Invalidation)
 
-const CACHE_NAME = 'eq-pwa-v8';
+const CACHE_NAME = 'eq-pwa-v9';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE_ASSETS = [
@@ -44,12 +44,29 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // 1. Skip non-GET requests and WebSocket connections
-  if (request.method !== 'GET' || url.protocol.startsWith('ws')) {
+  // 1. Skip non-GET requests, WebSockets, dev/local hosts, and HMR / Turbopack requests
+  const isDevHost =
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.hostname === '[::1]' ||
+    url.hostname === '0.0.0.0' ||
+    url.hostname.endsWith('.local') ||
+    url.hostname.endsWith('.test') ||
+    url.port === '3000' ||
+    url.port === '3001';
+
+  if (
+    request.method !== 'GET' ||
+    url.protocol.startsWith('ws') ||
+    isDevHost ||
+    url.pathname.includes('webpack') ||
+    url.pathname.includes('turbopack') ||
+    url.pathname.includes('hot-update')
+  ) {
     return;
   }
 
-  // 2. Next.js Static Bundles & Assets (Cache-First Strategy)
+  // 2. Next.js Static Bundles & Assets (Cache-First Strategy with Cache-Control validation)
   if (
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
@@ -64,10 +81,14 @@ self.addEventListener('fetch', (event) => {
         }
         return fetch(request).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
-            });
+            const cacheControl = networkResponse.headers.get('cache-control') || '';
+            // Never store dynamic dev chunks or responses explicitly flagged no-store/no-cache
+            if (!cacheControl.includes('no-store') && !cacheControl.includes('no-cache')) {
+              const responseClone = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(request, responseClone);
+              });
+            }
           }
           return networkResponse;
         });

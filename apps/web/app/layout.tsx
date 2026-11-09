@@ -29,6 +29,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        {process.env.NODE_ENV !== "production" && (
+          <script
+            id="dev-sw-cleanup"
+            dangerouslySetInnerHTML={{
+              __html: `if(typeof window!=='undefined'&&'serviceWorker'in navigator){navigator.serviceWorker.getRegistrations().then(function(r){for(var s of r){s.unregister();}});if('caches'in window){caches.keys().then(function(k){for(var n of k){caches.delete(n);}});}}`,
+            }}
+          />
+        )}
+      </head>
       <body
         className="antialiased min-h-screen bg-slate-950 text-slate-100 selection:bg-blue-600 selection:text-white"
         suppressHydrationWarning

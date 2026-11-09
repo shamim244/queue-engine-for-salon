@@ -15,6 +15,8 @@ import {
   LogOut,
   LogIn,
   Sparkles,
+  ChevronRight,
+  ChevronDown,
   Settings,
   Palette,
   Cpu,
@@ -35,22 +37,6 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 
-// Lightweight resilient SVG icons
-function ChevronRightIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-    </svg>
-  );
-}
-
-function ChevronDownIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-    </svg>
-  );
-}
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -220,7 +206,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Zap className="h-4 w-4 text-amber-400" />
                 <span className="tracking-wide">Core Operations</span>
               </div>
-              <ChevronDownIcon
+              <ChevronDown
                 className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${
                   expandedSections.core ? "rotate-180" : ""
                 }`}
@@ -252,6 +238,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <Icon className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">{item.label}</span>
                       </div>
+                      {isActive && <ChevronRight className="h-3 w-3 shrink-0 opacity-80" />}
                     </Link>
                   );
                 })}
@@ -270,7 +257,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <CreditCard className="h-4 w-4 text-blue-400" />
                 <span className="tracking-wide">Finance & Gateways</span>
               </div>
-              <ChevronDownIcon
+              <ChevronDown
                 className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${
                   expandedSections.finance ? "rotate-180" : ""
                 }`}
@@ -293,6 +280,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <Wallet className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                     <span className="truncate">Salon Wallets</span>
                   </div>
+                  {pathname === "/admin/wallets" && <ChevronRight className="h-3 w-3 shrink-0 opacity-80" />}
                 </Link>
 
                 {/* 2. Payments & Gateway (Nested Accordion) */}
@@ -310,7 +298,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       <CreditCard className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
                       <span className="truncate">Payments & Gateway</span>
                     </div>
-                    <ChevronDownIcon
+                    <ChevronDown
                       className={`h-3 w-3 text-slate-400 transition-transform duration-200 ${
                         expandedSections.paymentsNested ? "rotate-180" : ""
                       }`}
@@ -348,11 +336,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                               <SubIcon className="h-3.5 w-3.5 shrink-0" />
                               <span className="truncate">{subItem.label}</span>
                             </div>
-                            {typeof subItem.badge === "number" && subItem.badge > 0 && (
-                              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-amber-500 text-slate-950 animate-pulse">
-                                {subItem.badge}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1 shrink-0">
+                              {typeof subItem.badge === "number" && subItem.badge > 0 && (
+                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-amber-500 text-slate-950 animate-pulse">
+                                  {subItem.badge}
+                                </span>
+                              )}
+                              {isSubActive && <ChevronRight className="h-2.5 w-2.5 opacity-80" />}
+                            </div>
                           </Link>
                         );
                       })}
@@ -374,6 +365,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <FileText className="h-3.5 w-3.5 text-pink-400 shrink-0" />
                     <span className="truncate">Subscription Plans</span>
                   </div>
+                  {pathname === "/admin/plans" && <ChevronRight className="h-3 w-3 shrink-0 opacity-80" />}
                 </Link>
 
                 {/* 4. Salon Subscriptions */}
@@ -390,6 +382,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <Users className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
                     <span className="truncate">Salon Subscriptions</span>
                   </div>
+                  {pathname === "/admin/subscriptions" && <ChevronRight className="h-3 w-3 shrink-0 opacity-80" />}
                 </Link>
               </div>
             )}
@@ -406,7 +399,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Tag className="h-4 w-4 text-pink-400" />
                 <span className="tracking-wide">Growth & Marketing</span>
               </div>
-              <ChevronDownIcon
+              <ChevronDown
                 className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${
                   expandedSections.growth ? "rotate-180" : ""
                 }`}
@@ -437,6 +430,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <Icon className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">{item.label}</span>
                       </div>
+                      {isActive && <ChevronRight className="h-3 w-3 shrink-0 opacity-80" />}
                     </Link>
                   );
                 })}
@@ -455,7 +449,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Bell className="h-4 w-4 text-yellow-400" />
                 <span className="tracking-wide">Communications Hub</span>
               </div>
-              <ChevronDownIcon
+              <ChevronDown
                 className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${
                   expandedSections.comms ? "rotate-180" : ""
                 }`}
@@ -477,6 +471,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <Radio className="h-3.5 w-3.5 text-yellow-400 shrink-0" />
                     <span className="truncate">WhatsApp & SMS</span>
                   </div>
+                  {pathname === "/admin/communications" && <ChevronRight className="h-3 w-3 shrink-0 opacity-80" />}
                 </Link>
               </div>
             )}
@@ -493,7 +488,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <ShieldCheck className="h-4 w-4 text-cyan-400" />
                 <span className="tracking-wide">System & DevOps</span>
               </div>
-              <ChevronDownIcon
+              <ChevronDown
                 className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${
                   expandedSections.system ? "rotate-180" : ""
                 }`}
@@ -526,6 +521,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <Icon className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">{item.label}</span>
                       </div>
+                      {isActive && <ChevronRight className="h-3 w-3 shrink-0 opacity-80" />}
                     </Link>
                   );
                 })}

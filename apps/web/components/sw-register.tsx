@@ -8,6 +8,28 @@ export function ServiceWorkerRegister() {
       return;
     }
 
+    // In development mode, NEVER register service worker, and proactively unregister
+    // any existing workers and purge caches to prevent stale chunk / module factory errors.
+    if (process.env.NODE_ENV !== "production") {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const reg of registrations) {
+          reg.unregister().then((unregistered) => {
+            if (unregistered) {
+              console.log("[PWA] Cleaned up dev service worker:", reg.scope);
+            }
+          });
+        }
+      });
+      if ("caches" in window) {
+        caches.keys().then((names) => {
+          for (const name of names) {
+            caches.delete(name);
+          }
+        });
+      }
+      return;
+    }
+
     // Register service worker after window load to avoid competing for bandwidth during critical hydration
     const handleLoad = () => {
       navigator.serviceWorker
