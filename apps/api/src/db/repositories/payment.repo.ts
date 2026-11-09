@@ -3,8 +3,9 @@ import type {
   PaymentOrder,
   OrganizationSubscription,
   PaymentOrderStatus,
+  PaymentGatewaySettings,
 } from '../../engine/types';
-import { memoryStore, toMySqlDatetime } from './store';
+import { memoryStore, toMySqlDatetime, defaultPaymentGatewaySettings } from './store';
 
 function mapRowToOrder(r: any): PaymentOrder {
   let paymentData = null;
@@ -28,11 +29,32 @@ function mapRowToOrder(r: any): PaymentOrder {
     provider: r.provider,
     providerOrderId: r.provider_order_id || null,
     transactionRef: r.transaction_ref || null,
+    utrNumber: r.utr_number || null,
+    paymentProofNote: r.payment_proof_note || null,
+    reviewedBy: r.reviewed_by || null,
+    reviewedAt: r.reviewed_at || null,
+    rejectionReason: r.rejection_reason || null,
     status: r.status,
     paymentData,
     metadata,
     expiresAt: r.expires_at,
     completedAt: r.completed_at || null,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+function mapRowToGatewaySettings(r: any): PaymentGatewaySettings {
+  return {
+    id: r.id,
+    upiManualEnabled: Boolean(r.upi_manual_enabled),
+    upiVpa: r.upi_vpa || 'salonpayments@icici',
+    upiMerchantName: r.upi_merchant_name || 'Salon Queue SaaS',
+    cashEnabled: Boolean(r.cash_enabled),
+    cashInstructions: r.cash_instructions || 'Pay at salon head office or deposit cash to our designated bank account.',
+    razorpayEnabled: Boolean(r.razorpay_enabled),
+    razorpayKeyId: r.razorpay_key_id || '',
+    razorpayKeySecret: r.razorpay_key_secret || '',
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -73,8 +95,9 @@ export const paymentRepo = {
           `INSERT INTO payment_orders (
             id, target_type, target_id, organization_id, salon_id, customer_id,
             amount, currency, provider, provider_order_id, transaction_ref,
+            utr_number, payment_proof_note, reviewed_by, reviewed_at, rejection_reason,
             status, payment_data, metadata, expires_at, completed_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             order.id,
             order.targetType,
@@ -87,6 +110,11 @@ export const paymentRepo = {
             order.provider,
             order.providerOrderId || null,
             order.transactionRef || null,
+            order.utrNumber || null,
+            order.paymentProofNote || null,
+            order.reviewedBy || null,
+            toMySqlDatetime(order.reviewedAt),
+            order.rejectionReason || null,
             order.status,
             order.paymentData ? JSON.stringify(order.paymentData) : null,
             order.metadata ? JSON.stringify(order.metadata) : null,
@@ -232,5 +260,227 @@ export const paymentRepo = {
     }
 
     return null;
+  },
+
+  async getGatewaySettings(): Promise<PaymentGatewaySettings> {
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        const [rows] = await db.query<any[]>(
+          'SELECT * FROM payment_gateway_settings WHERE id = ?',
+          ['default_gateway_settings']
+        );
+        if (rows && rows.length > 0) {
+          const settings = mapRowToGatewaySettings(rows[0]);
+          memoryStore.gatewaySettings = settings;
+          return settings;
+        }
+      } catch (err: any) {
+        console.warn(`[paymentRepo.getGatewaySettings] MySQL fallback: ${err.message}`);
+      }
+    }
+    return memoryStore.gatewaySettings || { ...defaultPaymentGatewaySettings };
+  },
+
+  async updateGatewaySettings(
+    patch: Partial<PaymentGatewaySettings>
+  ): Promise<PaymentGatewaySettings> {
+    const current = await this.getGatewaySettings();
+    const updated: PaymentGatewaySettings = {
+      ...current,
+      ...patch,
+      updatedAt: new Date(),
+    };
+    memoryStore.gatewaySettings = updated;
+
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        await db.query(
+          `INSERT INTO payment_gateway_settings (
+            id, upi_manual_enabled, upi_vpa, upi_merchant_name, cash_enabled,
+            cash_instructions, razorpay_enabled, razorpay_key_id, razorpay_key_secret
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            upi_manual_enabled = VALUES(upi_manual_enabled),
+            upi_vpa = VALUES(upi_vpa),
+            upi_merchant_name = VALUES(upi_merchant_name),
+            cash_enabled = VALUES(cash_enabled),
+            cash_instructions = VALUES(cash_instructions),
+            razorpay_enabled = VALUES(razorpay_enabled),
+            razorpay_key_id = VALUES(razorpay_key_id),
+            razorpay_key_secret = VALUES(razorpay_key_secret),
+            updated_at = NOW()`,
+          [
+            'default_gateway_settings',
+            updated.upiManualEnabled,
+            updated.upiVpa,
+            updated.upiMerchantName,
+            updated.cashEnabled,
+            updated.cashInstructions,
+            updated.razorpayEnabled,
+            updated.razorpayKeyId || null,
+            updated.razorpayKeySecret || null,
+          ]
+        );
+      } catch (err: any) {
+        console.warn(`[paymentRepo.updateGatewaySettings] MySQL fallback: ${err.message}`);
+      }
+    }
+
+    return updated;
+  },
+
+  async getPendingApprovalOrders(): Promise<PaymentOrder[]> {
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        const [rows] = await db.query<any[]>(
+          `SELECT * FROM payment_orders 
+           WHERE status = 'PENDING_APPROVAL' 
+           ORDER BY created_at DESC`
+        );
+        if (rows) {
+          return rows.map((r) => {
+            const o = mapRowToOrder(r);
+            memoryStore.paymentOrders.set(o.id, o);
+            return o;
+          });
+        }
+      } catch (err: any) {
+        console.warn(`[paymentRepo.getPendingApprovalOrders] MySQL fallback: ${err.message}`);
+      }
+    }
+
+    const list: PaymentOrder[] = [];
+    for (const order of memoryStore.paymentOrders.values()) {
+      if (order.status === 'PENDING_APPROVAL') {
+        list.push(order);
+      }
+    }
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  async submitManualPayment(
+    orderId: string,
+    utrNumber?: string,
+    notes?: string
+  ): Promise<PaymentOrder | null> {
+    const existing = await this.getOrderById(orderId);
+    if (!existing) return null;
+
+    const updated: PaymentOrder = {
+      ...existing,
+      status: 'PENDING_APPROVAL',
+      utrNumber: utrNumber || existing.utrNumber || null,
+      paymentProofNote: notes || existing.paymentProofNote || null,
+      updatedAt: new Date(),
+    };
+
+    memoryStore.paymentOrders.set(orderId, updated);
+
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        await db.query(
+          `UPDATE payment_orders 
+           SET status = 'PENDING_APPROVAL', 
+               utr_number = ?, 
+               payment_proof_note = ?, 
+               updated_at = NOW()
+           WHERE id = ?`,
+          [updated.utrNumber, updated.paymentProofNote, orderId]
+        );
+      } catch (err: any) {
+        console.warn(`[paymentRepo.submitManualPayment] MySQL fallback: ${err.message}`);
+      }
+    }
+
+    return updated;
+  },
+
+  async approvePaymentOrder(
+    orderId: string,
+    adminId?: string,
+    transactionRef?: string
+  ): Promise<PaymentOrder | null> {
+    const existing = await this.getOrderById(orderId);
+    if (!existing) return null;
+
+    const now = new Date();
+    const ref = transactionRef || existing.utrNumber || `APPROVE_${Date.now()}`;
+    const updated: PaymentOrder = {
+      ...existing,
+      status: 'COMPLETED',
+      transactionRef: ref,
+      reviewedBy: adminId || 'admin',
+      reviewedAt: now,
+      completedAt: now,
+      updatedAt: now,
+    };
+
+    memoryStore.paymentOrders.set(orderId, updated);
+
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        await db.query(
+          `UPDATE payment_orders 
+           SET status = 'COMPLETED', 
+               transaction_ref = ?, 
+               reviewed_by = ?, 
+               reviewed_at = NOW(), 
+               completed_at = NOW(), 
+               updated_at = NOW()
+           WHERE id = ?`,
+          [ref, updated.reviewedBy, orderId]
+        );
+      } catch (err: any) {
+        console.warn(`[paymentRepo.approvePaymentOrder] MySQL fallback: ${err.message}`);
+      }
+    }
+
+    return updated;
+  },
+
+  async rejectPaymentOrder(
+    orderId: string,
+    reason: string,
+    adminId?: string
+  ): Promise<PaymentOrder | null> {
+    const existing = await this.getOrderById(orderId);
+    if (!existing) return null;
+
+    const now = new Date();
+    const updated: PaymentOrder = {
+      ...existing,
+      status: 'REJECTED',
+      rejectionReason: reason,
+      reviewedBy: adminId || 'admin',
+      reviewedAt: now,
+      updatedAt: now,
+    };
+
+    memoryStore.paymentOrders.set(orderId, updated);
+
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        await db.query(
+          `UPDATE payment_orders 
+           SET status = 'REJECTED', 
+               rejection_reason = ?, 
+               reviewed_by = ?, 
+               reviewed_at = NOW(), 
+               updated_at = NOW()
+           WHERE id = ?`,
+          [reason, updated.reviewedBy, orderId]
+        );
+      } catch (err: any) {
+        console.warn(`[paymentRepo.rejectPaymentOrder] MySQL fallback: ${err.message}`);
+      }
+    }
+
+    return updated;
   },
 };

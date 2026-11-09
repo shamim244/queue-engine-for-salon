@@ -8,7 +8,9 @@ export class CashPaymentAdapter implements PaymentGatewayAdapter {
 
   async createOrder(payload: CreateOrderInput, internalOrderId: string): Promise<Record<string, any>> {
     return {
-      cashInstructions: 'Please collect cash at the salon reception desk or verify counter settlement.',
+      cashInstructions:
+        payload.metadata?.cashInstructions ||
+        'Please collect cash at the salon reception desk or verify counter settlement.',
       amount: payload.amount,
       currency: payload.currency || 'INR',
       orderRef: internalOrderId,

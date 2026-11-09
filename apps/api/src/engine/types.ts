@@ -32,9 +32,30 @@ export type PaymentProvider = 'UPI_QR' | 'CASH' | 'RAZORPAY' | 'WALLET';
 
 export type PaymentTargetType = 'SUBSCRIPTION' | 'QUEUE_TICKET' | 'WALLET_TOPUP';
 
-export type PaymentOrderStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'EXPIRED' | 'REFUNDED';
+export type PaymentOrderStatus =
+  | 'PENDING'
+  | 'PENDING_APPROVAL'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'EXPIRED'
+  | 'REFUNDED'
+  | 'REJECTED';
 
 export type SubscriptionStatus = 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'GRACE_PERIOD';
+
+export interface PaymentGatewaySettings {
+  id: string;
+  upiManualEnabled: boolean;
+  upiVpa: string;
+  upiMerchantName: string;
+  cashEnabled: boolean;
+  cashInstructions: string;
+  razorpayEnabled: boolean;
+  razorpayKeyId?: string | null;
+  razorpayKeySecret?: string | null;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}
 
 export interface PaymentOrder {
   id: string;
@@ -48,6 +69,11 @@ export interface PaymentOrder {
   provider: PaymentProvider;
   providerOrderId?: string | null;
   transactionRef?: string | null;
+  utrNumber?: string | null;
+  paymentProofNote?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: Date | string | null;
+  rejectionReason?: string | null;
   status: PaymentOrderStatus;
   paymentData?: Record<string, any> | null;
   metadata?: Record<string, any> | null;

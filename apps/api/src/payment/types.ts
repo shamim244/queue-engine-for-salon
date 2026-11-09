@@ -3,6 +3,7 @@ import type {
   PaymentTargetType,
   PaymentOrderStatus,
   PaymentOrder,
+  PaymentGatewaySettings,
   OrganizationSubscription,
   BillingCycle,
 } from '../engine/types';
@@ -12,9 +13,28 @@ export type {
   PaymentTargetType,
   PaymentOrderStatus,
   PaymentOrder,
+  PaymentGatewaySettings,
   OrganizationSubscription,
   BillingCycle,
 };
+
+export interface SubmitManualPaymentInput {
+  orderId: string;
+  provider: 'UPI_QR' | 'CASH';
+  utrNumber?: string;
+  notes?: string;
+}
+
+export interface ApprovePaymentInput {
+  orderId: string;
+  adminId?: string;
+}
+
+export interface RejectPaymentInput {
+  orderId: string;
+  reason: string;
+  adminId?: string;
+}
 
 export interface CreateOrderInput {
   targetType: PaymentTargetType;

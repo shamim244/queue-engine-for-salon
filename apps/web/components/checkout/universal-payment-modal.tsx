@@ -26,6 +26,7 @@ import { api } from "@/lib/api";
 import type {
   PaymentProvider,
   PaymentOrderResult,
+  PaymentGatewayConfig,
   OrganizationSubscription,
   SubscriptionPlan,
   BillingCycle,
@@ -109,6 +110,15 @@ export function UniversalPaymentModal({
   const [couponDiscount, setCouponDiscount] = useState<number>(0);
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [couponFeedback, setCouponFeedback] = useState<{ message: string; success: boolean } | null>(null);
+
+  const [gatewayConfig, setGatewayConfig] = useState<PaymentGatewayConfig | null>(null);
+  const [submittingManual, setSubmittingManual] = useState(false);
+  const [submittedPending, setSubmittedPending] = useState<{
+    provider: "UPI_QR" | "CASH";
+    utrNumber?: string;
+    notes?: string;
+    orderId: string;
+  } | null>(null);
 
   // Dual-Wallet State & Deduction Switch
   const [walletBalance, setWalletBalance] = useState<number>(0);
@@ -195,13 +205,41 @@ export function UniversalPaymentModal({
     setCouponFeedback(null);
   };
 
+  // Fetch Gateway Configuration on Modal Open
+  useEffect(() => {
+    if (!isOpen) {
+      setSubmittedPending(null);
+      return;
+    }
+
+    let isMounted = true;
+    api.payments
+      .getConfig()
+      .then((res) => {
+        if (isMounted && res.success && res.config) {
+          setGatewayConfig(res.config);
+          if (!res.config.upiManualEnabled && activeTab === "UPI_QR") {
+            if (res.config.cashEnabled) setActiveTab("CASH");
+            else if (res.config.razorpayEnabled) setActiveTab("RAZORPAY");
+          }
+        }
+      })
+      .catch((err) => console.warn("Failed to load payment gateway config:", err));
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
+
   // 1. Create Order whenever activeTab, plan, cycle, or amount changes
   useEffect(() => {
     if (!isOpen) {
       setOrder(null);
       setSuccessResult(null);
+      setSubmittedPending(null);
       setErrorMessage(null);
       setTransactionRefInput("");
+      setCashNotesInput("");
       setAppliedCoupon(null);
       setCouponDiscount(0);
       setCouponCodeInput("");
@@ -375,6 +413,42 @@ export function UniversalPaymentModal({
     }
   };
 
+  const handleSubmitManual = async (provider: "UPI_QR" | "CASH") => {
+    if (!order) return;
+    setSubmittingManual(true);
+    setErrorMessage(null);
+    try {
+      const utr = transactionRefInput.trim();
+      if (provider === "UPI_QR" && (!utr || utr.length < 6)) {
+        setErrorMessage("Please enter a valid 12-digit UPI reference number (UTR).");
+        setSubmittingManual(false);
+        return;
+      }
+      const res = await api.payments.submitManual({
+        orderId: order.orderId,
+        provider,
+        utrNumber: provider === "UPI_QR" ? utr : undefined,
+        notes: provider === "CASH" ? cashNotesInput.trim() : undefined,
+      });
+
+      if (res.success) {
+        playSuccessChime();
+        setSubmittedPending({
+          provider,
+          utrNumber: utr,
+          notes: cashNotesInput.trim(),
+          orderId: order.orderId,
+        });
+      } else {
+        setErrorMessage(res.message || "Failed to submit payment details.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "Error submitting payment for admin review.");
+    } finally {
+      setSubmittingManual(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const minutes = Math.floor(secondsRemaining / 60);
@@ -454,6 +528,63 @@ export function UniversalPaymentModal({
               className="w-full min-h-[48px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20"
             >
               Continue to Dashboard
+            </Button>
+          </div>
+        ) : submittedPending ? (
+          <div className="p-6 text-center space-y-5 animate-in zoom-in-95 duration-200 flex-1 overflow-y-auto">
+            <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-amber-500/10">
+              <Clock className="w-10 h-10 animate-pulse" />
+            </div>
+
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 mb-2">
+                <Clock className="w-3.5 h-3.5" />
+                <span>Awaiting Admin Verification</span>
+              </div>
+              <h3 className="text-xl font-bold text-white">Payment Proof Submitted</h3>
+              <p className="text-sm text-slate-300 mt-1 max-w-sm mx-auto">
+                Thank you! Your payment details have been sent to SuperAdmin for manual verification.
+              </p>
+            </div>
+
+            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-left space-y-2.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Order ID</span>
+                <span className="font-mono text-xs text-slate-200">{submittedPending.orderId}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Selected Plan</span>
+                <span className="font-medium text-white">{plan.name} ({cycle.toUpperCase()})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Net Amount</span>
+                <span className="font-bold text-emerald-400">{formatCurrency(netPayable)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Payment Method</span>
+                <span className="font-medium text-blue-400">
+                  {submittedPending.provider === "UPI_QR" ? "UPI QR (Manual)" : "Cash / Counter"}
+                </span>
+              </div>
+              {submittedPending.utrNumber && (
+                <div className="flex justify-between items-center pt-2 border-t border-slate-800/80">
+                  <span className="text-slate-400">Submitted UTR</span>
+                  <span className="font-mono font-bold text-xs bg-slate-900 border border-slate-700 px-2 py-0.5 rounded text-amber-300">
+                    {submittedPending.utrNumber}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
+              Your subscription and branch quotas will activate automatically as soon as SuperAdmin verifies this payment (usually 15-30 minutes).
+            </p>
+
+            <Button
+              onClick={onClose}
+              className="w-full min-h-[48px] bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl"
+            >
+              Close & Return to Dashboard
             </Button>
           </div>
         ) : (
@@ -660,43 +791,49 @@ export function UniversalPaymentModal({
             ) : (
               <>
                 {/* Payment Provider Segmented Tabs (Rule 7: Mobile touch >= 48px) */}
-                <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950/80 border border-slate-800 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("UPI_QR")}
-                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-semibold transition min-h-[44px] ${
-                      activeTab === "UPI_QR"
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                    }`}
-                  >
-                    <QrCode className="w-4 h-4" />
-                    <span>UPI QR / App</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("CASH")}
-                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-semibold transition min-h-[44px] ${
-                      activeTab === "CASH"
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                    }`}
-                  >
-                    <Banknote className="w-4 h-4" />
-                    <span>Cash / Counter</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("RAZORPAY")}
-                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-semibold transition min-h-[44px] ${
-                      activeTab === "RAZORPAY"
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                    }`}
-                  >
-                    <CreditCard className="w-4 h-4" />
-                    <span>Card Sandbox</span>
-                  </button>
+                <div className="flex gap-1.5 p-1 bg-slate-950/80 border border-slate-800 rounded-xl">
+                  {(!gatewayConfig || gatewayConfig.upiManualEnabled) && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("UPI_QR")}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-semibold transition min-h-[44px] ${
+                        activeTab === "UPI_QR"
+                          ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                      }`}
+                    >
+                      <QrCode className="w-4 h-4" />
+                      <span>UPI QR (Manual)</span>
+                    </button>
+                  )}
+                  {(!gatewayConfig || gatewayConfig.cashEnabled) && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("CASH")}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-semibold transition min-h-[44px] ${
+                        activeTab === "CASH"
+                          ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                      }`}
+                    >
+                      <Banknote className="w-4 h-4" />
+                      <span>Cash Counter</span>
+                    </button>
+                  )}
+                  {gatewayConfig?.razorpayEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("RAZORPAY")}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-semibold transition min-h-[44px] ${
+                        activeTab === "RAZORPAY"
+                          ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                      }`}
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      <span>Card Sandbox</span>
+                    </button>
+                  )}
                 </div>
 
             {loadingOrder ? (
@@ -758,15 +895,16 @@ export function UniversalPaymentModal({
                           className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono min-h-[48px]"
                         />
                         <Button
-                          onClick={() => handleVerify()}
-                          disabled={verifying || !transactionRefInput.trim()}
+                          type="button"
+                          onClick={() => handleSubmitManual("UPI_QR")}
+                          disabled={submittingManual || !transactionRefInput.trim()}
                           className="min-h-[48px] px-5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl"
                         >
-                          {verifying ? <RefreshCw className="w-4 h-4 animate-spin" /> : "Verify"}
+                          {submittingManual ? <RefreshCw className="w-4 h-4 animate-spin" /> : "Submit UTR"}
                         </Button>
                       </div>
-                      <p className="text-[11px] text-slate-500">
-                        For demo testing, you can enter any test reference (e.g. `UTR-123456`).
+                      <p className="text-[11px] text-slate-400">
+                        Scan & pay in your UPI app, then submit the 12-digit UTR from your receipt for SuperAdmin approval.
                       </p>
                     </div>
                   </div>
@@ -781,7 +919,8 @@ export function UniversalPaymentModal({
                         <span>Counter / Manual Cash Settlement</span>
                       </div>
                       <p className="text-xs text-amber-200/80 leading-relaxed">
-                        {order?.paymentData?.cashInstructions ||
+                        {gatewayConfig?.cashInstructions ||
+                          order?.paymentData?.cashInstructions ||
                           "Collect cash at the salon reception desk or record direct offline settlement."}
                       </p>
                     </div>
@@ -792,7 +931,7 @@ export function UniversalPaymentModal({
                       </label>
                       <input
                         type="text"
-                        placeholder="e.g. Received by reception staff at desk"
+                        placeholder="e.g. Handed cash to receptionist"
                         value={cashNotesInput}
                         onChange={(e) => setCashNotesInput(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 min-h-[48px]"
@@ -800,16 +939,17 @@ export function UniversalPaymentModal({
                     </div>
 
                     <Button
-                      onClick={() => handleVerify()}
-                      disabled={verifying}
+                      type="button"
+                      onClick={() => handleSubmitManual("CASH")}
+                      disabled={submittingManual}
                       className="w-full min-h-[48px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20"
                     >
-                      {verifying ? (
+                      {submittingManual ? (
                         <RefreshCw className="w-4 h-4 animate-spin mr-2" />
                       ) : (
                         <Check className="w-4 h-4 mr-2" />
                       )}
-                      Confirm Cash Settlement
+                      Submit Cash Request for Admin Approval
                     </Button>
                   </div>
                 )}

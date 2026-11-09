@@ -245,7 +245,12 @@ async function runMigrations() {
         provider ENUM('UPI_QR', 'CASH', 'RAZORPAY', 'WALLET') NOT NULL,
         provider_order_id VARCHAR(100) NULL,
         transaction_ref VARCHAR(100) NULL,
-        status ENUM('PENDING', 'COMPLETED', 'FAILED', 'EXPIRED', 'REFUNDED') DEFAULT 'PENDING',
+        utr_number VARCHAR(64) NULL,
+        payment_proof_note TEXT NULL,
+        reviewed_by VARCHAR(64) NULL,
+        reviewed_at TIMESTAMP NULL,
+        rejection_reason TEXT NULL,
+        status ENUM('PENDING', 'PENDING_APPROVAL', 'COMPLETED', 'FAILED', 'EXPIRED', 'REFUNDED', 'REJECTED') DEFAULT 'PENDING',
         payment_data JSON NULL,
         metadata JSON NULL,
         expires_at TIMESTAMP NOT NULL,
@@ -363,6 +368,20 @@ async function runMigrations() {
         INDEX idx_ref_code (referrer_code),
         INDEX idx_ref_org (referrer_org_id, status),
         INDEX idx_referred_org (referred_org_id)
+    ) ENGINE=InnoDB;`,
+
+    `CREATE TABLE IF NOT EXISTS payment_gateway_settings (
+        id VARCHAR(36) PRIMARY KEY,
+        upi_manual_enabled BOOLEAN DEFAULT TRUE,
+        upi_vpa VARCHAR(120) DEFAULT 'salonpayments@icici',
+        upi_merchant_name VARCHAR(120) DEFAULT 'Salon Queue SaaS',
+        cash_enabled BOOLEAN DEFAULT TRUE,
+        cash_instructions TEXT NULL,
+        razorpay_enabled BOOLEAN DEFAULT FALSE,
+        razorpay_key_id VARCHAR(120) NULL,
+        razorpay_key_secret VARCHAR(120) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB;`
   ];
 
@@ -378,6 +397,13 @@ async function runMigrations() {
     `ALTER TABLE salons ADD COLUMN organization_id VARCHAR(36) NULL;`,
     `ALTER TABLE salons MODIFY COLUMN operating_mode VARCHAR(50) NULL DEFAULT NULL;`,
     `ALTER TABLE payment_orders MODIFY COLUMN provider ENUM('UPI_QR', 'CASH', 'RAZORPAY', 'WALLET') NOT NULL;`,
+    `ALTER TABLE payment_orders MODIFY COLUMN status ENUM('PENDING', 'PENDING_APPROVAL', 'COMPLETED', 'FAILED', 'EXPIRED', 'REFUNDED', 'REJECTED') DEFAULT 'PENDING';`,
+    `ALTER TABLE payment_orders ADD COLUMN utr_number VARCHAR(64) NULL;`,
+    `ALTER TABLE payment_orders ADD COLUMN payment_proof_note TEXT NULL;`,
+    `ALTER TABLE payment_orders ADD COLUMN reviewed_by VARCHAR(64) NULL;`,
+    `ALTER TABLE payment_orders ADD COLUMN reviewed_at TIMESTAMP NULL;`,
+    `ALTER TABLE payment_orders ADD COLUMN rejection_reason TEXT NULL;`,
+    `INSERT IGNORE INTO payment_gateway_settings (id, upi_manual_enabled, upi_vpa, upi_merchant_name, cash_enabled, cash_instructions, razorpay_enabled, razorpay_key_id, razorpay_key_secret) VALUES ('default_gateway_settings', TRUE, 'salonpayments@icici', 'Salon Queue SaaS', TRUE, 'Pay at salon head office or deposit cash to our designated bank account.', FALSE, 'rzp_test_placeholder', '');`,
     `ALTER TABLE salons ADD COLUMN tagline VARCHAR(255) NULL;`,
     `ALTER TABLE salons ADD COLUMN about TEXT NULL;`,
     `ALTER TABLE salons ADD COLUMN email VARCHAR(150) NULL;`,

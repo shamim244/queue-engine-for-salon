@@ -15,8 +15,8 @@ export class UpiQrPaymentAdapter implements PaymentGatewayAdapter {
   }
 
   async createOrder(payload: CreateOrderInput, internalOrderId: string): Promise<Record<string, any>> {
-    const vpa = this.defaultVpa;
-    const payeeName = this.defaultPayeeName;
+    const vpa = payload.metadata?.vpa || this.defaultVpa;
+    const payeeName = payload.metadata?.payeeName || this.defaultPayeeName;
     const amountStr = Number(payload.amount).toFixed(2);
     const currency = payload.currency || 'INR';
     const note = payload.metadata?.planName

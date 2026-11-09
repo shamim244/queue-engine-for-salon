@@ -2,7 +2,12 @@
 
 import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { Organization, SubscriptionPlan } from "@/lib/api";
+import type {
+  Organization,
+  SubscriptionPlan,
+  PaymentOrder,
+  PaymentGatewayConfig,
+} from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,10 +24,7 @@ import {
   ShieldCheck,
   Check,
   TrendingUp,
-  Receipt,
-  Download,
   Search,
-  Filter,
   CheckCircle,
   Clock,
   AlertCircle,
@@ -33,6 +35,11 @@ import {
   Layers,
   Store,
   Users,
+  QrCode,
+  Banknote,
+  Sliders,
+  X,
+  Copy,
 } from "lucide-react";
 
 interface BillingTransaction {
@@ -106,6 +113,26 @@ export default function AdminBillingPage() {
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
 
+  // Manual Payment Approvals State
+  const [pendingPayments, setPendingPayments] = useState<PaymentOrder[]>([]);
+  const [loadingPendingPayments, setLoadingPendingPayments] = useState(false);
+  const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null);
+  const [rejectingOrder, setRejectingOrder] = useState<PaymentOrder | null>(null);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState("");
+
+  // Gateway Settings State
+  const [gatewayConfig, setGatewayConfig] = useState<PaymentGatewayConfig>({
+    upiManualEnabled: true,
+    upiVpa: "salonpayments@icici",
+    upiMerchantName: "Salon Queue SaaS",
+    cashEnabled: true,
+    cashInstructions: "Pay at salon head office or deposit cash into our designated bank account.",
+    razorpayEnabled: false,
+    razorpayKeyId: "",
+    razorpayKeySecret: "",
+  });
+  const [savingGateway, setSavingGateway] = useState(false);
+
   // In-App Toast Banner
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
@@ -131,9 +158,98 @@ export default function AdminBillingPage() {
     }
   };
 
+  const fetchPendingPayments = async () => {
+    setLoadingPendingPayments(true);
+    try {
+      const res = await api.admin.getPendingPayments();
+      if (res.success) {
+        setPendingPayments(res.orders || []);
+      }
+    } catch (err) {
+      console.error("Failed to load pending payments:", err);
+    } finally {
+      setLoadingPendingPayments(false);
+    }
+  };
+
+  const fetchGatewayConfig = async () => {
+    try {
+      const res = await api.admin.getPaymentConfig();
+      if (res.success && res.config) {
+        setGatewayConfig(res.config);
+      }
+    } catch (err) {
+      console.error("Failed to load gateway config:", err);
+    }
+  };
+
+  const handleApprovePayment = async (orderId: string) => {
+    setProcessingPaymentId(orderId);
+    try {
+      const res = await api.admin.approvePayment(orderId);
+      if (res.success) {
+        showToast(res.message || "Payment approved and subscription activated!", "success");
+        await Promise.all([fetchPendingPayments(), fetchOrgs(), fetchPlans()]);
+      } else {
+        showToast(res.message || "Approval failed.", "error");
+      }
+    } catch (err: any) {
+      showToast("Approval error: " + err.message, "error");
+    } finally {
+      setProcessingPaymentId(null);
+    }
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectingOrder) return;
+    const reason = rejectionReasonInput.trim();
+    if (!reason) {
+      showToast("Please provide a rejection reason.", "error");
+      return;
+    }
+    setProcessingPaymentId(rejectingOrder.id);
+    try {
+      const res = await api.admin.rejectPayment(rejectingOrder.id, reason);
+      if (res.success) {
+        showToast(res.message || "Payment order rejected.", "info");
+        setRejectingOrder(null);
+        setRejectionReasonInput("");
+        await fetchPendingPayments();
+      } else {
+        showToast(res.message || "Rejection failed.", "error");
+      }
+    } catch (err: any) {
+      showToast("Rejection error: " + err.message, "error");
+    } finally {
+      setProcessingPaymentId(null);
+    }
+  };
+
+  const handleSaveGatewayConfig = async () => {
+    setSavingGateway(true);
+    try {
+      const res = await api.admin.updatePaymentConfig(gatewayConfig);
+      if (res.success) {
+        setGatewayConfig(res.config);
+        showToast("Payment gateway configuration saved successfully!", "success");
+      } else {
+        showToast(res.message || "Failed to update configuration.", "error");
+      }
+    } catch (err: any) {
+      showToast("Save error: " + err.message, "error");
+    } finally {
+      setSavingGateway(false);
+    }
+  };
+
   const loadAllData = async () => {
     setLoading(true);
-    await Promise.all([fetchOrgs(), fetchPlans()]);
+    await Promise.all([
+      fetchOrgs(),
+      fetchPlans(),
+      fetchPendingPayments(),
+      fetchGatewayConfig(),
+    ]);
     setLoading(false);
   };
 
@@ -610,123 +726,491 @@ export default function AdminBillingPage() {
         </CardContent>
       </Card>
 
-      {/* Subscription Invoices & Settlement Ledger */}
+      {/* 1. Manual Payment Approvals Queue (SuperAdmin Verification Hub) */}
       <Card className="bg-slate-900/60 border-slate-800">
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <CardTitle className="text-lg text-white flex items-center gap-2">
-                <Receipt className="h-5 w-5 text-blue-400" />
-                Subscription Settlements & Quota Enforcement
-              </CardTitle>
-              <CardDescription className="text-xs text-slate-400 mt-0.5">
-                Centralized multi-tenant franchise quotas, tier upgrade logs, and automated settlement records.
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg text-white flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-amber-400" />
+                  Manual Payment Approvals Queue
+                </CardTitle>
+                <Badge
+                  variant={pendingPayments.length > 0 ? "default" : "secondary"}
+                  className={
+                    pendingPayments.length > 0
+                      ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                      : "text-slate-400"
+                  }
+                >
+                  {pendingPayments.length} Pending
+                </Badge>
+              </div>
+              <CardDescription className="text-xs text-slate-400 mt-1">
+                Verify customer 12-digit UPI UTR receipts or counter cash settlements. Approving activates tenant subscription and quota limits immediately.
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-xs">
-                Webhook Active (200 OK)
-              </Badge>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchPendingPayments}
+              disabled={loadingPendingPayments}
+              className="gap-2 border-slate-700 min-h-[40px]"
+            >
+              <RefreshCw className={`h-4 w-4 ${loadingPendingPayments ? "animate-spin" : ""}`} />
+              Refresh Queue
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Search & Filter pills */}
-          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
-              <Input
-                placeholder="Search tenant, plan, method..."
-                value={invoiceSearch}
-                onChange={(e) => setInvoiceSearch(e.target.value)}
-                className="pl-9 bg-slate-950 border-slate-800 text-xs min-h-[40px]"
-              />
-            </div>
-
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {(["ALL", "STARTER", "PRO", "ENTERPRISE"] as const).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setInvoiceFilter(f)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors min-h-[36px] ${
-                    invoiceFilter === f
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-800"
-                  }`}
-                >
-                  {f === "ALL" ? "All Tiers" : f}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Settlements Table */}
           <div className="rounded-xl border border-slate-800 overflow-x-auto bg-slate-950/40">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-900/80 border-b border-slate-800 text-slate-400 uppercase font-semibold">
                 <tr>
-                  <th className="py-3 px-4">Billing Ref #</th>
-                  <th className="py-3 px-4">Organization Tenant</th>
-                  <th className="py-3 px-4">Tier Plan</th>
-                  <th className="py-3 px-4">Settlement Amount</th>
-                  <th className="py-3 px-4">Billing Date</th>
-                  <th className="py-3 px-4">Payment Method</th>
-                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Order Ref #</th>
+                  <th className="py-3 px-4">Tenant Salon</th>
+                  <th className="py-3 px-4">Plan & Cycle</th>
+                  <th className="py-3 px-4">Net Amount</th>
+                  <th className="py-3 px-4">Method & UTR</th>
+                  <th className="py-3 px-4">Submitted At</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {filteredInvoices.length === 0 ? (
+                {pendingPayments.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500">
-                      No matching settlement records found.
+                    <td colSpan={7} className="py-10 text-center text-slate-500">
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <CheckCircle className="w-8 h-8 text-emerald-500/40" />
+                        <p className="font-semibold text-slate-400">Zero Pending Payment Requests</p>
+                        <p className="text-[11px] text-slate-600">All customer UPI UTRs and cash requests have been verified.</p>
+                      </div>
                     </td>
                   </tr>
                 ) : (
-                  filteredInvoices.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-slate-900/40 transition-colors">
-                      <td className="py-3 px-4 font-mono font-semibold text-blue-400 whitespace-nowrap">
-                        {tx.invoiceNo}
-                      </td>
-                      <td className="py-3 px-4 font-semibold text-white whitespace-nowrap">
-                        {tx.orgName}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <Badge
-                          variant={
-                            tx.tier === "ENTERPRISE"
-                              ? "purple"
-                              : tx.tier === "PRO"
-                              ? "default"
-                              : "secondary"
-                          }
-                          className="text-[10px]"
-                        >
-                          {tx.tier}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
-                        {formatCurrency(tx.amount)}
-                      </td>
-                      <td className="py-3 px-4 text-slate-400 whitespace-nowrap">
-                        {tx.date}
-                      </td>
-                      <td className="py-3 px-4 text-slate-300 whitespace-nowrap">
-                        {tx.method}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <Badge variant="success" className="text-[10px] py-0">
-                          {tx.status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))
+                  pendingPayments.map((o) => {
+                    const isProcessing = processingPaymentId === o.id;
+                    const planName = o.metadata?.planName || o.targetId;
+                    const cycleStr = (o.metadata?.cycle || "1m").toUpperCase();
+                    return (
+                      <tr key={o.id} className="hover:bg-slate-900/40 transition-colors">
+                        <td className="py-3.5 px-4 font-mono font-semibold text-blue-400 whitespace-nowrap">
+                          {o.id}
+                        </td>
+                        <td className="py-3.5 px-4 font-semibold text-white whitespace-nowrap">
+                          {o.organizationName || o.organizationId || "Salon Tenant"}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span className="font-medium text-slate-200">{planName}</span>
+                          <span className="text-[10px] text-indigo-400 font-bold ml-1.5 bg-indigo-950/60 border border-indigo-800/40 px-1.5 py-0.5 rounded">
+                            {cycleStr}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
+                          {formatCurrency(o.amount)}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {o.provider === "UPI_QR" ? (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-400">
+                                <QrCode className="w-3.5 h-3.5" /> UPI QR
+                              </span>
+                              {o.utrNumber ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono text-xs font-bold text-amber-300 bg-amber-950/40 border border-amber-800/50 px-2 py-0.5 rounded">
+                                    UTR: {o.utrNumber}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(o.utrNumber!);
+                                      showToast("Copied UTR to clipboard", "info");
+                                    }}
+                                    className="p-1 hover:text-white text-slate-400"
+                                    title="Copy UTR"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 italic text-[11px]">No UTR provided</span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-400">
+                                <Banknote className="w-3.5 h-3.5" /> Cash / Counter
+                              </span>
+                              {o.paymentProofNote && (
+                                <p className="text-[11px] text-slate-400 max-w-xs truncate" title={o.paymentProofNote}>
+                                  Note: {o.paymentProofNote}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap">
+                          {new Date(o.createdAt).toLocaleString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              disabled={isProcessing}
+                              onClick={() => handleApprovePayment(o.id)}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs min-h-[36px] px-3 gap-1 shadow-sm"
+                            >
+                              {isProcessing ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Check className="w-3.5 h-3.5" />
+                              )}
+                              Approve & Activate
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={isProcessing}
+                              onClick={() => {
+                                setRejectingOrder(o);
+                                setRejectionReasonInput("");
+                              }}
+                              className="border-rose-900/60 hover:bg-rose-950/40 text-rose-300 text-xs min-h-[36px] px-2.5"
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
+
+      {/* 2. Payment Gateway Switchboard & Configuration Hub */}
+      <Card className="bg-slate-900/60 border-slate-800">
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle className="text-lg text-white flex items-center gap-2">
+                <Sliders className="h-5 w-5 text-indigo-400" />
+                Payment Gateway Switchboard & Merchant Credentials
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-400 mt-1">
+                Turn payment gateways ON or OFF and configure your business UPI ID (VPA) and Cash instructions. Salon checkout updates instantly.
+              </CardDescription>
+            </div>
+            <Button
+              onClick={handleSaveGatewayConfig}
+              disabled={savingGateway}
+              className="gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold min-h-[42px] px-5 shadow-lg shadow-indigo-600/20"
+            >
+              {savingGateway ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              Save Switchboard Settings
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* GATEWAY 1: UPI MANUAL QR */}
+            <div
+              className={`p-4 rounded-xl border transition-all ${
+                gatewayConfig.upiManualEnabled
+                  ? "bg-blue-950/20 border-blue-500/40"
+                  : "bg-slate-950/60 border-slate-800 opacity-70"
+              }`}
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-blue-500/10 text-blue-400 rounded-lg">
+                    <QrCode className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-sm">UPI Manual Gateway</h4>
+                    <p className="text-[11px] text-slate-400">Dynamic QR + 12-Digit UTR</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setGatewayConfig({
+                      ...gatewayConfig,
+                      upiManualEnabled: !gatewayConfig.upiManualEnabled,
+                    })
+                  }
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none min-h-[26px] items-center ${
+                    gatewayConfig.upiManualEnabled ? "bg-blue-600" : "bg-slate-700"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      gatewayConfig.upiManualEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="space-y-3 mt-3">
+                <div>
+                  <label className="text-[11px] text-slate-300 font-semibold block mb-1">
+                    Merchant UPI ID (VPA):
+                  </label>
+                  <Input
+                    placeholder="e.g. salonpayments@icici"
+                    value={gatewayConfig.upiVpa}
+                    onChange={(e) =>
+                      setGatewayConfig({ ...gatewayConfig, upiVpa: e.target.value })
+                    }
+                    disabled={!gatewayConfig.upiManualEnabled}
+                    className="bg-slate-900 border-slate-800 text-xs font-mono min-h-[38px]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-300 font-semibold block mb-1">
+                    Payee / Merchant Display Name:
+                  </label>
+                  <Input
+                    placeholder="e.g. Engine Que Salon SaaS"
+                    value={gatewayConfig.upiMerchantName}
+                    onChange={(e) =>
+                      setGatewayConfig({ ...gatewayConfig, upiMerchantName: e.target.value })
+                    }
+                    disabled={!gatewayConfig.upiManualEnabled}
+                    className="bg-slate-900 border-slate-800 text-xs min-h-[38px]"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  Customer scans dynamic QR generated for their bill, then enters their UTR number for your approval.
+                </p>
+              </div>
+            </div>
+
+            {/* GATEWAY 2: CASH / COUNTER SETTLEMENT */}
+            <div
+              className={`p-4 rounded-xl border transition-all ${
+                gatewayConfig.cashEnabled
+                  ? "bg-amber-950/20 border-amber-500/40"
+                  : "bg-slate-950/60 border-slate-800 opacity-70"
+              }`}
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg">
+                    <Banknote className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-sm">Cash / Counter</h4>
+                    <p className="text-[11px] text-slate-400">Offline Manual Settlement</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setGatewayConfig({
+                      ...gatewayConfig,
+                      cashEnabled: !gatewayConfig.cashEnabled,
+                    })
+                  }
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none min-h-[26px] items-center ${
+                    gatewayConfig.cashEnabled ? "bg-amber-600" : "bg-slate-700"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      gatewayConfig.cashEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="space-y-3 mt-3">
+                <div>
+                  <label className="text-[11px] text-slate-300 font-semibold block mb-1">
+                    Payment Instructions / Bank Details:
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Provide deposit bank details or instructions for paying at salon reception..."
+                    value={gatewayConfig.cashInstructions}
+                    onChange={(e) =>
+                      setGatewayConfig({ ...gatewayConfig, cashInstructions: e.target.value })
+                    }
+                    disabled={!gatewayConfig.cashEnabled}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 resize-none"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  Customer submits an offline payment request. You verify cash receipt in your drawer and click Approve.
+                </p>
+              </div>
+            </div>
+
+            {/* GATEWAY 3: RAZORPAY / SANDBOX GATEWAY */}
+            <div
+              className={`p-4 rounded-xl border transition-all ${
+                gatewayConfig.razorpayEnabled
+                  ? "bg-purple-950/20 border-purple-500/40"
+                  : "bg-slate-950/60 border-slate-800 opacity-70"
+              }`}
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-purple-500/10 text-purple-400 rounded-lg">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-sm">Razorpay Sandbox / Live</h4>
+                    <p className="text-[11px] text-slate-400">Automated Instant Gateway</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setGatewayConfig({
+                      ...gatewayConfig,
+                      razorpayEnabled: !gatewayConfig.razorpayEnabled,
+                    })
+                  }
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none min-h-[26px] items-center ${
+                    gatewayConfig.razorpayEnabled ? "bg-purple-600" : "bg-slate-700"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      gatewayConfig.razorpayEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="space-y-3 mt-3">
+                <div>
+                  <label className="text-[11px] text-slate-300 font-semibold block mb-1">
+                    Razorpay Key ID:
+                  </label>
+                  <Input
+                    placeholder="rzp_test_..."
+                    value={gatewayConfig.razorpayKeyId || ""}
+                    onChange={(e) =>
+                      setGatewayConfig({ ...gatewayConfig, razorpayKeyId: e.target.value })
+                    }
+                    disabled={!gatewayConfig.razorpayEnabled}
+                    className="bg-slate-900 border-slate-800 text-xs font-mono min-h-[38px]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-300 font-semibold block mb-1">
+                    Razorpay Key Secret:
+                  </label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••••••"
+                    value={gatewayConfig.razorpayKeySecret || ""}
+                    onChange={(e) =>
+                      setGatewayConfig({ ...gatewayConfig, razorpayKeySecret: e.target.value })
+                    }
+                    disabled={!gatewayConfig.razorpayEnabled}
+                    className="bg-slate-900 border-slate-800 text-xs font-mono min-h-[38px]"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  Enables instant checkout simulation and live credit card, netbanking, and corporate card settlements.
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Reject Payment Order Modal */}
+      {rejectingOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <h3 className="font-bold text-white text-base flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-rose-400" />
+                Reject Payment Order
+              </h3>
+              <button
+                type="button"
+                onClick={() => setRejectingOrder(null)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-1.5 text-slate-300">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Order ID:</span>
+                <span className="font-mono text-white">{rejectingOrder.id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tenant:</span>
+                <span className="font-semibold text-white">
+                  {rejectingOrder.organizationName || rejectingOrder.organizationId}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Amount:</span>
+                <span className="font-bold text-emerald-400">{formatCurrency(rejectingOrder.amount)}</span>
+              </div>
+              {rejectingOrder.utrNumber && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Submitted UTR:</span>
+                  <span className="font-mono text-amber-300 font-bold">{rejectingOrder.utrNumber}</span>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-300 font-semibold block mb-1.5">
+                Reason for Rejection:
+              </label>
+              <textarea
+                rows={3}
+                placeholder="e.g. UTR not found in bank statement, payment reversed, incorrect amount..."
+                value={rejectionReasonInput}
+                onChange={(e) => setRejectionReasonInput(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setRejectingOrder(null)}
+                className="border-slate-700 min-h-[40px]"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleConfirmReject}
+                disabled={processingPaymentId === rejectingOrder.id || !rejectionReasonInput.trim()}
+                className="bg-rose-600 hover:bg-rose-500 text-white font-bold min-h-[40px] px-4"
+              >
+                {processingPaymentId === rejectingOrder.id ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  "Confirm Rejection"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Plan Creator / Editor Modal */}
       <CreatePlanModal

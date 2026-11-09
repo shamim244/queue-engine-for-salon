@@ -168,17 +168,36 @@ export interface CreatePlanPayload {
   sortOrder?: number;
 }
 
-export type PaymentProvider = "UPI_QR" | "CASH" | "RAZORPAY";
+export type PaymentProvider = "UPI_QR" | "CASH" | "RAZORPAY" | "WALLET";
 
 export type PaymentTargetType = "SUBSCRIPTION" | "QUEUE_TICKET" | "WALLET_TOPUP";
 
-export type PaymentOrderStatus = "PENDING" | "COMPLETED" | "FAILED" | "EXPIRED" | "REFUNDED";
+export type PaymentOrderStatus =
+  | "PENDING"
+  | "PENDING_APPROVAL"
+  | "COMPLETED"
+  | "FAILED"
+  | "EXPIRED"
+  | "REFUNDED"
+  | "REJECTED";
+
+export interface PaymentGatewayConfig {
+  upiManualEnabled: boolean;
+  upiVpa: string;
+  upiMerchantName: string;
+  cashEnabled: boolean;
+  cashInstructions: string;
+  razorpayEnabled: boolean;
+  razorpayKeyId?: string;
+  razorpayKeySecret?: string;
+}
 
 export interface PaymentOrder {
   id: string;
   targetType: PaymentTargetType;
   targetId: string;
   organizationId?: string | null;
+  organizationName?: string | null;
   salonId?: string | null;
   customerId?: string | null;
   amount: number;
@@ -186,6 +205,11 @@ export interface PaymentOrder {
   provider: PaymentProvider;
   providerOrderId?: string | null;
   transactionRef?: string | null;
+  utrNumber?: string | null;
+  paymentProofNote?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  rejectionReason?: string | null;
   status: PaymentOrderStatus;
   paymentData?: Record<string, any> | null;
   metadata?: Record<string, any> | null;
@@ -1143,6 +1167,39 @@ export const api = {
         body: JSON.stringify(data),
       }),
     getAuditLogs: () => request<AuditLog[]>("/api/admin/audit-logs"),
+    getPaymentConfig: () =>
+      request<{ success: boolean; config: PaymentGatewayConfig }>("/api/payments/admin/config"),
+    updatePaymentConfig: (payload: Partial<PaymentGatewayConfig>) =>
+      request<{ success: boolean; config: PaymentGatewayConfig; message: string }>(
+        "/api/payments/admin/config",
+        {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        }
+      ),
+    getPendingPayments: () =>
+      request<{ success: boolean; orders: PaymentOrder[] }>("/api/payments/admin/pending"),
+    approvePayment: (orderId: string, adminId?: string) =>
+      request<{
+        success: boolean;
+        orderId: string;
+        status: PaymentOrderStatus;
+        subscription?: OrganizationSubscription | null;
+        message: string;
+      }>("/api/payments/admin/approve", {
+        method: "POST",
+        body: JSON.stringify({ orderId, adminId }),
+      }),
+    rejectPayment: (orderId: string, reason: string, adminId?: string) =>
+      request<{
+        success: boolean;
+        orderId: string;
+        status: PaymentOrderStatus;
+        message: string;
+      }>("/api/payments/admin/reject", {
+        method: "POST",
+        body: JSON.stringify({ orderId, reason, adminId }),
+      }),
     toggleKillSwitch: (active: boolean, message?: string) =>
       request<{ success: boolean; active: boolean; message: string; activatedAt?: string | null }>(
         "/api/admin/kill-switch",
@@ -1269,6 +1326,9 @@ export const api = {
   },
 
   payments: {
+    getConfig: () =>
+      request<{ success: boolean; config: PaymentGatewayConfig }>("/api/payments/config"),
+
     createOrder: (payload: {
       targetType: PaymentTargetType;
       targetId: string;
@@ -1281,6 +1341,23 @@ export const api = {
       metadata?: Record<string, any>;
     }) =>
       request<{ success: boolean; order: PaymentOrderResult }>("/api/payments/create-order", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    submitManual: (payload: {
+      orderId: string;
+      provider: "UPI_QR" | "CASH";
+      utrNumber?: string;
+      notes?: string;
+    }) =>
+      request<{
+        success: boolean;
+        orderId: string;
+        status: PaymentOrderStatus;
+        utrNumber?: string | null;
+        message: string;
+      }>("/api/payments/submit-manual", {
         method: "POST",
         body: JSON.stringify(payload),
       }),

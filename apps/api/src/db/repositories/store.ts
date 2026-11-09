@@ -17,6 +17,7 @@ import type {
   Wallet,
   WalletTransaction,
   ReferralAttribution,
+  PaymentGatewaySettings,
 } from '../../engine/types';
 
 export const defaultPlatformSettings: PlatformSettings = {
@@ -77,6 +78,20 @@ export const defaultAuditLogs: AuditLog[] = [
   },
 ];
 
+export const defaultPaymentGatewaySettings: PaymentGatewaySettings = {
+  id: 'default_gateway_settings',
+  upiManualEnabled: true,
+  upiVpa: 'salonpayments@icici',
+  upiMerchantName: 'Salon Queue SaaS',
+  cashEnabled: true,
+  cashInstructions: 'Pay at salon head office or deposit cash to our designated bank account.',
+  razorpayEnabled: false,
+  razorpayKeyId: 'rzp_test_placeholder',
+  razorpayKeySecret: '',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
 // In-Memory fallback store
 export const memoryStore = {
   organizations: new Map<string, Organization>(),
@@ -95,6 +110,7 @@ export const memoryStore = {
   wallets: new Map<string, Wallet>(),
   walletTransactions: new Map<string, WalletTransaction>(),
   referralAttributions: new Map<string, ReferralAttribution>(),
+  gatewaySettings: { ...defaultPaymentGatewaySettings } as PaymentGatewaySettings,
   settings: JSON.parse(JSON.stringify(defaultPlatformSettings)) as PlatformSettings,
   auditLogs: [...defaultAuditLogs] as AuditLog[],
   maintenanceMode: {

@@ -406,5 +406,166 @@ describe('Universal Pluggable Payment Gateway Engine - Unit & Integration Tests'
       expect(getSubJson.success).toBe(true);
       expect(getSubJson.subscription.planId).toBe(plan.id);
     });
+
+    it('should support Gateway Switchboard, Manual UTR Submission, and Admin Approval Workflow', async () => {
+      // 1. Get public gateway config
+      const configRes = await app.handle(
+        new Request('http://localhost/api/payments/config', { method: 'GET' })
+      );
+      expect(configRes.status).toBe(200);
+      const configJson = await configRes.json();
+      expect(configJson.success).toBe(true);
+      expect(configJson.config.upiManualEnabled).toBe(true);
+      expect(configJson.config.upiVpa).toBeDefined();
+
+      // 2. Admin updates config (e.g. custom UPI ID)
+      const updateConfigRes = await app.handle(
+        new Request('http://localhost/api/payments/admin/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            upiVpa: 'sandybarber@okaxis',
+            upiMerchantName: 'Sandy Luxury Salons',
+          }),
+        })
+      );
+      expect(updateConfigRes.status).toBe(200);
+      const updateConfigJson = await updateConfigRes.json();
+      expect(updateConfigJson.config.upiVpa).toBe('sandybarber@okaxis');
+
+      // 3. Create plan & organization
+      const testOrg = await organizationRepo.createOrganization({
+        name: 'Sandy Barbershop Hub',
+        tier: 'STARTER',
+      });
+      const testPlan = await planRepo.createPlan({
+        name: 'Sandy Elite Pro',
+        price1m: 1200,
+        maxBranches: 3,
+        maxStylistsPerBranch: 6,
+        features: ['analytics_reports'],
+      });
+
+      // 4. Create UPI order
+      const createOrderRes = await app.handle(
+        new Request('http://localhost/api/payments/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetType: 'SUBSCRIPTION',
+            targetId: testPlan.id,
+            amount: 1200,
+            provider: 'UPI_QR',
+            organizationId: testOrg.id,
+            metadata: { cycle: '1m' },
+          }),
+        })
+      );
+      expect(createOrderRes.status).toBe(201);
+      const { order } = await createOrderRes.json();
+      expect(order.orderId).toBeDefined();
+      expect(order.paymentData.vpa).toBe('sandybarber@okaxis');
+
+      // 5. User submits UTR for manual approval
+      const submitUtrRes = await app.handle(
+        new Request('http://localhost/api/payments/submit-manual', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: order.orderId,
+            provider: 'UPI_QR',
+            utrNumber: '432198765432',
+            notes: 'Paid via GPay to Sandy Luxury Salons',
+          }),
+        })
+      );
+      expect(submitUtrRes.status).toBe(200);
+      const submitUtrJson = await submitUtrRes.json();
+      expect(submitUtrJson.success).toBe(true);
+      expect(submitUtrJson.status).toBe('PENDING_APPROVAL');
+      expect(submitUtrJson.utrNumber).toBe('432198765432');
+
+      // 6. Admin fetches pending approval orders
+      const pendingRes = await app.handle(
+        new Request('http://localhost/api/payments/admin/pending', { method: 'GET' })
+      );
+      expect(pendingRes.status).toBe(200);
+      const pendingJson = await pendingRes.json();
+      expect(pendingJson.success).toBe(true);
+      const foundPending = pendingJson.orders.find((o: any) => o.id === order.orderId);
+      expect(foundPending).toBeDefined();
+      expect(foundPending.utrNumber).toBe('432198765432');
+      expect(foundPending.organizationName).toBe('Sandy Barbershop Hub');
+
+      // 7. Admin approves the order
+      const approveRes = await app.handle(
+        new Request('http://localhost/api/payments/admin/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: order.orderId,
+            adminId: 'admin_sandy',
+          }),
+        })
+      );
+      expect(approveRes.status).toBe(200);
+      const approveJson = await approveRes.json();
+      expect(approveJson.success).toBe(true);
+      expect(approveJson.status).toBe('COMPLETED');
+      expect(approveJson.subscription).toBeDefined();
+      expect(approveJson.subscription.planId).toBe(testPlan.id);
+
+      // Verify org was updated with new plan
+      const updatedOrg = await organizationRepo.getOrganizationById(testOrg.id);
+      expect(updatedOrg?.planId).toBe(testPlan.id);
+      expect(updatedOrg?.maxBranches).toBe(3);
+
+      // 8. Test Rejection flow on second order
+      const order2Res = await app.handle(
+        new Request('http://localhost/api/payments/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetType: 'SUBSCRIPTION',
+            targetId: testPlan.id,
+            amount: 1200,
+            provider: 'CASH',
+            organizationId: testOrg.id,
+            metadata: { cycle: '1m' },
+          }),
+        })
+      );
+      const order2 = (await order2Res.json()).order;
+
+      // Submit cash manual request
+      await app.handle(
+        new Request('http://localhost/api/payments/submit-manual', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: order2.orderId,
+            provider: 'CASH',
+            notes: 'Fake cash request to test reject',
+          }),
+        })
+      );
+
+      // Admin rejects
+      const rejectRes = await app.handle(
+        new Request('http://localhost/api/payments/admin/reject', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: order2.orderId,
+            reason: 'Payment not received in cash drawer',
+            adminId: 'admin_sandy',
+          }),
+        })
+      );
+      expect(rejectRes.status).toBe(200);
+      const rejectJson = await rejectRes.json();
+      expect(rejectJson.success).toBe(true);
+      expect(rejectJson.status).toBe('REJECTED');
+    });
   });
 });

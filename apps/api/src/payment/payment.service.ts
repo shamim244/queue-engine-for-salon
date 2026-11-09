@@ -8,6 +8,9 @@ import type {
   PaymentProvider,
   OrganizationSubscription,
   BillingCycle,
+  SubmitManualPaymentInput,
+  ApprovePaymentInput,
+  RejectPaymentInput,
 } from './types';
 import { upiQrAdapter } from './adapters/upi-qr.adapter';
 import { cashAdapter } from './adapters/cash.adapter';
@@ -46,6 +49,24 @@ export class PaymentService {
     if (input.amount < 0 || (input.amount === 0 && input.provider !== 'WALLET' && input.provider !== 'CASH')) {
       throw new Error('Order amount must be greater than zero for external payment gateways.');
     }
+
+    const settings = await paymentRepo.getGatewaySettings();
+    if (input.provider === 'UPI_QR' && !settings.upiManualEnabled) {
+      throw new Error('UPI QR manual payments are currently disabled by administrator.');
+    }
+    if (input.provider === 'CASH' && !settings.cashEnabled) {
+      throw new Error('Cash counter payments are currently disabled by administrator.');
+    }
+    if (input.provider === 'RAZORPAY' && !settings.razorpayEnabled) {
+      throw new Error('Razorpay gateway is currently disabled by administrator.');
+    }
+
+    input.metadata = {
+      ...input.metadata,
+      vpa: settings.upiVpa,
+      payeeName: settings.upiMerchantName,
+      cashInstructions: settings.cashInstructions,
+    };
 
     const adapter = this.getAdapter(input.provider);
 
@@ -190,6 +211,125 @@ export class PaymentService {
       transactionRef: verification.transactionRef,
       message: verification.message || 'Payment successfully verified.',
       subscription,
+    };
+  }
+
+  async submitManualPayment(input: SubmitManualPaymentInput): Promise<{
+    success: boolean;
+    orderId: string;
+    status: string;
+    utrNumber?: string | null;
+    message: string;
+  }> {
+    const order = await paymentRepo.getOrderById(input.orderId);
+    if (!order) {
+      throw new Error(`Payment order not found: ${input.orderId}`);
+    }
+
+    if (order.status === 'COMPLETED') {
+      return {
+        success: true,
+        orderId: order.id,
+        status: 'COMPLETED',
+        utrNumber: order.utrNumber,
+        message: 'Order already completed and active.',
+      };
+    }
+
+    if (input.provider === 'UPI_QR') {
+      const utr = (input.utrNumber || '').trim();
+      if (!utr || utr.length < 6) {
+        throw new Error('Valid 12-digit UPI Reference / UTR Number is required.');
+      }
+    }
+
+    const updated = await paymentRepo.submitManualPayment(
+      input.orderId,
+      input.utrNumber?.trim(),
+      input.notes?.trim()
+    );
+
+    return {
+      success: true,
+      orderId: updated?.id || input.orderId,
+      status: 'PENDING_APPROVAL',
+      utrNumber: updated?.utrNumber || input.utrNumber || null,
+      message:
+        input.provider === 'UPI_QR'
+          ? 'UTR submitted successfully! Your plan will activate once Admin verifies the payment.'
+          : 'Cash payment request submitted! Admin will activate your plan upon cash receipt.',
+    };
+  }
+
+  async approvePaymentOrder(input: ApprovePaymentInput): Promise<{
+    success: boolean;
+    orderId: string;
+    status: string;
+    subscription: OrganizationSubscription | null;
+    message: string;
+  }> {
+    const order = await paymentRepo.getOrderById(input.orderId);
+    if (!order) {
+      throw new Error(`Payment order not found: ${input.orderId}`);
+    }
+
+    if (order.status === 'COMPLETED') {
+      const activeSub = order.organizationId
+        ? await paymentRepo.getActiveSubscriptionByOrgId(order.organizationId)
+        : null;
+      return {
+        success: true,
+        orderId: order.id,
+        status: 'COMPLETED',
+        subscription: activeSub,
+        message: 'Order already approved and completed.',
+      };
+    }
+
+    const transactionRef =
+      order.utrNumber || order.transactionRef || `APPROVE_${Date.now()}`;
+
+    // Fulfill subscription downstream
+    let subscription: OrganizationSubscription | null = null;
+    if (order.targetType === 'SUBSCRIPTION') {
+      subscription = await this.fulfillSubscription(order, transactionRef);
+    }
+
+    // Update order status to COMPLETED
+    await paymentRepo.approvePaymentOrder(order.id, input.adminId || 'admin', transactionRef);
+
+    return {
+      success: true,
+      orderId: order.id,
+      status: 'COMPLETED',
+      subscription,
+      message: 'Payment order approved and subscription activated successfully.',
+    };
+  }
+
+  async rejectPaymentOrder(input: RejectPaymentInput): Promise<{
+    success: boolean;
+    orderId: string;
+    status: string;
+    message: string;
+  }> {
+    const order = await paymentRepo.getOrderById(input.orderId);
+    if (!order) {
+      throw new Error(`Payment order not found: ${input.orderId}`);
+    }
+
+    if (order.status === 'COMPLETED') {
+      throw new Error('Cannot reject an order that has already been completed.');
+    }
+
+    const reason = (input.reason || '').trim() || 'Payment verification rejected by admin';
+    await paymentRepo.rejectPaymentOrder(order.id, reason, input.adminId || 'admin');
+
+    return {
+      success: true,
+      orderId: order.id,
+      status: 'REJECTED',
+      message: `Payment order rejected: ${reason}`,
     };
   }
 
