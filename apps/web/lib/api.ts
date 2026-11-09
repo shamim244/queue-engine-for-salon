@@ -1179,6 +1179,14 @@ export const api = {
       ),
     getPendingPayments: () =>
       request<{ success: boolean; orders: PaymentOrder[] }>("/api/payments/admin/pending"),
+    getAllTransactions: (options?: { status?: string; provider?: string; limit?: number }) => {
+      const params = new URLSearchParams();
+      if (options?.status && options.status !== "ALL") params.set("status", options.status);
+      if (options?.provider && options.provider !== "ALL") params.set("provider", options.provider);
+      if (options?.limit) params.set("limit", String(options.limit));
+      const qs = params.toString() ? `?${params.toString()}` : "";
+      return request<{ success: boolean; orders: PaymentOrder[] }>(`/api/payments/admin/transactions${qs}`);
+    },
     approvePayment: (orderId: string, adminId?: string) =>
       request<{
         success: boolean;

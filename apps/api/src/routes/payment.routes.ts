@@ -194,6 +194,42 @@ export const paymentRoutes = new Elysia({ prefix: '/api/payments' })
     };
   })
 
+  // 7b. Admin: Get All Transactions / Orders Ledger
+  .get(
+    '/admin/transactions',
+    async ({ query }) => {
+      const orders = await paymentRepo.getAllOrders({
+        status: query.status,
+        provider: query.provider,
+        limit: query.limit ? Number(query.limit) : 100,
+      });
+      const enriched = await Promise.all(
+        orders.map(async (o) => {
+          let orgName = 'Direct Consumer / Global';
+          if (o.organizationId) {
+            const org = await organizationRepo.getOrganizationById(o.organizationId);
+            if (org) orgName = org.name;
+          }
+          return {
+            ...o,
+            organizationName: orgName,
+          };
+        })
+      );
+      return {
+        success: true,
+        orders: enriched,
+      };
+    },
+    {
+      query: t.Object({
+        status: t.Optional(t.String()),
+        provider: t.Optional(t.String()),
+        limit: t.Optional(t.String()),
+      }),
+    }
+  )
+
   // 8. Admin: Approve Pending Order
   .post(
     '/admin/approve',

@@ -361,6 +361,67 @@ export const paymentRepo = {
     return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 
+  async getAllOrders(options?: {
+    status?: string;
+    provider?: string;
+    organizationId?: string;
+    limit?: number;
+  }): Promise<PaymentOrder[]> {
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        const conditions: string[] = [];
+        const params: any[] = [];
+
+        if (options?.status && options.status !== 'ALL') {
+          conditions.push('status = ?');
+          params.push(options.status);
+        }
+        if (options?.provider && options.provider !== 'ALL') {
+          conditions.push('provider = ?');
+          params.push(options.provider);
+        }
+        if (options?.organizationId) {
+          conditions.push('organization_id = ?');
+          params.push(options.organizationId);
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const limitClause = options?.limit ? `LIMIT ${Number(options.limit)}` : 'LIMIT 100';
+
+        const [rows] = await db.query<any[]>(
+          `SELECT * FROM payment_orders ${whereClause} ORDER BY created_at DESC ${limitClause}`,
+          params
+        );
+        if (rows) {
+          return rows.map((r) => {
+            const o = mapRowToOrder(r);
+            memoryStore.paymentOrders.set(o.id, o);
+            return o;
+          });
+        }
+      } catch (err: any) {
+        console.warn(`[paymentRepo.getAllOrders] MySQL fallback: ${err.message}`);
+      }
+    }
+
+    let list: PaymentOrder[] = Array.from(memoryStore.paymentOrders.values());
+    if (options?.status && options.status !== 'ALL') {
+      list = list.filter((o) => o.status === options.status);
+    }
+    if (options?.provider && options.provider !== 'ALL') {
+      list = list.filter((o) => o.provider === options.provider);
+    }
+    if (options?.organizationId) {
+      list = list.filter((o) => o.organizationId === options.organizationId);
+    }
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    if (options?.limit) {
+      list = list.slice(0, options.limit);
+    }
+    return list;
+  },
+
   async submitManualPayment(
     orderId: string,
     utrNumber?: string,
