@@ -59,12 +59,35 @@ class CompressionManager {
     if (this.zstdChecked) return;
     this.zstdChecked = true;
     try {
-      // Check for available zstd implementations
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const zstd = require('@mongodb-js/zstd') || require('zstd-codec');
-      if (zstd && typeof zstd.compress === 'function') {
+      // 1. Check for native @mongodb-js/zstd
+      const zstd = require('@mongodb-js/zstd');
+      if (zstd && typeof zstd.compressSync === 'function') {
         this.zstdEngine = zstd;
         this.settings.zstd.enabled = true;
+        return;
+      }
+    } catch {
+      // Fall through to WASM zstd-codec
+    }
+
+    try {
+      // 2. Check for universal WebAssembly zstd-codec (works on Bun Windows/Linux/macOS)
+      const { ZstdCodec } = require('zstd-codec');
+      if (ZstdCodec && typeof ZstdCodec.run === 'function') {
+        ZstdCodec.run((zstdInstance: any) => {
+          const simple = new zstdInstance.Simple();
+          this.zstdEngine = {
+            compressSync: (buf: Buffer | Uint8Array) => {
+              const res = simple.compress(buf);
+              return Buffer.from(res.buffer, res.byteOffset, res.byteLength);
+            },
+            decompressSync: (buf: Buffer | Uint8Array) => {
+              const res = simple.decompress(buf);
+              return Buffer.from(res.buffer, res.byteOffset, res.byteLength);
+            },
+          };
+          this.settings.zstd.enabled = true;
+        });
       }
     } catch {
       this.zstdEngine = null;
@@ -109,7 +132,7 @@ class CompressionManager {
         algorithm: 'zstd',
         label: 'Zstandard (zstd)',
         available: zstdAvailable,
-        engine: zstdAvailable ? 'Native Zstandard Driver' : 'Not installed in host runtime',
+        engine: zstdAvailable ? 'Active (WASM Zstandard Driver)' : 'Not installed in host runtime',
         notes: zstdAvailable
           ? 'Ultra-fast decompression and high compression ratio'
           : 'Server lacks native zstd binary binding. Cascades automatically to Brotli.',
