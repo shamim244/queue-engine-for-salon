@@ -2,6 +2,7 @@ import { describe, it, expect } from "bun:test";
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { SlotGrid } from "../components/booking/slot-grid";
+import { WeekCalendarStrip } from "../components/booking/week-calendar-strip";
 import { BookingPassCard } from "../components/booking/booking-pass-card";
 import { PayoutSummaryCard } from "../components/payout/payout-summary-card";
 import type { Appointment, Salon, AppointmentSlot } from "../lib/api";
@@ -79,6 +80,22 @@ describe("Hybrid Appointment Booking & Payout Web Components Suite", () => {
         <SlotGrid slots={[]} selectedSlot={null} onSelectSlot={() => {}} />
       );
       expect(html).toContain("No slots available for this date");
+    });
+  });
+
+  describe("WeekCalendarStrip Component", () => {
+    it("should render 7 day cards in a grid-cols-7 layout with month header and jump trigger", () => {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const html = renderToString(
+        <WeekCalendarStrip selectedDate={todayStr} onSelectDate={() => {}} />
+      );
+
+      // Verify 7-column layout (no horizontal scrollbar)
+      expect(html).toContain("grid-cols-7");
+      expect(html).toContain("This Week");
+      expect(html).toContain("Jump");
+      expect(html).toContain("bg-amber-500"); // Selected active day
+      expect(html).toContain("min-h-[54px]");
     });
   });
 
