@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, use } from "react";
+import React, { useEffect, useState, useMemo, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, type Salon, type Service, type Stylist, type AppointmentSlot } from "@/lib/api";
@@ -8,6 +8,7 @@ import { SlotGrid } from "@/components/booking/slot-grid";
 import {
   ArrowLeft,
   Calendar,
+  CalendarDays,
   Clock,
   Scissors,
   User,
@@ -75,16 +76,34 @@ export default function BookAppointmentPage({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Available Dates (Today + 6 days)
+  // Available Dates (14 Days Preset Strip + Custom Calendar Picker up to 60 days)
   const [availableDates, setAvailableDates] = useState<
     Array<{ dateStr: string; label: string; dayName: string }>
   >([]);
+
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const maxDateStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 60);
+    return d.toISOString().slice(0, 10);
+  }, []);
+
+  const isCustomDate =
+    availableDates.length > 0 && !availableDates.some((d) => d.dateStr === selectedDate);
+  const customDateInfo = useMemo(() => {
+    if (!isCustomDate || !selectedDate) return null;
+    const d = new Date(selectedDate + "T00:00:00");
+    return {
+      dayName: d.toLocaleDateString("en-US", { weekday: "short" }),
+      label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    };
+  }, [isCustomDate, selectedDate]);
 
   useEffect(() => {
     const dates: Array<{ dateStr: string; label: string; dayName: string }> = [];
     const today = new Date();
 
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 14; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       const dateStr = d.toISOString().slice(0, 10);
@@ -422,15 +441,48 @@ export default function BookAppointmentPage({
 
         {/* ================= STEP 2: DATE & TIME SLOT ================= */}
         {currentStep === 2 && (
-          <div className="space-y-6 animate-in fade-in-50 duration-200">
-            {/* Date Selector */}
-            <div className="space-y-3">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5 text-amber-400" />
-                <span>Select Appointment Date</span>
-              </label>
+          <div className="space-y-4 animate-in fade-in-50 duration-200">
+            {/* Date Selector Header & Presets */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Select Appointment Date</span>
+                </label>
+                {/* 📅 Pick Any Date Calendar Popover Trigger */}
+                <label className="relative cursor-pointer flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500/60 text-xs text-amber-400 font-semibold transition-all shadow-sm active:scale-95">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  <span>Pick Date</span>
+                  <input
+                    type="date"
+                    min={todayStr}
+                    max={maxDateStr}
+                    value={selectedDate}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setSelectedDate(e.target.value);
+                      }
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                </label>
+              </div>
 
-              <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+              {/* Single-row Horizontal Swipeable Date Pill Strip */}
+              <div className="flex gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-none snap-x -mx-1 px-1">
+                {isCustomDate && customDateInfo && (
+                  <button
+                    type="button"
+                    className="shrink-0 min-w-[76px] snap-start min-h-[52px] p-2 rounded-2xl flex flex-col items-center justify-center border transition-all text-xs active:scale-95 bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-lg shadow-amber-500/25 scale-[1.02]"
+                  >
+                    <span className="font-bold text-[11px] flex items-center gap-1">
+                      <Sparkles className="h-3 w-3" />
+                      {customDateInfo.dayName}
+                    </span>
+                    <span className="text-[10px] opacity-90">{customDateInfo.label}</span>
+                  </button>
+                )}
+
                 {availableDates.map((item) => {
                   const isSelected = selectedDate === item.dateStr;
                   return (
@@ -438,7 +490,7 @@ export default function BookAppointmentPage({
                       key={item.dateStr}
                       type="button"
                       onClick={() => setSelectedDate(item.dateStr)}
-                      className={`min-h-[56px] p-2 rounded-2xl flex flex-col items-center justify-center border transition-all text-xs active:scale-95 ${
+                      className={`shrink-0 min-w-[72px] snap-start min-h-[52px] p-2 rounded-2xl flex flex-col items-center justify-center border transition-all text-xs active:scale-95 ${
                         isSelected
                           ? "bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-lg shadow-amber-500/25 scale-[1.02]"
                           : "bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700"
@@ -453,7 +505,7 @@ export default function BookAppointmentPage({
             </div>
 
             {/* Time Slot Grid */}
-            <div className="space-y-3 pt-2">
+            <div className="space-y-2.5 pt-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5 text-amber-400" />
@@ -461,7 +513,7 @@ export default function BookAppointmentPage({
                 </label>
                 {selectedSlot && (
                   <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px]">
-                    ✓ Slot Selected: {selectedSlot}
+                    ✓ Slot: {selectedSlot}
                   </Badge>
                 )}
               </div>

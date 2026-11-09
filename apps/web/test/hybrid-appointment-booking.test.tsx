@@ -38,7 +38,7 @@ describe("Hybrid Appointment Booking & Payout Web Components Suite", () => {
   };
 
   describe("SlotGrid Component", () => {
-    it("should render morning, afternoon, and evening slot groups with >= 48px touch targets", () => {
+    it("should render morning, afternoon, and evening period presets with >= 48px touch targets", () => {
       const slots: AppointmentSlot[] = [
         { time: "10:00", available: true },
         { time: "10:30", available: false, reason: "APPOINTMENT_BOOKED" },
@@ -46,19 +46,32 @@ describe("Hybrid Appointment Booking & Payout Web Components Suite", () => {
         { time: "18:00", available: true },
       ];
 
-      const html = renderToString(
+      const htmlMorning = renderToString(
         <SlotGrid slots={slots} selectedSlot="10:00" onSelectSlot={() => {}} />
       );
 
-      expect(html).toContain("10:00");
-      expect(html).toContain("10:30");
-      expect(html).toContain("14:00");
-      expect(html).toContain("18:00");
-      expect(html).toContain("Morning");
-      expect(html).toContain("Afternoon");
-      expect(html).toContain("Evening");
-      expect(html).toContain("min-h-[48px]");
-      expect(html).toContain("Booked");
+      // Period tabs rendered
+      expect(htmlMorning).toContain("Morning");
+      expect(htmlMorning).toContain("Afternoon");
+      expect(htmlMorning).toContain("Evening");
+
+      // Active morning period slots
+      expect(htmlMorning).toContain("10:00");
+      expect(htmlMorning).toContain("10:30");
+      expect(htmlMorning).toContain("min-h-[48px]");
+      expect(htmlMorning).toContain("Booked");
+
+      // Test afternoon auto-selection
+      const htmlAfternoon = renderToString(
+        <SlotGrid slots={slots} selectedSlot="14:00" onSelectSlot={() => {}} />
+      );
+      expect(htmlAfternoon).toContain("14:00");
+
+      // Test evening auto-selection
+      const htmlEvening = renderToString(
+        <SlotGrid slots={slots} selectedSlot="18:00" onSelectSlot={() => {}} />
+      );
+      expect(htmlEvening).toContain("18:00");
     });
 
     it("should render empty state message when no slots are available", () => {
