@@ -1591,7 +1591,8 @@ export const api = {
       slotTime: string;
       customerName: string;
       customerPhone: string;
-      advanceType: "TOKEN" | "FULL" | "FREE";
+      advanceType?: "MINIMUM" | "TOKEN" | "FULL" | "FREE" | "CUSTOM" | "PAY_AT_SALON";
+      customAdvanceAmount?: number;
     }) =>
       request<{
         success: boolean;
@@ -1599,6 +1600,7 @@ export const api = {
         appointmentId: string;
         advanceAmount: number;
         policy?: any;
+        minRequiredAdvance?: number;
         isFree?: boolean;
         razorpayOrderId: string;
         upiQrString: string;

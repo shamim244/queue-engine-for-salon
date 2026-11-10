@@ -231,36 +231,63 @@ export const appointmentRoutes = new Elysia()
         };
       }
 
+      // 1. Calculate minimum required deposit based on salon booking policy
+      let minRequiredAdvance = 0;
+      if (policy.policyType === 'FULL') {
+        minRequiredAdvance = totalPrice;
+      } else if (policy.policyType === 'PERCENTAGE') {
+        const pct = typeof policy.percentage === 'number' ? policy.percentage : 50;
+        minRequiredAdvance = Math.max(0, Math.round((totalPrice * pct) / 100));
+      } else if (policy.policyType === 'FIXED_TOKEN') {
+        const token = typeof policy.tokenAmount === 'number' ? policy.tokenAmount : 100;
+        minRequiredAdvance = token === 0 ? 0 : Math.min(totalPrice, token);
+      } else {
+        // FREE policy: Minimum deposit is ₹0
+        minRequiredAdvance = 0;
+      }
+
+      // 2. Enforce minimum deposit rule:
+      // If the owner configured a minimum deposit (> 0), customer cannot bypass or pay less than minimum!
+      if (minRequiredAdvance > 0 && (advanceType === 'FREE' || advanceType === 'PAY_AT_SALON')) {
+        set.status = 400;
+        return {
+          success: false,
+          error: `This salon requires a minimum advance deposit of ₹${minRequiredAdvance}. You cannot pay less than the minimum.`,
+        };
+      }
+
+      // 3. Compute payable advanceAmount based on customer choice (MINIMUM, FULL, CUSTOM, or FREE)
       let advanceAmount = 0;
       let paymentMethod: any = 'RAZORPAY';
       let initialStatus: AppointmentStatus = 'PENDING_PAYMENT';
       let escrowStatus: any = 'HELD';
 
-      if (
-        policy.policyType === 'FREE' ||
-        advanceType === 'FREE' ||
-        (policy.allowFreeBooking && advanceType === 'FREE')
-      ) {
+      if (advanceType === 'FULL') {
+        // Customer chose to pay 100% in full upfront
+        advanceAmount = totalPrice + (policy.convenienceFee || 0);
+      } else if (advanceType === 'CUSTOM' && typeof body.customAdvanceAmount === 'number') {
+        if (body.customAdvanceAmount < minRequiredAdvance) {
+          set.status = 400;
+          return {
+            success: false,
+            error: `Advance payment cannot be less than the minimum required deposit of ₹${minRequiredAdvance}.`,
+          };
+        }
+        const clamped = Math.min(totalPrice, body.customAdvanceAmount);
+        advanceAmount = clamped + (policy.convenienceFee || 0);
+      } else if (minRequiredAdvance === 0 && (advanceType === 'FREE' || advanceType === 'PAY_AT_SALON' || !advanceType)) {
+        // Free policy: customer chooses to pay in person at salon chair
         advanceAmount = 0;
         paymentMethod = 'PAY_AT_SALON';
-        initialStatus = 'CONFIRMED'; // Free booking locks immediately!
+        initialStatus = 'CONFIRMED';
         escrowStatus = 'RELEASED_TO_OWNER';
-      } else if (advanceType === 'FULL' || policy.policyType === 'FULL') {
-        advanceAmount = totalPrice + (policy.convenienceFee || 0);
-      } else if (policy.policyType === 'PERCENTAGE') {
-        advanceAmount =
-          Math.max(0, Math.round((totalPrice * (policy.percentage || 50)) / 100)) +
-          (policy.convenienceFee || 0);
       } else {
-        // FIXED_TOKEN (Admin configurable token amount, default 100, or 0 for free)
-        const token = typeof policy.tokenAmount === 'number' ? policy.tokenAmount : 100;
-        if (token === 0) {
-          advanceAmount = 0;
+        // Default: Minimum Required Advance Deposit
+        advanceAmount = minRequiredAdvance + (policy.convenienceFee || 0);
+        if (advanceAmount === 0) {
           paymentMethod = 'PAY_AT_SALON';
           initialStatus = 'CONFIRMED';
           escrowStatus = 'RELEASED_TO_OWNER';
-        } else {
-          advanceAmount = Math.min(totalPrice, token) + (policy.convenienceFee || 0);
         }
       }
 

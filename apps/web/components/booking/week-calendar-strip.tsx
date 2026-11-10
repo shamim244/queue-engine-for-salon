@@ -16,13 +16,20 @@ export function WeekCalendarStrip({
   minDate,
   maxDaysAhead = 60,
 }: WeekCalendarStripProps) {
+  const formatLocalDate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
   const today = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return d;
   }, []);
 
-  const todayStr = useMemo(() => today.toISOString().slice(0, 10), [today]);
+  const todayStr = useMemo(() => formatLocalDate(today), [today]);
   const effectiveMinDateStr = minDate || todayStr;
 
   const maxDate = useMemo(() => {
@@ -30,7 +37,7 @@ export function WeekCalendarStrip({
     d.setDate(today.getDate() + maxDaysAhead);
     return d;
   }, [today, maxDaysAhead]);
-  const maxDateStr = useMemo(() => maxDate.toISOString().slice(0, 10), [maxDate]);
+  const maxDateStr = useMemo(() => formatLocalDate(maxDate), [maxDate]);
 
   // Week offset from today (0 = current 7-day window, 1 = next 7-day window, etc.)
   const [weekOffset, setWeekOffset] = useState<number>(() => {
@@ -67,7 +74,7 @@ export function WeekCalendarStrip({
     for (let i = 0; i < 7; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + startOffset + i);
-      const dateStr = d.toISOString().slice(0, 10);
+      const dateStr = formatLocalDate(d);
       const isPast = dateStr < effectiveMinDateStr;
       const isBeyondMax = dateStr > maxDateStr;
 

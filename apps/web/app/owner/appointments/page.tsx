@@ -86,7 +86,7 @@ function OwnerAppointmentsContent() {
         policyType,
         tokenAmount: Number(tokenAmount) || 0,
         percentage: Number(percentage) || 40,
-        allowFreeBooking,
+        allowFreeBooking: policyType === "FREE",
         cancellationCutoffHours: Number(cancellationCutoffHours) || 2,
       });
 
@@ -262,9 +262,9 @@ function OwnerAppointmentsContent() {
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                          <span>Free Reservation</span>
+                          <span>Free (₹0 Minimum Deposit)</span>
                           <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                            ₹0 Advance
+                            ₹0 Min.
                           </span>
                         </span>
                         <div
@@ -276,12 +276,12 @@ function OwnerAppointmentsContent() {
                         </div>
                       </div>
                       <p className="text-xs text-slate-400 leading-relaxed mt-1">
-                        Zero payment required online. Customers book their chair instantly and pay the entire bill in person at salon checkout.
+                        Zero minimum payment required online. Customers settle in person at salon checkout, but can optionally choose to pay 100% upfront online.
                       </p>
                     </div>
                   </div>
 
-                  {/* Option 2: PERCENTAGE (30%, 40%, 50%) */}
+                  {/* Option 2: PERCENTAGE (30%, 40%, 50%, 60%) */}
                   <div
                     onClick={() => setPolicyType("PERCENTAGE")}
                     className={`p-4 rounded-2xl border cursor-pointer transition-all select-none flex flex-col justify-between ${
@@ -293,9 +293,9 @@ function OwnerAppointmentsContent() {
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                          <span>Percentage of Service</span>
+                          <span>Minimum Percentage Deposit</span>
                           <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-mono">
-                            {percentage}% Deposit
+                            Min. {percentage}%
                           </span>
                         </span>
                         <div
@@ -307,7 +307,7 @@ function OwnerAppointmentsContent() {
                         </div>
                       </div>
                       <p className="text-xs text-slate-400 leading-relaxed mt-1">
-                        Fair advance that scales with service value (e.g. 30% or 40%). High-ticket grooming collects higher deposits.
+                        Clients must pay at least this percentage to reserve. Clients can always choose to pay 100% in full, but cannot pay less than your minimum.
                       </p>
                     </div>
                   </div>
@@ -324,9 +324,9 @@ function OwnerAppointmentsContent() {
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                          <span>Fixed Token Deposit</span>
+                          <span>Minimum Fixed Token Deposit</span>
                           <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-mono">
-                            ₹{tokenAmount} Flat
+                            Min. ₹{tokenAmount}
                           </span>
                         </span>
                         <div
@@ -338,7 +338,7 @@ function OwnerAppointmentsContent() {
                         </div>
                       </div>
                       <p className="text-xs text-slate-400 leading-relaxed mt-1">
-                        Flat token fee (e.g. ₹50 or ₹100) to secure chair time. Deducted from final service bill at checkout.
+                        Clients must pay at least this flat token to reserve. Clients can choose to pay 100% in full, but cannot pay less than this token.
                       </p>
                     </div>
                   </div>
@@ -355,7 +355,7 @@ function OwnerAppointmentsContent() {
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                          <span>100% Full Prepayment</span>
+                          <span>100% Full Prepayment Required</span>
                           <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 font-mono">
                             100% Total
                           </span>
@@ -369,7 +369,7 @@ function OwnerAppointmentsContent() {
                         </div>
                       </div>
                       <p className="text-xs text-slate-400 leading-relaxed mt-1">
-                        Customers pay the full cost upfront before arrival. Zero balance left to settle at chair checkout.
+                        Clients must pay the complete 100% bill upfront before arrival. Zero balance left to settle at chair checkout.
                       </p>
                     </div>
                   </div>
@@ -461,26 +461,27 @@ function OwnerAppointmentsContent() {
                 </div>
               )}
 
-              {/* 4. ALLOW FREE BOOKING OPTION TOGGLE */}
-              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-white block">
-                    Allow Customers to Select &quot;Pay at Salon&quot;
-                  </span>
-                  <span className="text-[11px] text-slate-400 block leading-relaxed">
-                    When active, clients can choose between prepaying the deposit online or booking for free and paying in cash/UPI upon chair completion.
+              {/* 4. MINIMUM DEPOSIT & FULL PREPAYMENT POLICY NOTICE */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-amber-400 shrink-0" />
+                  <span className="text-xs font-bold text-white">
+                    {policyType === "FREE"
+                      ? "Free Reservation Policy (₹0 Online Minimum)"
+                      : "Minimum Deposit Guarantee Policy"}
                   </span>
                 </div>
-
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={allowFreeBooking}
-                    onChange={(e) => setAllowFreeBooking(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-                </label>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  {policyType === "FREE"
+                    ? "Clients can reserve chair slots for ₹0 and pay in person after service completion. They also have the convenient choice to pay 100% upfront online."
+                    : `Your configured ${
+                        policyType === "PERCENTAGE"
+                          ? `${percentage}% advance`
+                          : policyType === "FULL"
+                          ? "100% prepayment"
+                          : `₹${tokenAmount} token`
+                      } acts as the strict minimum deposit. Clients cannot pay less than this amount, but can freely choose to pay 100% in full.`}
+                </p>
               </div>
 
               {/* 5. CANCELLATION & RESCHEDULE WINDOW */}
@@ -519,19 +520,23 @@ function OwnerAppointmentsContent() {
                   </Badge>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-2">
+                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-2.5">
                   <div className="flex items-center justify-between text-slate-300">
                     <span>Sample Service: Haircut &amp; Beard Styling</span>
                     <span className="font-mono font-bold text-white">₹{samplePrice}</span>
                   </div>
                   <div className="flex items-center justify-between border-t border-slate-800/80 pt-2 text-amber-400 font-bold">
-                    <span>Deposit Payable Online:</span>
+                    <span>Minimum Required Deposit (Default):</span>
                     <span className="font-mono text-sm">
                       {simulatedAdvance === 0 ? "₹0 (Pay at Salon)" : `₹${simulatedAdvance}`}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                    <span>Balance Due at Chair:</span>
+                  <div className="flex items-center justify-between text-emerald-400 font-semibold text-[11px]">
+                    <span>100% Full Payment (Optional Choice):</span>
+                    <span className="font-mono text-sm font-bold">₹{samplePrice}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-400 text-[11px] border-t border-slate-800/60 pt-1.5">
+                    <span>Balance Due at Chair (if paying minimum):</span>
                     <span className="font-mono text-white font-semibold">₹{simulatedBalance}</span>
                   </div>
                 </div>

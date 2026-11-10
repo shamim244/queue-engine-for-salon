@@ -359,17 +359,17 @@ export default function PaymentGatewaySettingsPage() {
                       onChange={(e) => setConfig({ ...config, appointmentAdvanceType: e.target.value as any })}
                       className="w-full h-9 rounded-md bg-slate-950 border border-slate-700 text-white px-3 text-xs focus:outline-none focus:border-amber-500"
                     >
-                      <option value="FREE">Free Appointments (₹0 Advance / Pay at Salon)</option>
-                      <option value="FIXED_TOKEN">Fixed Token Deposit (₹ Amount)</option>
-                      <option value="PERCENTAGE">Percentage of Total Service (%)</option>
+                      <option value="FREE">Free Appointments (₹0 Minimum / Pay at Salon)</option>
+                      <option value="FIXED_TOKEN">Minimum Fixed Token Deposit (₹ Amount)</option>
+                      <option value="PERCENTAGE">Minimum Percentage of Service (%)</option>
                       <option value="FULL">100% Full Prepayment Required</option>
                     </select>
-                    <p className="text-[10px] text-slate-500">Platform default for all uncustomized salons.</p>
+                    <p className="text-[10px] text-slate-500">Platform default for all uncustomized salons. Customers can choose to pay 100% in full.</p>
                   </div>
 
                   {config.appointmentAdvanceType === "PERCENTAGE" ? (
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-300">Advance Percentage (%)</label>
+                      <label className="text-xs font-semibold text-slate-300">Minimum Advance Percentage (%)</label>
                       <div className="flex items-center gap-1.5">
                         <Input
                           type="number"
@@ -381,7 +381,7 @@ export default function PaymentGatewaySettingsPage() {
                           className="bg-slate-950 border-slate-700 text-white font-mono text-xs w-20"
                         />
                         <div className="flex gap-1">
-                          {[20, 30, 40, 50].map((pct) => (
+                          {[20, 30, 40, 50, 60].map((pct) => (
                             <button
                               key={pct}
                               type="button"
@@ -397,11 +397,11 @@ export default function PaymentGatewaySettingsPage() {
                           ))}
                         </div>
                       </div>
-                      <p className="text-[10px] text-slate-500">e.g. 30% or 40% upfront deposit.</p>
+                      <p className="text-[10px] text-slate-500">Clients must pay at least this %; can choose 100%.</p>
                     </div>
                   ) : (
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-300">Token Amount (₹)</label>
+                      <label className="text-xs font-semibold text-slate-300">Minimum Token Amount (₹)</label>
                       <Input
                         type="number"
                         value={config.appointmentTokenAmount ?? 100}
@@ -412,10 +412,10 @@ export default function PaymentGatewaySettingsPage() {
                       />
                       <p className="text-[10px] text-slate-500">
                         {config.appointmentAdvanceType === "FREE"
-                          ? "Free bookings (₹0 online advance)."
+                          ? "Free bookings (₹0 online minimum)."
                           : config.appointmentAdvanceType === "FULL"
-                          ? "100% full service prepayment."
-                          : "Fixed advance deposit per booking."}
+                          ? "100% full service prepayment required."
+                          : "Minimum flat advance token required."}
                       </p>
                     </div>
                   )}

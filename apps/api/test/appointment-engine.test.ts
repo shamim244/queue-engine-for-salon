@@ -746,6 +746,84 @@ describe('Hybrid Appointment Booking, Dynamic Buffer Interleaving & Escrow Payou
       const initData = await initRes.json();
       const expectedAdvance = Math.round(((service?.basePrice || 200) * 40) / 100);
       expect(initData.advanceAmount).toBe(expectedAdvance);
+
+      // Verify customer CANNOT bypass minimum deposit with 'FREE'
+      const bypassRes = await app.handle(
+        new Request('http://localhost/api/v1/appointments/initiate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            salonSlug,
+            serviceId: service?.id,
+            date: targetDate,
+            slotTime: '15:00',
+            customerName: 'Bypass Attempter',
+            customerPhone: '9876543209',
+            advanceType: 'FREE',
+          }),
+        })
+      );
+      expect(bypassRes.status).toBe(400);
+      const bypassData = await bypassRes.json();
+      expect(bypassData.error).toContain('minimum advance deposit');
+
+      // Verify customer CAN choose 100% Full Payment even when minimum is 40%
+      const fullRes = await app.handle(
+        new Request('http://localhost/api/v1/appointments/initiate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            salonSlug,
+            serviceId: service?.id,
+            date: targetDate,
+            slotTime: '16:00',
+            customerName: 'Full Payer User',
+            customerPhone: '9876543219',
+            advanceType: 'FULL',
+          }),
+        })
+      );
+      expect(fullRes.status).toBe(200);
+      const fullData = await fullRes.json();
+      expect(fullData.advanceAmount).toBe(service?.basePrice || 200);
+    });
+
+    it('should allow user to pay 100% full price even when salon policy is FREE (₹0 minimum)', async () => {
+      // Set policy to FREE
+      await app.handle(
+        new Request(`http://localhost/api/v1/salons/${salonSlug}/appointments/policy`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ policyType: 'FREE', enabled: true }),
+        })
+      );
+
+      const salon = await repository.getSalonBySlug(salonSlug);
+      const service = salon?.services[0];
+      const targetDate = new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+      // Customer chooses 100% Full Payment
+      const fullRes = await app.handle(
+        new Request('http://localhost/api/v1/appointments/initiate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            salonSlug,
+            serviceId: service?.id,
+            date: targetDate,
+            slotTime: '14:00',
+            customerName: 'Free Policy But Full Payer',
+            customerPhone: '9876543229',
+            advanceType: 'FULL',
+          }),
+        })
+      );
+
+      expect(fullRes.status).toBe(200);
+      const fullData = await fullRes.json();
+      expect(fullData.advanceAmount).toBe(service?.basePrice || 200);
+      expect(fullData.isFree).toBe(false);
+      expect(fullData.appointment.status).toBe('PENDING_PAYMENT');
     });
 
     it('should allow Salon Owner to set policy to FREE (₹0 advance / pay at salon)', async () => {
