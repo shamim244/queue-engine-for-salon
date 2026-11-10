@@ -1536,6 +1536,7 @@ export const api = {
           convenienceFee: number;
           allowFreeBooking: boolean;
           cancellationCutoffHours: number;
+          isCustomized?: boolean;
         };
       }>(`/api/v1/salons/${slug}/appointments/policy`),
 
@@ -1547,6 +1548,15 @@ export const api = {
       }>(`/api/v1/salons/${slug}/appointments/policy`, {
         method: "PUT",
         body: JSON.stringify(policy),
+      }),
+
+    resetPolicyToDefault: (slug: string) =>
+      request<{
+        success: boolean;
+        message: string;
+        policy: any;
+      }>(`/api/v1/salons/${slug}/appointments/policy/reset`, {
+        method: "POST",
       }),
 
     getSlots: (slug: string, date: string, stylistId?: string) => {

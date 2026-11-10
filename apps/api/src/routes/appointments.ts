@@ -27,6 +27,16 @@ export const appointmentRoutes = new Elysia()
       return { success: false, error: 'Salon not found' };
     }
 
+    const policy = await repository.getSalonAppointmentPolicy(salon.id);
+    if (!policy.enabled) {
+      return {
+        date,
+        slots: [],
+        enabled: false,
+        message: 'Online appointments are currently disabled by this salon.',
+      };
+    }
+
     const standardTimeSlots = [
       '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
       '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
@@ -115,6 +125,22 @@ export const appointmentRoutes = new Elysia()
     };
   })
 
+  // 1a-3. Reset Salon Appointment Booking Policy to Platform Default
+  .post('/api/v1/salons/:slug/appointments/policy/reset', async ({ params, set }) => {
+    const salon = await repository.getSalonBySlug(params.slug);
+    if (!salon) {
+      set.status = 404;
+      return { success: false, error: 'Salon not found' };
+    }
+
+    const defaultPolicy = await repository.resetSalonAppointmentPolicy(salon.id);
+    return {
+      success: true,
+      message: 'Salon policy reset to platform defaults successfully',
+      policy: defaultPolicy,
+    };
+  })
+
   // 1b. Get Salon Appointments List (for Owner/Dashboard)
   .get('/api/v1/salons/:slug/appointments', async ({ params, query, set }) => {
     const salon = await repository.getSalonBySlug(params.slug);
@@ -197,6 +223,14 @@ export const appointmentRoutes = new Elysia()
       // Dynamic advance calculation based on salon booking policy set by Admin/Owner
       const policy = await repository.getSalonAppointmentPolicy(salon.id);
 
+      if (!policy.enabled) {
+        set.status = 400;
+        return {
+          success: false,
+          error: 'Online appointments are currently disabled by this salon. Please join the walk-in queue.',
+        };
+      }
+
       let advanceAmount = 0;
       let paymentMethod: any = 'RAZORPAY';
       let initialStatus: AppointmentStatus = 'PENDING_PAYMENT';
@@ -262,17 +296,21 @@ export const appointmentRoutes = new Elysia()
       if (initialStatus === 'CONFIRMED') {
         try {
           await queueEngine.recalculateQueue(salon.id);
-          websocketHub.broadcast(salon.id, 'APPOINTMENT_CONFIRMED', {
+          websocketHub.broadcastToSalon(salon.id, {
+            type: 'APPOINTMENT_CONFIRMED',
             appointmentId: apptId,
             customerName: appointment.customerName,
             slotTime: appointment.slotStartTime,
           });
-          await notificationService.sendTicketConfirmation({
-            customerName: appointment.customerName,
-            customerPhone: appointment.customerPhone,
-            ticketNumber: 0,
+          await notificationService.sendWhatsApp({
+            salonId: salon.id,
             salonName: salon.name,
-            estimatedWaitMinutes: 0,
+            ticketId: apptId,
+            recipientPhone: appointment.customerPhone,
+            recipientName: appointment.customerName,
+            type: 'TICKET_CONFIRMATION',
+            ticketNumber: 0,
+            customMessage: `Guaranteed Free Appointment Confirmed for ${appointment.slotStartTime} on ${appointment.scheduledDate}!`,
           });
         } catch (postErr) {
           console.warn('[appointments] Post-confirmation tasks warning:', postErr);

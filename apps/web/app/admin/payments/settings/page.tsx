@@ -353,7 +353,7 @@ export default function PaymentGatewaySettingsPage() {
               <CardContent className="space-y-4 pt-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-300">Advance Policy Model</label>
+                    <label className="text-xs font-semibold text-slate-300">Default Advance Policy Model</label>
                     <select
                       value={config.appointmentAdvanceType || "FIXED_TOKEN"}
                       onChange={(e) => setConfig({ ...config, appointmentAdvanceType: e.target.value as any })}
@@ -364,20 +364,61 @@ export default function PaymentGatewaySettingsPage() {
                       <option value="PERCENTAGE">Percentage of Total Service (%)</option>
                       <option value="FULL">100% Full Prepayment Required</option>
                     </select>
+                    <p className="text-[10px] text-slate-500">Platform default for all uncustomized salons.</p>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-300">Token Amount (₹)</label>
-                    <Input
-                      type="number"
-                      value={config.appointmentTokenAmount ?? 100}
-                      onChange={(e) => setConfig({ ...config, appointmentTokenAmount: Number(e.target.value) })}
-                      placeholder="100"
-                      disabled={config.appointmentAdvanceType === "FREE" || config.appointmentAdvanceType === "FULL"}
-                      className="bg-slate-950 border-slate-700 text-white font-mono text-xs"
-                    />
-                    <p className="text-[10px] text-slate-500">Set to 0 if you want bookings to be free.</p>
-                  </div>
+                  {config.appointmentAdvanceType === "PERCENTAGE" ? (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-slate-300">Advance Percentage (%)</label>
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          type="number"
+                          min={5}
+                          max={99}
+                          value={config.appointmentPercentage ?? 50}
+                          onChange={(e) => setConfig({ ...config, appointmentPercentage: Number(e.target.value) })}
+                          placeholder="50"
+                          className="bg-slate-950 border-slate-700 text-white font-mono text-xs w-20"
+                        />
+                        <div className="flex gap-1">
+                          {[20, 30, 40, 50].map((pct) => (
+                            <button
+                              key={pct}
+                              type="button"
+                              onClick={() => setConfig({ ...config, appointmentPercentage: pct })}
+                              className={`px-2 py-1 rounded-md text-[10px] font-bold border transition-colors ${
+                                config.appointmentPercentage === pct
+                                  ? "bg-amber-500 text-slate-950 border-amber-400 font-extrabold"
+                                  : "bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700"
+                              }`}
+                            >
+                              {pct}%
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-500">e.g. 30% or 40% upfront deposit.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-slate-300">Token Amount (₹)</label>
+                      <Input
+                        type="number"
+                        value={config.appointmentTokenAmount ?? 100}
+                        onChange={(e) => setConfig({ ...config, appointmentTokenAmount: Number(e.target.value) })}
+                        placeholder="100"
+                        disabled={config.appointmentAdvanceType === "FREE" || config.appointmentAdvanceType === "FULL"}
+                        className="bg-slate-950 border-slate-700 text-white font-mono text-xs"
+                      />
+                      <p className="text-[10px] text-slate-500">
+                        {config.appointmentAdvanceType === "FREE"
+                          ? "Free bookings (₹0 online advance)."
+                          : config.appointmentAdvanceType === "FULL"
+                          ? "100% full service prepayment."
+                          : "Fixed advance deposit per booking."}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-300">Platform Convenience Fee (₹)</label>

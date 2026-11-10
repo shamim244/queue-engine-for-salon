@@ -54,9 +54,11 @@ async function runMigrations() {
   const tables = [
     `CREATE TABLE IF NOT EXISTS salons (
         id VARCHAR(36) PRIMARY KEY,
+        organization_id VARCHAR(36) NULL,
         name VARCHAR(150) NOT NULL,
         slug VARCHAR(100) UNIQUE NOT NULL,
         phone VARCHAR(20) NOT NULL,
+        operating_mode VARCHAR(50) NULL DEFAULT NULL,
         country_code VARCHAR(5) DEFAULT '+91',
         currency VARCHAR(10) DEFAULT 'INR',
         address VARCHAR(255) NULL,
@@ -439,6 +441,7 @@ async function runMigrations() {
     `ALTER TABLE organizations MODIFY COLUMN tier ENUM('STARTER', 'PRO', 'ENTERPRISE') DEFAULT 'STARTER';`,
     `ALTER TABLE organizations ADD COLUMN plan_id VARCHAR(36) NULL;`,
     `ALTER TABLE salons ADD COLUMN organization_id VARCHAR(36) NULL;`,
+    `ALTER TABLE salons ADD COLUMN operating_mode VARCHAR(50) NULL DEFAULT NULL;`,
     `ALTER TABLE salons MODIFY COLUMN operating_mode VARCHAR(50) NULL DEFAULT NULL;`,
     `ALTER TABLE payment_orders MODIFY COLUMN provider ENUM('UPI_QR', 'CASH', 'RAZORPAY', 'WALLET') NOT NULL;`,
     `ALTER TABLE payment_orders MODIFY COLUMN status ENUM('PENDING', 'PENDING_APPROVAL', 'COMPLETED', 'FAILED', 'EXPIRED', 'REFUNDED', 'REJECTED') DEFAULT 'PENDING';`,

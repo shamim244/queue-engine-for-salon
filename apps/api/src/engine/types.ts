@@ -347,10 +347,11 @@ export interface AppointmentBookingPolicy {
   enabled: boolean;
   policyType: 'FREE' | 'FIXED_TOKEN' | 'PERCENTAGE' | 'FULL';
   tokenAmount: number; // e.g. 50, 100, 0
-  percentage?: number; // e.g. 50
+  percentage?: number; // e.g. 30, 40, 50
   convenienceFee: number; // e.g. 0
   allowFreeBooking: boolean;
   cancellationCutoffHours: number; // e.g. 2
+  isCustomized?: boolean; // true if salon owner customized, false if inheriting platform default
 }
 
 export interface Salon {

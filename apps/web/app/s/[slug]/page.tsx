@@ -40,6 +40,7 @@ export default function CustomerStorefrontPage({ params }: { params: Promise<{ s
 
   const [salon, setSalon] = useState<Salon | null>(null);
   const [activeTickets, setActiveTickets] = useState<Ticket[]>([]);
+  const [appointmentPolicy, setAppointmentPolicy] = useState<{ enabled: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchSalonAndQueue = async () => {
@@ -54,8 +55,14 @@ export default function CustomerStorefrontPage({ params }: { params: Promise<{ s
         }
       }
 
-      const queueRes = await api.queue.getActive(salonRes.salon.id);
+      const [queueRes, policyRes] = await Promise.all([
+        api.queue.getActive(salonRes.salon.id),
+        api.appointments.getPolicy(slug).catch(() => null),
+      ]);
       setActiveTickets(queueRes.tickets || []);
+      if (policyRes?.policy) {
+        setAppointmentPolicy(policyRes.policy);
+      }
     } catch (err) {
       console.error("Failed to load salon storefront:", err);
     } finally {
@@ -206,13 +213,15 @@ export default function CustomerStorefrontPage({ params }: { params: Promise<{ s
                   <span>Join Live Queue Now</span>
                 </Link>
 
-                <Link
-                  href={`/s/${slug}/book`}
-                  className="w-full min-h-[50px] bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-extrabold text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 active:scale-98 transition-all shadow-md"
-                >
-                  <Calendar className="h-4 w-4 text-amber-400" />
-                  <span>Book Guaranteed Slot (Skip Wait)</span>
-                </Link>
+                {appointmentPolicy?.enabled !== false && (
+                  <Link
+                    href={`/s/${slug}/book`}
+                    className="w-full min-h-[50px] bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-extrabold text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 active:scale-98 transition-all shadow-md"
+                  >
+                    <Calendar className="h-4 w-4 text-amber-400" />
+                    <span>Book Guaranteed Slot (Skip Wait)</span>
+                  </Link>
+                )}
               </div>
 
               <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/80">

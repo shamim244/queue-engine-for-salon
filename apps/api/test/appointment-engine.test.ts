@@ -658,4 +658,195 @@ describe('Hybrid Appointment Booking, Dynamic Buffer Interleaving & Escrow Payou
       expect(getData.summary.netTotal).toBeGreaterThanOrEqual(582.00);
     });
   });
+
+  describe('6. Dynamic Platform vs Salon Owner Advance Policy (30%, 40%, Free, Disabled & Reset)', () => {
+    it('should inherit Super Admin platform defaults when salon has not customized', async () => {
+      const res = await app.handle(
+        new Request(`http://localhost/api/v1/salons/${salonSlug}/appointments/policy`)
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+      expect(data.policy.isCustomized).toBe(false);
+    });
+
+    it('should allow Super Admin to set platform default percentage (e.g. 30%) and apply to uncustomized salons', async () => {
+      // Super Admin sets platform default to 30%
+      await repository.updateGatewaySettings({
+        appointmentAdvanceType: 'PERCENTAGE',
+        appointmentPercentage: 30,
+        appointmentConvenienceFee: 0,
+      });
+
+      const salon = await repository.getSalonBySlug(salonSlug);
+      const service = salon?.services[0]; // Assume e.g. basePrice = 200 or 150
+      const tomorrow = new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+      const initRes = await app.handle(
+        new Request('http://localhost/api/v1/appointments/initiate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            salonSlug,
+            serviceId: service?.id,
+            date: tomorrow,
+            slotTime: '15:00',
+            customerName: 'Rohit Platform Default',
+            customerPhone: '9876543201',
+          }),
+        })
+      );
+
+      expect(initRes.status).toBe(200);
+      const initData = await initRes.json();
+      const expectedAdvance = Math.round(((service?.basePrice || 200) * 30) / 100);
+      expect(initData.advanceAmount).toBe(expectedAdvance);
+    });
+
+    it('should allow Salon Owner to override platform default with custom 40% percentage', async () => {
+      // Salon Owner customizes their policy to 40%
+      const putRes = await app.handle(
+        new Request(`http://localhost/api/v1/salons/${salonSlug}/appointments/policy`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            policyType: 'PERCENTAGE',
+            percentage: 40,
+            enabled: true,
+          }),
+        })
+      );
+
+      expect(putRes.status).toBe(200);
+      const putData = await putRes.json();
+      expect(putData.policy.percentage).toBe(40);
+      expect(putData.policy.isCustomized).toBe(true);
+
+      // Verify booking collects exactly 40%
+      const salon = await repository.getSalonBySlug(salonSlug);
+      const service = salon?.services[0];
+      const targetDate = new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+      const initRes = await app.handle(
+        new Request('http://localhost/api/v1/appointments/initiate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            salonSlug,
+            serviceId: service?.id,
+            date: targetDate,
+            slotTime: '15:30',
+            customerName: 'Anita Custom Owner',
+            customerPhone: '9876543202',
+          }),
+        })
+      );
+
+      expect(initRes.status).toBe(200);
+      const initData = await initRes.json();
+      const expectedAdvance = Math.round(((service?.basePrice || 200) * 40) / 100);
+      expect(initData.advanceAmount).toBe(expectedAdvance);
+    });
+
+    it('should allow Salon Owner to set policy to FREE (₹0 advance / pay at salon)', async () => {
+      const putRes = await app.handle(
+        new Request(`http://localhost/api/v1/salons/${salonSlug}/appointments/policy`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            policyType: 'FREE',
+            enabled: true,
+          }),
+        })
+      );
+
+      expect(putRes.status).toBe(200);
+
+      const salon = await repository.getSalonBySlug(salonSlug);
+      const service = salon?.services[0];
+      const targetDate = new Date(Date.now() + 4 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+      const initRes = await app.handle(
+        new Request('http://localhost/api/v1/appointments/initiate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            salonSlug,
+            serviceId: service?.id,
+            date: targetDate,
+            slotTime: '16:00',
+            customerName: 'Free Booking Customer',
+            customerPhone: '9876543203',
+          }),
+        })
+      );
+
+      expect(initRes.status).toBe(200);
+      const initData = await initRes.json();
+      expect(initData.advanceAmount).toBe(0);
+      expect(initData.appointment.paymentMethod).toBe('PAY_AT_SALON');
+      expect(initData.appointment.status).toBe('CONFIRMED');
+    });
+
+    it('should allow Salon Owner to turn off appointments completely (enabled: false)', async () => {
+      // Salon Owner disables appointments
+      const putRes = await app.handle(
+        new Request(`http://localhost/api/v1/salons/${salonSlug}/appointments/policy`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enabled: false,
+          }),
+        })
+      );
+
+      expect(putRes.status).toBe(200);
+
+      // Verify slots endpoint returns empty slots and enabled: false
+      const slotsRes = await app.handle(
+        new Request(`http://localhost/api/v1/salons/${salonSlug}/appointments/slots?date=2026-11-20`)
+      );
+      expect(slotsRes.status).toBe(200);
+      const slotsData = await slotsRes.json();
+      expect(slotsData.enabled).toBe(false);
+      expect(slotsData.slots.length).toBe(0);
+
+      // Verify initiate fails with HTTP 400
+      const salon = await repository.getSalonBySlug(salonSlug);
+      const service = salon?.services[0];
+
+      const initRes = await app.handle(
+        new Request('http://localhost/api/v1/appointments/initiate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            salonSlug,
+            serviceId: service?.id,
+            date: '2026-11-20',
+            slotTime: '16:30',
+            customerName: 'Blocked User',
+            customerPhone: '9876543204',
+          }),
+        })
+      );
+
+      expect(initRes.status).toBe(400);
+      const initData = await initRes.json();
+      expect(initData.error).toContain('disabled');
+    });
+
+    it('should allow Salon Owner to reset custom policy back to platform defaults', async () => {
+      const resetRes = await app.handle(
+        new Request(`http://localhost/api/v1/salons/${salonSlug}/appointments/policy/reset`, {
+          method: 'POST',
+        })
+      );
+
+      expect(resetRes.status).toBe(200);
+      const resetData = await resetRes.json();
+      expect(resetData.success).toBe(true);
+      expect(resetData.policy.isCustomized).toBe(false);
+      expect(resetData.policy.enabled).toBe(true);
+    });
+  });
 });

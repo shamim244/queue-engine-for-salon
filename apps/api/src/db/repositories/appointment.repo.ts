@@ -630,7 +630,9 @@ export const appointmentRepo = {
 
   async getSalonAppointmentPolicy(salonId: string): Promise<AppointmentBookingPolicy> {
     const existing = (memoryStore as any).appointmentPolicies?.get(salonId);
-    if (existing) return existing;
+    if (existing && existing.isCustomized) {
+      return existing;
+    }
 
     const gw = (memoryStore as any).gatewaySettings || defaultPaymentGatewaySettings;
 
@@ -642,12 +644,9 @@ export const appointmentRepo = {
       convenienceFee: typeof gw.appointmentConvenienceFee === 'number' ? gw.appointmentConvenienceFee : 0,
       allowFreeBooking: typeof gw.appointmentAllowFreeBooking === 'boolean' ? gw.appointmentAllowFreeBooking : true,
       cancellationCutoffHours: 2,
+      isCustomized: false,
     };
 
-    if (!(memoryStore as any).appointmentPolicies) {
-      (memoryStore as any).appointmentPolicies = new Map<string, AppointmentBookingPolicy>();
-    }
-    (memoryStore as any).appointmentPolicies.set(salonId, defaultPolicy);
     return defaultPolicy;
   },
 
@@ -659,9 +658,14 @@ export const appointmentRepo = {
     const updated: AppointmentBookingPolicy = {
       ...current,
       ...policy,
+      enabled: typeof policy.enabled === 'boolean' ? policy.enabled : current.enabled,
       tokenAmount: typeof policy.tokenAmount === 'number' ? policy.tokenAmount : current.tokenAmount,
+      percentage: typeof policy.percentage === 'number' ? policy.percentage : current.percentage,
       convenienceFee: typeof policy.convenienceFee === 'number' ? policy.convenienceFee : current.convenienceFee,
+      allowFreeBooking: typeof policy.allowFreeBooking === 'boolean' ? policy.allowFreeBooking : current.allowFreeBooking,
+      cancellationCutoffHours: typeof policy.cancellationCutoffHours === 'number' ? policy.cancellationCutoffHours : current.cancellationCutoffHours,
       policyType: policy.policyType || current.policyType,
+      isCustomized: true,
     };
 
     if (!(memoryStore as any).appointmentPolicies) {
@@ -669,5 +673,12 @@ export const appointmentRepo = {
     }
     (memoryStore as any).appointmentPolicies.set(salonId, updated);
     return updated;
+  },
+
+  async resetSalonAppointmentPolicy(salonId: string): Promise<AppointmentBookingPolicy> {
+    if ((memoryStore as any).appointmentPolicies) {
+      (memoryStore as any).appointmentPolicies.delete(salonId);
+    }
+    return this.getSalonAppointmentPolicy(salonId);
   },
 };

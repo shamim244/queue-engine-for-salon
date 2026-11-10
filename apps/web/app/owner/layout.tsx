@@ -22,6 +22,7 @@ import {
   Armchair,
   Banknote,
   CreditCard,
+  CalendarCheck,
   TicketPercent,
   Gift,
   Radio,
@@ -100,6 +101,7 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
         { label: "Live Station", href: `/owner/station?salon=${currentSlug}`, icon: Armchair },
         { label: "Staff & Users", href: `/owner/staff?salon=${currentSlug}`, icon: Users },
         { label: "Services & Catalog", href: `/owner/services?salon=${currentSlug}`, icon: Tag },
+        { label: "Appointment Policy", href: `/owner/appointments?salon=${currentSlug}`, icon: CalendarCheck },
       ],
     },
     {

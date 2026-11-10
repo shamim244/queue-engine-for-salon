@@ -23,6 +23,7 @@ import {
   Banknote,
   Check,
   Info,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -160,6 +161,20 @@ export default function BookAppointmentPage({
   const advanceAmount = computeAdvanceAmount();
   const isFreeBooking = advanceAmount === 0;
 
+  const configuredAdvanceAmount =
+    policy.policyType === "PERCENTAGE"
+      ? Math.max(0, Math.round((totalPrice * (policy.percentage || 40)) / 100))
+      : policy.policyType === "FULL"
+      ? totalPrice
+      : Math.min(totalPrice, policy.tokenAmount || 100);
+
+  const advanceLabel =
+    policy.policyType === "PERCENTAGE"
+      ? `₹${configuredAdvanceAmount} (${policy.percentage || 40}% Advance)`
+      : policy.policyType === "FULL"
+      ? `₹${totalPrice} (Full Price)`
+      : `₹${configuredAdvanceAmount} Advance`;
+
   const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedService || !selectedSlot) {
@@ -217,6 +232,37 @@ export default function BookAppointmentPage({
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+      </div>
+    );
+  }
+
+  if (!policy.enabled) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full p-6 sm:p-8 rounded-3xl bg-slate-900 border border-slate-800 text-center space-y-4 shadow-2xl">
+          <div className="h-16 w-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 mx-auto flex items-center justify-center shadow-lg shadow-amber-500/10">
+            <Clock className="h-8 w-8" />
+          </div>
+          <h2 className="text-xl font-bold text-white tracking-tight">Appointments Currently Paused</h2>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            {salon?.name || "This salon"} is currently accepting walk-in clients only via their live queue. You can join the live queue right now from your phone.
+          </p>
+          <div className="pt-2 flex flex-col gap-2.5">
+            <Link
+              href={`/s/${slug}/queue`}
+              className="w-full min-h-[48px] rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20 active:scale-95"
+            >
+              <Zap className="h-4 w-4 fill-slate-950" />
+              <span>Join Live Walk-in Queue</span>
+            </Link>
+            <Link
+              href={`/s/${slug}`}
+              className="w-full min-h-[44px] rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs flex items-center justify-center transition-all active:scale-95"
+            >
+              <span>Back to Salon Frontpage</span>
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -541,7 +587,7 @@ export default function BookAppointmentPage({
                   >
                     <span className="text-xs font-bold text-white">Prepay Advance</span>
                     <span className="text-[11px] text-amber-400 font-semibold font-mono">
-                      ₹{Math.min(totalPrice, policy.tokenAmount || 100)} Advance
+                      {advanceLabel}
                     </span>
                   </button>
                 </div>
@@ -558,7 +604,7 @@ export default function BookAppointmentPage({
                   >
                     <span className="text-xs font-bold text-white">Booking Deposit</span>
                     <span className="text-[11px] text-amber-400 font-semibold font-mono">
-                      ₹{Math.min(totalPrice, policy.tokenAmount || 100)} Advance
+                      {advanceLabel}
                     </span>
                   </button>
 

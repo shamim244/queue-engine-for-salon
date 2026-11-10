@@ -6,6 +6,7 @@ import { queueRepo } from './queue.repo';
 import { analyticsRepo } from './analytics.repo';
 import { planRepo, invalidatePlanCache } from './plan.repo';
 import { appointmentRepo } from './appointment.repo';
+import { paymentRepo } from './payment.repo';
 import {
   defaultPlatformSettings,
   defaultAuditLogs,
@@ -176,6 +177,10 @@ export const repository = {
   getSalonAppointmentPolicy: (salonId: string) => appointmentRepo.getSalonAppointmentPolicy(salonId),
   updateSalonAppointmentPolicy: (salonId: string, policy: Parameters<typeof appointmentRepo.updateSalonAppointmentPolicy>[1]) =>
     appointmentRepo.updateSalonAppointmentPolicy(salonId, policy),
+  resetSalonAppointmentPolicy: (salonId: string) => appointmentRepo.resetSalonAppointmentPolicy(salonId),
+  getGatewaySettings: () => paymentRepo.getGatewaySettings(),
+  updateGatewaySettings: (patch: Parameters<typeof paymentRepo.updateGatewaySettings>[0]) =>
+    paymentRepo.updateGatewaySettings(patch),
 };
 
 export {

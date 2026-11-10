@@ -5,9 +5,11 @@ USE engine_que_salon;
 -- 1. Salons
 CREATE TABLE IF NOT EXISTS salons (
     id VARCHAR(36) PRIMARY KEY,
+    organization_id VARCHAR(36) NULL,
     name VARCHAR(150) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
     phone VARCHAR(20) NOT NULL,
+    operating_mode VARCHAR(50) NULL DEFAULT NULL,
     country_code VARCHAR(5) DEFAULT '+91',
     currency VARCHAR(10) DEFAULT 'INR',
     address VARCHAR(255) NULL,
