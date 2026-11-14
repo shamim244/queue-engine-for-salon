@@ -7,6 +7,8 @@ import { analyticsRepo } from './analytics.repo';
 import { planRepo, invalidatePlanCache } from './plan.repo';
 import { appointmentRepo } from './appointment.repo';
 import { paymentRepo } from './payment.repo';
+import { partnerRepo } from './partner.repo';
+import { securityRepo } from './security.repo';
 import {
   defaultPlatformSettings,
   defaultAuditLogs,
@@ -192,6 +194,8 @@ export {
   analyticsRepo,
   planRepo,
   appointmentRepo,
+  partnerRepo,
+  securityRepo,
   invalidatePlanCache,
   defaultPlatformSettings,
   defaultAuditLogs,

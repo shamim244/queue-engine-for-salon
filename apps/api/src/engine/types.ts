@@ -62,6 +62,21 @@ export interface PaymentGatewaySettings {
   updatedAt?: Date | string;
 }
 
+export interface SecuritySettings {
+  id: string;
+  pinMaxAttempts: number;
+  pinWindowSeconds: number;
+  loginMaxAttempts: number;
+  loginWindowSeconds: number;
+  checkinMaxAttempts: number;
+  checkinWindowSeconds: number;
+  allowedCustomOrigins: string[];
+  defaultCountryCode: string;
+  allowedCountryCodes: string[];
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}
+
 export interface PaymentOrder {
   id: string;
   targetType: PaymentTargetType;
@@ -493,6 +508,7 @@ export interface OnboardSalonPayload {
   organizationName?: string;
   organizationSlug?: string;
   tier?: SubscriptionTier;
+  partnerCode?: string;
   ownerUser?: {
     username: string;
     password: string;
@@ -582,4 +598,129 @@ export interface SalonPayoutRecord {
   settledAt?: Date | string | null;
   createdAt?: Date | string;
 }
+
+export type PartnerPersona = 'CREATOR' | 'GROUND_HUSTLER' | 'SALON_OWNER' | 'DEDICATED';
+export type PartnerStatus = 'PENDING_REVIEW' | 'ACTIVE' | 'PAUSED' | 'REJECTED';
+export type PartnerCommissionModel = 'RECURRING_PERCENT' | 'FLAT_BOUNTY' | 'HYBRID';
+export type PartnerDurationType = 'LIFETIME' | '3_MONTHS' | '6_MONTHS' | '12_MONTHS';
+export type PartnerAccountType = 'SAVINGS' | 'CURRENT';
+
+export interface Partner {
+  id: string;
+  userId?: string | null;
+  fullName: string;
+  phone: string;
+  email?: string | null;
+  passwordHash?: string | null;
+  city: string;
+  persona: PartnerPersona;
+  referralCode: string;
+  status: PartnerStatus;
+  commissionModel: PartnerCommissionModel;
+  commissionPercent: number;
+  bountyAmount: number;
+  durationType: PartnerDurationType;
+  durationEndDate?: Date | string | null;
+  isCommissionPaused: boolean;
+  payoutUpiId?: string | null;
+  payoutHolderName?: string | null;
+  payoutBankName?: string | null;
+  payoutBankAccount?: string | null;
+  payoutBankIfsc?: string | null;
+  payoutAccountType?: PartnerAccountType;
+  pitchNotes?: string | null;
+  hasPassword?: boolean;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}
+
+export type PartnerAttributionSource = 'LINK' | 'PROMO_CODE' | 'ASSISTED_ONBOARDING' | 'ADMIN_ASSIGNED';
+export type PartnerQualificationStatus = 'UNQUALIFIED' | 'QUALIFIED';
+
+export interface PartnerSalonAttribution {
+  id: string;
+  partnerId: string;
+  salonId: string;
+  source: PartnerAttributionSource;
+  qualificationStatus: PartnerQualificationStatus;
+  ticketsCompletedCount: number;
+  firstPaidPlanAt?: Date | string | null;
+  commissionExpiresAt?: Date | string | null;
+  createdAt?: Date | string;
+}
+
+export type PartnerLedgerTransactionType = 'COMMISSION_CREDIT' | 'BOUNTY_CREDIT' | 'WITHDRAWAL_DEBIT' | 'ADJUSTMENT';
+export type PartnerBalanceType = 'PENDING_LOCK' | 'AVAILABLE';
+
+export interface PartnerWalletLedgerEntry {
+  id: string;
+  partnerId: string;
+  salonId?: string | null;
+  transactionType: PartnerLedgerTransactionType;
+  grossPlanAmount: number;
+  discountAmount: number;
+  netPaidAmount: number;
+  commissionAmount: number;
+  balanceType: PartnerBalanceType;
+  description: string;
+  referenceId?: string | null;
+  createdAt?: Date | string;
+}
+
+export type PartnerPayoutMethod = 'UPI' | 'BANK_TRANSFER';
+export type PartnerPayoutStatus = 'REQUESTED' | 'APPROVED' | 'PAID' | 'REJECTED';
+
+export interface PartnerPayoutRequest {
+  id: string;
+  partnerId: string;
+  amount: number;
+  payoutMethod: PartnerPayoutMethod;
+  payoutTarget: string;
+  status: PartnerPayoutStatus;
+  utrReference?: string | null;
+  adminNotes?: string | null;
+  requestedAt?: Date | string;
+  settledAt?: Date | string | null;
+}
+
+export type PartnerNotificationType = 'SALON_JOINED' | 'EARNING_CREDITED' | 'QUALIFIED' | 'PAYOUT_STATUS' | 'SYSTEM';
+
+export interface PartnerNotification {
+  id: string;
+  partnerId: string;
+  title: string;
+  message: string;
+  type: PartnerNotificationType;
+  isRead: boolean;
+  createdAt?: Date | string;
+}
+
+export interface PartnerWalletBalance {
+  availableBalance: number;
+  pendingLockedBalance: number;
+  totalWithdrawn: number;
+  lifetimeEarnings: number;
+}
+
+export interface PartnerProgramSettings {
+  defaultCommissionModel: PartnerCommissionModel;
+  defaultCommissionPercent: number;
+  defaultBountyAmount: number;
+  defaultDurationType: PartnerDurationType;
+  defaultReferralDiscountPercent: number;
+  qualificationTicketsThreshold: number;
+  minPayoutThreshold: number;
+  autoApprovePartners: boolean;
+}
+
+export interface PartnerMarketingContent {
+  pitchScriptHindi: string;
+  pitchScriptEnglish: string;
+  whatsappInviteTemplate: string;
+  objectionHandling: Array<{ objection: string; response: string }>;
+  posterHeadline: string;
+  posterSubheadline: string;
+  posterBulletPoints: string[];
+}
+
 

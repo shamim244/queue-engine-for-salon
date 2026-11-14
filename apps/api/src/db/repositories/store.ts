@@ -20,6 +20,14 @@ import type {
   PaymentGatewaySettings,
   Appointment,
   SalonPayoutRecord,
+  Partner,
+  PartnerSalonAttribution,
+  PartnerWalletLedgerEntry,
+  PartnerPayoutRequest,
+  PartnerNotification,
+  PartnerProgramSettings,
+  PartnerMarketingContent,
+  SecuritySettings,
 } from '../../engine/types';
 
 export const defaultPlatformSettings: PlatformSettings = {
@@ -51,6 +59,62 @@ export const defaultPlatformSettings: PlatformSettings = {
   pwa: {
     autoInstallPrompt: false,
   },
+};
+
+export const defaultPartnerProgramSettings: PartnerProgramSettings = {
+  defaultCommissionModel: 'RECURRING_PERCENT',
+  defaultCommissionPercent: 10,
+  defaultBountyAmount: 0,
+  defaultDurationType: '6_MONTHS',
+  defaultReferralDiscountPercent: 10,
+  qualificationTicketsThreshold: 15,
+  minPayoutThreshold: 500,
+  autoApprovePartners: false,
+};
+
+export const defaultPartnerMarketingContent: PartnerMarketingContent = {
+  pitchScriptHindi: `Namaste Bhai Sahab! Main Engine Que se hoon. 
+
+Aapke salon mein Sunday ko bohot bheed hoti hai na? Customers wait karke doosri dukaan pe chale jaate hain.
+
+Hum aapke salon ko 2 minute mein digital bana dete hain:
+1. Customer bahar se hi WhatsApp ya QR scan karke apna queue number le sakta hai.
+2. Chair khali hone se 3 minute pehle customer ko automatic WhatsApp alert milta hai.
+3. Chote haircuts se leke advance appointments aur UPI receipts sab auto manage hota hai!
+
+Aapka 1 bhi customer wait karke wapas nahi lautega. Chaliye main aapke phone pe abhi 2 minute mein live karke dikhaata hoon!`,
+  pitchScriptEnglish: `Hello Sir! I am representing Engine Que.
+
+Do you lose salon customers during peak hours because they see a crowded waiting lounge?
+
+We digitize your salon in just 2 minutes:
+1. Customers join your live queue remotely by scanning your QR code or WhatsApp.
+2. They get real-time SMS/WhatsApp alerts when their chair is 3 minutes away.
+3. Manage walk-ins, digital appointments, and UPI billing effortlessly!
+
+Let me activate your salon right now on your smartphone in under 2 minutes!`,
+  whatsappInviteTemplate: `💈 Namaste! Transform your salon operations with Engine Que. Get live queue management, automated WhatsApp customer alerts, and zero walkaway clients. Register with my partner code for an exclusive 10% discount on your first subscription: {{REFERRAL_LINK}}`,
+  objectionHandling: [
+    {
+      objection: 'Mera salon chota hai, mujhe software ki zaroorat nahi hai.',
+      response: 'Chote salon mein hi customer wait nahi karna chahta. Jab customer bahar chai peete hue queue track karega, toh aapka salon bada aur professional lagega bina kisi extra kharche ke.',
+    },
+    {
+      objection: 'Mere barbers technology nahi samajhte.',
+      response: "Isme kuch type nahi karna! Sirf ek green button dabana hai: 'Call Next'. Baaki sara WhatsApp alert aur calculation system apne aap karta hai.",
+    },
+    {
+      objection: 'Kya iske liye internet connection compulsory hai?',
+      response: 'Yeh basic 3G/4G mobile internet pe seamlessly chalta hai. Agar internet fluctuate bhi hota hai, tab bhi offline ticket counter chalu rehta hai.',
+    },
+  ],
+  posterHeadline: 'Wait in Comfort, Never in Line',
+  posterSubheadline: 'Scan QR to get your live queue number and step into your barber chair right on time.',
+  posterBulletPoints: [
+    'Real-time WhatsApp chair-ready alerts',
+    'Digital token booking from anywhere',
+    'Zero waiting room crowding',
+  ],
 };
 
 export const defaultAuditLogs: AuditLog[] = [
@@ -99,6 +163,21 @@ export const defaultPaymentGatewaySettings: PaymentGatewaySettings = {
   updatedAt: new Date().toISOString(),
 };
 
+export const defaultSecuritySettings: SecuritySettings = {
+  id: 'default_security_settings',
+  pinMaxAttempts: 5,
+  pinWindowSeconds: 900,
+  loginMaxAttempts: 10,
+  loginWindowSeconds: 900,
+  checkinMaxAttempts: 10,
+  checkinWindowSeconds: 300,
+  allowedCustomOrigins: [],
+  defaultCountryCode: '+91',
+  allowedCountryCodes: ['+91', '+1', '+44', '+971', '+65'],
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
 // In-Memory fallback store
 export const memoryStore = {
   organizations: new Map<string, Organization>(),
@@ -119,7 +198,15 @@ export const memoryStore = {
   referralAttributions: new Map<string, ReferralAttribution>(),
   appointments: new Map<string, Appointment>(),
   payoutRecords: new Map<string, SalonPayoutRecord>(),
+  partners: new Map<string, Partner>(),
+  partnerAttributions: new Map<string, PartnerSalonAttribution>(),
+  partnerLedger: new Map<string, PartnerWalletLedgerEntry>(),
+  partnerPayouts: new Map<string, PartnerPayoutRequest>(),
+  partnerNotifications: new Map<string, PartnerNotification>(),
+  partnerProgramSettings: { ...defaultPartnerProgramSettings } as PartnerProgramSettings,
+  partnerMarketingContent: { ...defaultPartnerMarketingContent } as PartnerMarketingContent,
   gatewaySettings: { ...defaultPaymentGatewaySettings } as PaymentGatewaySettings,
+  securitySettings: { ...defaultSecuritySettings } as SecuritySettings,
   settings: JSON.parse(JSON.stringify(defaultPlatformSettings)) as PlatformSettings,
   auditLogs: [...defaultAuditLogs] as AuditLog[],
   maintenanceMode: {
@@ -188,6 +275,11 @@ export function seedDemoData() {
   memoryStore.plans.clear();
   memoryStore.appointments.clear();
   memoryStore.payoutRecords.clear();
+  memoryStore.partners.clear();
+  memoryStore.partnerAttributions.clear();
+  memoryStore.partnerLedger.clear();
+  memoryStore.partnerPayouts.clear();
+  memoryStore.partnerNotifications.clear();
   memoryStore.settings = JSON.parse(JSON.stringify(defaultPlatformSettings));
   memoryStore.auditLogs = [...defaultAuditLogs];
   memoryStore.maintenanceMode = {
