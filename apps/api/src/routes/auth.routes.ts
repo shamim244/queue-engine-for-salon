@@ -4,10 +4,12 @@ import { repository } from '../db/repository';
 import { isMySqlConnected, getDb } from '../db/mysql';
 import { queueEngine } from '../engine/queue-engine';
 import { websocketHub } from '../websocket/hub';
+import { rateLimiter } from '../security/rate-limiter';
+import { securityRepo } from '../db/repositories/security.repo';
 
 export const authRoutes = new Elysia({ prefix: '/api/auth' })
   // 1. User Login (Super Admin, Owner, Staff via Username, Phone, or Email)
-  .post('/login', async ({ body, set, cookie: { engine_session } }) => {
+  .post('/login', async ({ body, headers, set, cookie: { engine_session } }) => {
     const b = body as { identifier?: string; username?: string; password: string };
     const identifier = b.identifier || b.username;
     if (!identifier) {
@@ -15,11 +17,30 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
       return { message: 'Username, phone number, or email is required' };
     }
 
+    const clientIp = rateLimiter.getClientIp(headers);
+    const rateKey = `login:${clientIp}:${identifier.toLowerCase()}`;
+    const securitySettings = await securityRepo.getSettings();
+
+    const blockCheck = rateLimiter.isBlocked(rateKey, securitySettings.loginMaxAttempts, securitySettings.loginWindowSeconds);
+    if (!blockCheck.allowed) {
+      set.status = 429;
+      set.headers['Retry-After'] = String(blockCheck.retryAfter || 60);
+      return { message: `Too many failed login attempts. Please wait ${blockCheck.retryAfter} seconds before trying again.` };
+    }
+
     const authContext = await authService.authenticateUser(identifier, b.password);
     if (!authContext) {
+      const attempt = rateLimiter.checkLimit(rateKey, securitySettings.loginMaxAttempts, securitySettings.loginWindowSeconds);
+      if (!attempt.allowed) {
+        set.status = 429;
+        set.headers['Retry-After'] = String(attempt.retryAfter || 60);
+        return { message: `Too many failed login attempts. Please wait ${attempt.retryAfter} seconds before trying again.` };
+      }
       set.status = 401;
       return { message: 'Invalid credentials' };
     }
+
+    rateLimiter.reset(rateKey);
 
     // Set HTTP-Only 30-Day Session Cookie
     engine_session.value = authContext.session.token;
@@ -56,13 +77,34 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
   })
 
   // 2. Rapid 4-Digit PIN Switch (Shared Mirror Tablet)
-  .post('/pin-switch', async ({ body, set, cookie: { engine_session } }) => {
+  .post('/pin-switch', async ({ body, headers, set, cookie: { engine_session } }) => {
     const { salonId, staffId, pin } = body as { salonId: string; staffId: string; pin: string };
+
+    const clientIp = rateLimiter.getClientIp(headers);
+    const rateKey = `pin:${clientIp}:${salonId}:${staffId}`;
+    const securitySettings = await securityRepo.getSettings();
+
+    // Check if client is currently blocked
+    const blockCheck = rateLimiter.isBlocked(rateKey, securitySettings.pinMaxAttempts, securitySettings.pinWindowSeconds);
+    if (!blockCheck.allowed) {
+      set.status = 429;
+      set.headers['Retry-After'] = String(blockCheck.retryAfter || 60);
+      return { message: `Too many failed PIN attempts. Please wait ${blockCheck.retryAfter} seconds before trying again.` };
+    }
+
     const authContext = await authService.authenticateByPin(salonId, staffId, pin);
     if (!authContext) {
+      const attempt = rateLimiter.checkLimit(rateKey, securitySettings.pinMaxAttempts, securitySettings.pinWindowSeconds);
+      if (!attempt.allowed) {
+        set.status = 429;
+        set.headers['Retry-After'] = String(attempt.retryAfter || 60);
+        return { message: `Too many failed PIN attempts. Please wait ${attempt.retryAfter} seconds before trying again.` };
+      }
       set.status = 401;
-      return { message: 'Invalid 4-digit PIN for this stylist' };
+      return { message: `Invalid 4-digit PIN for this stylist (${attempt.remaining} attempts remaining)` };
     }
+
+    rateLimiter.reset(rateKey);
 
     engine_session.value = authContext.session.token;
     engine_session.httpOnly = true;

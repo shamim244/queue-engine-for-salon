@@ -3,11 +3,23 @@ import { queueEngine } from '../engine/queue-engine';
 import { repository } from '../db/repository';
 import { notificationService } from '../notifications/whatsapp';
 import { authService } from '../auth/auth-service';
+import { rateLimiter } from '../security/rate-limiter';
+import { securityRepo } from '../db/repositories/security.repo';
 
 export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   // 1. Customer Check-in via Door QR
-  .post('/checkin', async ({ body, set }) => {
+  .post('/checkin', async ({ body, headers, set }) => {
     try {
+      const clientIp = rateLimiter.getClientIp(headers);
+      const rateKey = `checkin:${clientIp}`;
+      const securitySettings = await securityRepo.getSettings();
+      const attempt = rateLimiter.checkLimit(rateKey, securitySettings.checkinMaxAttempts, securitySettings.checkinWindowSeconds);
+      if (!attempt.allowed) {
+        set.status = 429;
+        set.headers['Retry-After'] = String(attempt.retryAfter || 60);
+        return { message: `Too many check-in requests. Please wait ${attempt.retryAfter} seconds.` };
+      }
+
       const ticket = await queueEngine.checkIn(body as any);
       return { success: true, ticket };
     } catch (err: any) {
