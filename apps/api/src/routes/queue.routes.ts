@@ -5,6 +5,7 @@ import { notificationService } from '../notifications/whatsapp';
 import { authService } from '../auth/auth-service';
 import { rateLimiter } from '../security/rate-limiter';
 import { securityRepo } from '../db/repositories/security.repo';
+import { parseAndValidateMobile } from '../security/phone-validator';
 
 export const queueRoutes = new Elysia({ prefix: '/api/queue' })
   // 1. Customer Check-in via Door QR
@@ -20,6 +21,15 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
         return { message: `Too many check-in requests. Please wait ${attempt.retryAfter} seconds.` };
       }
 
+      if (body.customerPhone) {
+        const phoneCheck = parseAndValidateMobile(body.customerPhone);
+        if (!phoneCheck.isValid) {
+          set.status = 400;
+          return { message: phoneCheck.error || 'Invalid 10-digit mobile number' };
+        }
+        body.customerPhone = phoneCheck.normalizedPhone;
+      }
+
       const ticket = await queueEngine.checkIn(body as any);
       return { success: true, ticket };
     } catch (err: any) {
@@ -28,18 +38,27 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
     }
   }, {
     body: t.Object({
-      salonSlug: t.String(),
-      customerName: t.String(),
-      customerPhone: t.Optional(t.String()),
-      serviceId: t.String(),
-      addOnIds: t.Optional(t.Array(t.String())),
-      stylistId: t.Optional(t.Nullable(t.String())),
+      salonSlug: t.String({ maxLength: 100 }),
+      customerName: t.String({ minLength: 1, maxLength: 80 }),
+      customerPhone: t.Optional(t.String({ maxLength: 25 })),
+      serviceId: t.String({ maxLength: 64 }),
+      addOnIds: t.Optional(t.Array(t.String({ maxLength: 64 }), { maxItems: 10 })),
+      stylistId: t.Optional(t.Nullable(t.String({ maxLength: 64 }))),
     })
   })
 
   // 2. Barber 1-Tap Quick Add (for zero-tech or elderly walk-ins)
   .post('/quick-add', async ({ body, set }) => {
     try {
+      if (body.customerPhone) {
+        const phoneCheck = parseAndValidateMobile(body.customerPhone);
+        if (!phoneCheck.isValid) {
+          set.status = 400;
+          return { message: phoneCheck.error || 'Invalid 10-digit mobile number' };
+        }
+        body.customerPhone = phoneCheck.normalizedPhone;
+      }
+
       const ticket = await queueEngine.barberQuickAdd(body as any);
       return { success: true, ticket };
     } catch (err: any) {
@@ -48,10 +67,10 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
     }
   }, {
     body: t.Object({
-      salonSlug: t.String(),
-      customerName: t.String(),
-      customerPhone: t.Optional(t.String()),
-      serviceId: t.Optional(t.String()),
+      salonSlug: t.String({ maxLength: 100 }),
+      customerName: t.String({ minLength: 1, maxLength: 80 }),
+      customerPhone: t.Optional(t.String({ maxLength: 25 })),
+      serviceId: t.Optional(t.String({ maxLength: 64 })),
     })
   })
 
