@@ -1,6 +1,7 @@
 import { isMySqlConnected, getDb } from '../db/mysql';
 import { repository } from '../db/repository';
 import type { User, UserRole, UserStatus, Customer, Session, Organization, Salon, Stylist } from '../engine/types';
+import { generateSecureId } from '../security/id-generator';
 
 // In-Memory user & session storage fallback
 const memoryUsers = new Map<string, User>();
@@ -61,7 +62,7 @@ export const authService = {
       throw new Error(`Username '${cleanUsername}' is already taken.`);
     }
 
-    const id = 'usr-' + Math.random().toString(36).substring(2, 9);
+    const id = generateSecureId('usr-', 8);
     const passwordHash = await this.hashPassword(params.password);
     const pinHash = params.pin ? await this.hashPin(params.pin) : null;
 
@@ -181,7 +182,7 @@ export const authService = {
 
   // 5. Stateful Session Management (Zero-Trust Session Tokens)
   async createSession(userId: string, metadata?: { ip?: string; userAgent?: string }): Promise<Session> {
-    const id = 'sess-' + Math.random().toString(36).substring(2, 9);
+    const id = generateSecureId('sess-', 10);
     // 64-character crypto token
     const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30-day session
@@ -211,39 +212,47 @@ export const authService = {
   },
 
   async validateSession(token: string): Promise<AuthenticatedUser | null> {
-    let session: Session | null = null;
+    let session: Session | null = memorySessions.get(token) || null;
 
-    if (isMySqlConnected) {
-      const db = getDb();
-      const [rows]: any = await db.query(
-        'SELECT * FROM sessions WHERE token = ? AND expires_at > NOW() LIMIT 1',
-        [token]
-      );
-      if (rows.length > 0) {
-        const r = rows[0];
-        session = {
-          id: r.id,
-          userId: r.user_id,
-          token: r.token,
-          ipAddress: r.ip_address,
-          userAgent: r.user_agent,
-          expiresAt: r.expires_at,
-          createdAt: r.created_at,
-        };
-      }
-    } else {
-      const found = memorySessions.get(token);
-      if (found && new Date(found.expiresAt).getTime() > Date.now()) {
-        session = found;
+    if (!session && isMySqlConnected) {
+      try {
+        const db = getDb();
+        const [rows]: any = await db.query(
+          'SELECT * FROM sessions WHERE token = ? AND expires_at > NOW() LIMIT 1',
+          [token]
+        );
+        if (rows.length > 0) {
+          const r = rows[0];
+          session = {
+            id: r.id,
+            userId: r.user_id,
+            token: r.token,
+            ipAddress: r.ip_address,
+            userAgent: r.user_agent,
+            expiresAt: r.expires_at,
+            createdAt: r.created_at,
+          };
+          memorySessions.set(token, session);
+        }
+      } catch (err: any) {
+        console.warn(`[authService.validateSession] MySQL lookup error: ${err.message}`);
       }
     }
 
     if (!session) return null;
+    if (new Date(session.expiresAt).getTime() <= Date.now()) {
+      memorySessions.delete(token);
+      return null;
+    }
 
     const user = await this.getUserById(session.userId);
     if (!user || user.status !== 'ACTIVE') return null;
 
     return await this.buildAuthContext(user, session);
+  },
+
+  async verifyToken(token: string): Promise<AuthenticatedUser | null> {
+    return this.validateSession(token);
   },
 
   async revokeSession(token: string): Promise<boolean> {

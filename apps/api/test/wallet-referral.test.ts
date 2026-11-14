@@ -235,6 +235,13 @@ describe('Dual-Wallet & Referral Commission Engine - Tests', () => {
       const plan = plans[0];
       if (!plan) return;
 
+      await walletService.creditBonus({
+        walletType: 'OWNER',
+        identifier: testOrg1,
+        amount: 500,
+        reason: 'Seed wallet for checkout test',
+      });
+
       const order = await paymentService.createPaymentOrder({
         targetType: 'SUBSCRIPTION',
         targetId: plan.id,

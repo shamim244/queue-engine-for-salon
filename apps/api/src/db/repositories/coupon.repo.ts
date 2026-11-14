@@ -55,7 +55,7 @@ export const couponRepo = {
       throw new Error(`Coupon with code "${code}" already exists.`);
     }
 
-    const id = `cp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const id = (payload as any).id || `cp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date();
 
     const coupon: Coupon = {
@@ -285,6 +285,33 @@ export const couponRepo = {
     userId?: string | null;
     discountApplied: number;
   }): Promise<CouponRedemption> {
+    const coupon = memoryStore.coupons.get(redemption.couponId);
+    if (!coupon) {
+      throw new Error(`Coupon not found: ${redemption.couponId}`);
+    }
+
+    if (coupon.maxUses != null && coupon.usedCount >= coupon.maxUses) {
+      throw new Error(`Coupon usage limit reached (max: ${coupon.maxUses})`);
+    }
+
+    if (coupon.maxUsesPerUser != null) {
+      if (!redemption.userId) {
+        throw new Error('User identifier is required for coupons with per-user limits');
+      }
+      let userCount = 0;
+      for (const r of memoryStore.couponRedemptions.values()) {
+        if (r.couponId === redemption.couponId && r.userId === redemption.userId) {
+          userCount++;
+        }
+      }
+      if (userCount >= coupon.maxUsesPerUser) {
+        throw new Error(`You have already redeemed this coupon the maximum allowed times (${coupon.maxUsesPerUser})`);
+      }
+    }
+
+    // Atomically reserve use count synchronously before any await
+    coupon.usedCount += 1;
+
     const id = `red_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date();
 
@@ -299,12 +326,6 @@ export const couponRepo = {
     };
 
     memoryStore.couponRedemptions.set(id, record);
-
-    // Increment coupon used_count in memory
-    const coupon = memoryStore.coupons.get(redemption.couponId);
-    if (coupon) {
-      coupon.usedCount += 1;
-    }
 
     if (isMySqlConnected) {
       try {

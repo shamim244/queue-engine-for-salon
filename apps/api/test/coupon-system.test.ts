@@ -2,11 +2,20 @@ import { describe, it, expect, beforeEach, afterAll } from 'bun:test';
 import { app } from '../index';
 import { couponRepo } from '../src/db/repositories/coupon.repo';
 import { couponService } from '../src/coupon/coupon.service';
+import { authService } from '../src/auth/auth-service';
 import { isMySqlConnected, getDb } from '../src/db/mysql';
 import type { CreateCouponPayload } from '../src/engine/types';
 
 describe('Omni-Channel Coupon Code System - Unit & Integration Tests', () => {
+  let adminToken: string;
+
   beforeEach(async () => {
+    await authService.seedDefaultUsers();
+    const adminAuth = await authService.authenticateUser('admin', 'Admin@123');
+    if (adminAuth) {
+      adminToken = adminAuth.session.token;
+    }
+
     if (isMySqlConnected) {
       try {
         const db = getDb();
@@ -242,7 +251,10 @@ describe('Omni-Channel Coupon Code System - Unit & Integration Tests', () => {
       const res = await app.handle(
         new Request('http://localhost/api/coupons', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${adminToken}`,
+          },
           body: JSON.stringify({
             code: 'RESTPROMO25',
             targetType: 'SUBSCRIPTION',
@@ -266,7 +278,10 @@ describe('Omni-Channel Coupon Code System - Unit & Integration Tests', () => {
       await app.handle(
         new Request('http://localhost/api/coupons', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${adminToken}`,
+          },
           body: JSON.stringify({
             code: 'RESTAPPLY50',
             targetType: 'SUBSCRIPTION',

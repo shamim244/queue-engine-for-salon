@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { couponService } from '../coupon/coupon.service';
+import { authService } from '../auth/auth-service';
 
 export const couponRoutes = new Elysia({ prefix: '/api/coupons' })
   // 1. Validate & Apply Coupon Code
@@ -61,7 +62,34 @@ export const couponRoutes = new Elysia({ prefix: '/api/coupons' })
   // 3. Create Coupon
   .post(
     '/',
-    async ({ body, set }) => {
+    async ({ headers, cookie: { engine_session }, body, set }) => {
+      const token =
+        (headers as any).authorization?.replace(/^Bearer\s+/i, '') ||
+        (engine_session ? (engine_session as any).value : null);
+
+      if (!token) {
+        set.status = 401;
+        return {
+          success: false,
+          message: 'Authentication required to create coupons',
+        };
+      }
+      const user = await authService.validateSession(token);
+      if (!user) {
+        set.status = 401;
+        return {
+          success: false,
+          message: 'Invalid or expired session token',
+        };
+      }
+      if (user.role !== 'SUPER_ADMIN' && user.role !== 'SALON_OWNER') {
+        set.status = 403;
+        return {
+          success: false,
+          message: 'Forbidden: Insufficient privileges to create coupons',
+        };
+      }
+
       try {
         const coupon = await couponService.createCoupon(body as any);
         set.status = 201;
