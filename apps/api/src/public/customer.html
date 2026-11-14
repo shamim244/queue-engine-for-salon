@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Salon Queue - Check In</title>
   <link rel="stylesheet" href="/app.css">
+  <script src="/security-utils.js"></script>
   <style>
     .step-box { display: none; }
     .step-box.active { display: block; }
@@ -46,11 +47,14 @@
         <div style="margin-top: 18px;">
           <div class="input-group">
             <label class="input-label">Your Mobile Phone (WhatsApp Alert)</label>
-            <input type="tel" id="customerPhone" class="input-field" placeholder="e.g. 9876543210" required>
+            <div style="display: flex; gap: 6px;">
+              <select id="customerCountryCode" style="width: 105px; background: #0f172a; border-radius: 8px; border: 1px solid #334155; color: white; padding: 8px 6px; font-size: 0.88rem;"></select>
+              <input type="tel" id="customerPhone" class="input-field" placeholder="10-digit mobile" maxlength="10" inputmode="numeric" pattern="[0-9]{10}" required>
+            </div>
           </div>
           <div class="input-group">
             <label class="input-label">Your Name</label>
-            <input type="text" id="customerName" class="input-field" placeholder="e.g. Rajesh Kumar" required>
+            <input type="text" id="customerName" class="input-field" placeholder="e.g. Rajesh Kumar" maxlength="80" required>
           </div>
         </div>
 
@@ -163,6 +167,13 @@
         document.getElementById('salonAddress').innerText = currentSalon.address || 'Traditional Barber & Hair Lounge';
         document.getElementById('queueBadge').innerText = `${data.activeQueueCount} Waiting in line`;
 
+        if (typeof populateCountrySelect === 'function') {
+          populateCountrySelect(document.getElementById('customerCountryCode'), '+91');
+        }
+        if (typeof setup10DigitPhoneMask === 'function') {
+          setup10DigitPhoneMask(document.getElementById('customerPhone'));
+        }
+
         if (currentSalon.upiPaymentId) {
           document.getElementById('upiIdText').innerText = currentSalon.upiPaymentId;
           document.getElementById('upiPaymentBox').style.display = 'block';
@@ -250,13 +261,22 @@
 
     // Submit Check-in
     async function submitCheckIn() {
-      const phone = document.getElementById('customerPhone').value.trim();
+      const rawPhone = document.getElementById('customerPhone').value.trim();
       const name = document.getElementById('customerName').value.trim();
+      const countryCode = document.getElementById('customerCountryCode')?.value || '+91';
+      const cleanPhone = typeof sanitize10DigitMobile === 'function' ? sanitize10DigitMobile(rawPhone) : rawPhone;
 
-      if (!phone || !name) {
-        alert('Please enter your name and phone number for WhatsApp updates.');
+      if (!cleanPhone || !name) {
+        alert('Please enter your name and 10-digit mobile phone number for WhatsApp updates.');
         return;
       }
+
+      if (cleanPhone.length !== 10) {
+        alert('Mobile number must be exactly 10 digits.');
+        return;
+      }
+
+      const phone = `${countryCode}${cleanPhone}`;
 
       localStorage.setItem('last_phone', phone);
       localStorage.setItem('last_name', name);

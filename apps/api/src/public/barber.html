@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Barber Mirror Screen - 1-Tap Queue Control</title>
   <link rel="stylesheet" href="/app.css">
+  <script src="/security-utils.js"></script>
   <style>
     .mirror-screen {
       max-width: 480px;
@@ -93,11 +94,14 @@
       <h3 style="margin-bottom: 12px;">⚡ Add Walk-in Client (3 Seconds)</h3>
       <div class="input-group">
         <label class="input-label">Customer Name</label>
-        <input type="text" id="quickName" class="input-field" placeholder="e.g. Uncle Joe, Verma Ji" autofocus>
+        <input type="text" id="quickName" class="input-field" placeholder="e.g. Uncle Joe, Verma Ji" maxlength="80" autofocus>
       </div>
       <div class="input-group">
         <label class="input-label">Phone Number (Optional)</label>
-        <input type="tel" id="quickPhone" class="input-field" placeholder="Optional for SMS/WhatsApp">
+        <div style="display: flex; gap: 6px;">
+          <select id="quickCountryCode" style="width: 105px; background: #0f172a; border-radius: 8px; border: 1px solid #334155; color: white; padding: 8px 6px; font-size: 0.88rem;"></select>
+          <input type="tel" id="quickPhone" class="input-field" placeholder="10-digit mobile" maxlength="10" inputmode="numeric" pattern="[0-9]{10}">
+        </div>
       </div>
       <div style="display: flex; gap: 8px; margin-top: 16px;">
         <button onclick="submitQuickAdd()" class="btn btn-primary">Add to Queue</button>
@@ -207,10 +211,10 @@
       list.innerHTML = waiting.map((t, index) => `
         <div class="waiting-chip">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-weight: 900; color: #60a5fa; font-size: 1.15rem;">#${t.ticketNumber}</span>
+            <span style="font-weight: 900; color: #60a5fa; font-size: 1.15rem;">#${escapeHtml(t.ticketNumber)}</span>
             <div>
-              <div style="font-weight: 700; color: white;">${t.customerName}</div>
-              <div style="font-size: 0.8rem; color: var(--text-muted);">${t.serviceName} (~${t.totalDurationMinutes}m)</div>
+              <div style="font-weight: 700; color: white;">${escapeHtml(t.customerName)}</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(t.serviceName)} (~${Number(t.totalDurationMinutes)}m)</div>
             </div>
           </div>
           <div style="text-align: right;">
@@ -276,6 +280,12 @@
 
     // Quick Add Modal
     function showQuickAddModal() {
+      if (typeof populateCountrySelect === 'function') {
+        populateCountrySelect(document.getElementById('quickCountryCode'), '+91');
+      }
+      if (typeof setup10DigitPhoneMask === 'function') {
+        setup10DigitPhoneMask(document.getElementById('quickPhone'));
+      }
       document.getElementById('quickModal').style.display = 'flex';
       document.getElementById('quickName').focus();
     }
@@ -286,10 +296,22 @@
     }
     async function submitQuickAdd() {
       const name = document.getElementById('quickName').value.trim();
-      const phone = document.getElementById('quickPhone').value.trim();
+      const rawPhone = document.getElementById('quickPhone').value.trim();
+      const countryCode = document.getElementById('quickCountryCode')?.value || '+91';
+
       if (!name) {
         alert('Please enter a name');
         return;
+      }
+
+      let formattedPhone = '0000000000';
+      if (rawPhone) {
+        const clean = typeof sanitize10DigitMobile === 'function' ? sanitize10DigitMobile(rawPhone) : rawPhone;
+        if (clean.length !== 10) {
+          alert('Mobile phone number must be exactly 10 digits');
+          return;
+        }
+        formattedPhone = `${countryCode}${clean}`;
       }
 
       await fetch('/api/queue/quick-add', {
@@ -298,7 +320,7 @@
         body: JSON.stringify({
           salonSlug,
           customerName: name,
-          customerPhone: phone || '0000000000',
+          customerPhone: formattedPhone,
         }),
       });
 

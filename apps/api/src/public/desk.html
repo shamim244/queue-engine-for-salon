@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Receptionist Master Command Desk</title>
   <link rel="stylesheet" href="/app.css">
+  <script src="/security-utils.js"></script>
   <style>
     .desk-layout {
       display: grid;
@@ -69,11 +70,14 @@
         <h3 style="font-size: 1.1rem; margin-bottom: 12px;">➕ Front-Desk Walk-in Intake</h3>
         <div class="input-group">
           <label class="input-label">Customer Name</label>
-          <input type="text" id="deskName" class="input-field" placeholder="Full name">
+          <input type="text" id="deskName" class="input-field" placeholder="Full name" maxlength="80">
         </div>
         <div class="input-group">
           <label class="input-label">Phone Number</label>
-          <input type="tel" id="deskPhone" class="input-field" placeholder="10-digit phone">
+          <div style="display:flex; gap:6px;">
+            <select id="deskCountryCode" style="width:110px; background:#0f172a; border-radius:8px; border:1px solid #334155; color:white; padding:8px 6px;"></select>
+            <input type="tel" id="deskPhone" class="input-field" placeholder="10-digit phone" maxlength="10" inputmode="numeric" pattern="[0-9]{10}">
+          </div>
         </div>
         <div class="input-group">
           <label class="input-label">Select Service</label>
@@ -135,6 +139,13 @@
         const data = await res.json();
         currentSalon = data.salon;
         document.getElementById('salonTitle').innerText = `${currentSalon.name} - Front Desk`;
+
+        if (typeof populateCountrySelect === 'function') {
+          populateCountrySelect(document.getElementById('deskCountryCode'), '+91');
+        }
+        if (typeof setup10DigitPhoneMask === 'function') {
+          setup10DigitPhoneMask(document.getElementById('deskPhone'));
+        }
 
         // Populate services and stylists in intake dropdown
         const sSelect = document.getElementById('deskService');
@@ -203,25 +214,26 @@
 
       tbody.innerHTML = activeTickets.map(t => {
         let actionBtn = '';
+        const safeId = escapeHtml(t.id);
         if (t.status === 'WAITING' || t.status === 'SOFT_BUMPED') {
-          actionBtn = `<button onclick="seatTicket('${t.id}')" class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem; width:auto;">Seat Now</button>`;
+          actionBtn = `<button onclick="seatTicket('${safeId}')" class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem; width:auto;">Seat Now</button>`;
         } else if (t.status === 'SUMMONED') {
-          actionBtn = `<button onclick="seatTicket('${t.id}')" class="btn btn-success" style="padding:6px 12px; font-size:0.8rem; width:auto;">Seat</button>
-                       <button onclick="softBumpTicket('${t.id}')" class="btn btn-warning" style="padding:6px 10px; font-size:0.75rem; width:auto;">Bump</button>`;
+          actionBtn = `<button onclick="seatTicket('${safeId}')" class="btn btn-success" style="padding:6px 12px; font-size:0.8rem; width:auto;">Seat</button>
+                       <button onclick="softBumpTicket('${safeId}')" class="btn btn-warning" style="padding:6px 10px; font-size:0.75rem; width:auto;">Bump</button>`;
         } else if (t.status === 'IN_CHAIR') {
-          actionBtn = `<button onclick="finishTicket('${t.id}', ${t.totalPrice})" class="btn btn-success" style="padding:6px 12px; font-size:0.8rem; width:auto;">Checkout (₹${t.totalPrice})</button>`;
+          actionBtn = `<button onclick="finishTicket('${safeId}', ${Number(t.totalPrice)})" class="btn btn-success" style="padding:6px 12px; font-size:0.8rem; width:auto;">Checkout (₹${Number(t.totalPrice)})</button>`;
         }
 
         return `
           <tr>
-            <td style="font-weight:900; color:#60a5fa;">#${t.ticketNumber}</td>
+            <td style="font-weight:900; color:#60a5fa;">#${escapeHtml(t.ticketNumber)}</td>
             <td>
-              <div style="font-weight:700;">${t.customerName}</div>
-              <div style="font-size:0.78rem; color:var(--text-muted);">${t.customerPhone}</div>
+              <div style="font-weight:700;">${escapeHtml(t.customerName)}</div>
+              <div style="font-size:0.78rem; color:var(--text-muted);">${escapeHtml(t.customerPhone)}</div>
             </td>
-            <td>${t.serviceName}</td>
+            <td>${escapeHtml(t.serviceName)}</td>
             <td style="color:#fb923c; font-weight:700;">~${Math.max(5, t.estimatedWaitMinutes)}m</td>
-            <td><span class="status-tag status-${t.status.toLowerCase().replace('_','')}">${t.status}</span></td>
+            <td><span class="status-tag status-${escapeHtml(t.status.toLowerCase().replace('_',''))}">${escapeHtml(t.status)}</span></td>
             <td>${actionBtn}</td>
           </tr>
         `;
@@ -230,14 +242,24 @@
 
     async function deskCheckIn() {
       const name = document.getElementById('deskName').value.trim();
-      const phone = document.getElementById('deskPhone').value.trim();
+      const rawPhone = document.getElementById('deskPhone').value.trim();
+      const countryCode = document.getElementById('deskCountryCode')?.value || '+91';
       const serviceId = document.getElementById('deskService').value;
       const stylistId = document.getElementById('deskStylist').value || null;
 
-      if (!name || !phone) {
-        alert('Please fill in customer name and phone');
+      const cleanPhone = typeof sanitize10DigitMobile === 'function' ? sanitize10DigitMobile(rawPhone) : rawPhone;
+
+      if (!name || !cleanPhone) {
+        alert('Please fill in customer name and 10-digit mobile number');
         return;
       }
+
+      if (cleanPhone.length !== 10) {
+        alert('Mobile number must be exactly 10 digits');
+        return;
+      }
+
+      const fullPhone = `${countryCode}${cleanPhone}`;
 
       await fetch('/api/queue/checkin', {
         method: 'POST',
@@ -245,7 +267,7 @@
         body: JSON.stringify({
           salonSlug,
           customerName: name,
-          customerPhone: phone,
+          customerPhone: fullPhone,
           serviceId,
           stylistId,
         }),

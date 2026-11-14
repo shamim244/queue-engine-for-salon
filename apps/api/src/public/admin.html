@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Super Admin Platform - Engine Que</title>
   <link rel="stylesheet" href="/app.css">
+  <script src="/security-utils.js"></script>
   <style>
     .kpi-grid {
       display: grid;
@@ -200,19 +201,19 @@
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
             <div>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <h3 style="font-size: 1.15rem; font-weight: 700;">${s.name}</h3>
+                <h3 style="font-size: 1.15rem; font-weight: 700;">${escapeHtml(s.name)}</h3>
                 <span class="salon-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-weight: 700;">
-                  Tier: ${s.tier || 'SOLO'}
+                  Tier: ${escapeHtml(s.tier || 'SOLO')}
                 </span>
               </div>
               <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
-                Slug: <code>/s/${s.slug}</code> • Phone: ${s.phone} • Stylists: ${s.stylistCount} • Services: ${s.serviceCount}
+                Slug: <code>/s/${escapeHtml(s.slug)}</code> • Phone: ${escapeHtml(s.phone)} • Stylists: ${Number(s.stylistCount || 0)} • Services: ${Number(s.serviceCount || 0)}
               </div>
             </div>
             <div style="display: flex; gap: 6px;">
               ${s.organizationId ? `
-                <button class="salon-badge" style="cursor: pointer; border: 1px solid var(--border); background: var(--surface-light);" onclick="toggleTier('${s.organizationId}', '${s.tier}')">
-                  ⚡ SaaS Plan: <b>${s.tier || 'STARTER'}</b> (Click to cycle)
+                <button class="salon-badge" style="cursor: pointer; border: 1px solid var(--border); background: var(--surface-light);" onclick="toggleTier('${escapeHtml(s.organizationId)}', '${escapeHtml(s.tier)}')">
+                  ⚡ SaaS Plan: <b>${escapeHtml(s.tier || 'STARTER')}</b> (Click to cycle)
                 </button>
               ` : ''}
               <span class="salon-badge" style="border: 1px solid var(--border);">
