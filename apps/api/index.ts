@@ -25,6 +25,9 @@ import { appointmentRoutes } from './src/routes/appointments';
 import { partnerRoutes, adminPartnerRoutes } from './src/routes/partner.routes';
 import { securityRoutes } from './src/routes/security.routes';
 import { compressionManager } from './src/engine/compression-manager';
+import { isAllowedOrigin } from './src/security/cors-validator';
+import { applySecurityHeaders } from './src/security/headers';
+import { memoryStore } from './src/db/repositories/store';
 
 console.log(`\n======================================================`);
 console.log(`🚀 ENGINE QUE SYSTEM FOR SALONS (BUN RUNTIME)`);
@@ -48,33 +51,15 @@ if (process.env.NODE_ENV !== 'test') {
 
 const publicDir = path.resolve(import.meta.dir, 'src/public');
 
-// CORS Allowed Origin Validator
-const configuredOrigins = new Set([
-  'https://web.nexgentech.site',
-  'http://web.nexgentech.site',
-  'https://nexgentech.site',
-  'http://nexgentech.site',
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:3001',
-  ...(config.cors?.allowedOrigins || []),
-]);
-
-export function isAllowedOrigin(origin: string | null | undefined): boolean {
-  if (!origin) return true;
-  const clean = origin.trim().replace(/\/+$/, '');
-  if (configuredOrigins.has(clean)) return true;
-  if (clean.endsWith('.nexgentech.site') || clean.includes('nexgentech.site')) return true;
-  if (/^https?:\/\/localhost(:\d+)?$/.test(clean)) return true;
-  if (/^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(clean)) return true;
-  return false;
-}
+export { isAllowedOrigin };
 
 const app = new Elysia()
+  .onRequest(({ set }) => {
+    applySecurityHeaders(set);
+  })
   .use(
     cors({
-      origin: (request) => isAllowedOrigin(request.headers.get('origin')),
+      origin: (request) => isAllowedOrigin(request.headers.get('origin'), memoryStore.securitySettings?.allowedCustomOrigins),
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
       maxAge: 86400,
@@ -112,6 +97,7 @@ const app = new Elysia()
     responseHeaders.set('Content-Encoding', result.encoding);
     responseHeaders.set('Vary', 'Accept-Encoding');
     responseHeaders.set('Content-Length', String(result.compressedBytes));
+    applySecurityHeaders({ headers: responseHeaders });
 
     return new Response(result.data as any, {
       status: (typeof set.status === 'number' ? set.status : 200),
