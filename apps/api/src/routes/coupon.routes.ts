@@ -127,7 +127,56 @@ export const couponRoutes = new Elysia({ prefix: '/api/coupons' })
   // 4. Update Coupon
   .patch(
     '/:id',
-    async ({ params, body, set }) => {
+    async ({ headers, cookie: { engine_session }, params, body, set }) => {
+      const token =
+        (headers as any).authorization?.replace(/^Bearer\s+/i, '') ||
+        (engine_session ? (engine_session as any).value : null);
+
+      if (!token) {
+        set.status = 401;
+        return {
+          success: false,
+          message: 'Authentication required to update coupons',
+        };
+      }
+      const user = await authService.validateSession(token);
+      if (!user) {
+        set.status = 401;
+        return {
+          success: false,
+          message: 'Invalid or expired session token',
+        };
+      }
+      if (user.role !== 'SUPER_ADMIN' && user.role !== 'SALON_OWNER') {
+        set.status = 403;
+        return {
+          success: false,
+          message: 'Forbidden: Insufficient privileges to update coupons',
+        };
+      }
+
+      const existingCoupon = await couponService.getCouponById(params.id);
+      if (!existingCoupon) {
+        set.status = 404;
+        return {
+          success: false,
+          message: `Coupon not found: ${params.id}`,
+        };
+      }
+
+      if (user.role === 'SALON_OWNER') {
+        if (
+          (existingCoupon.salonId && existingCoupon.salonId !== user.salon?.id) ||
+          (existingCoupon.organizationId && existingCoupon.organizationId !== user.organization?.id)
+        ) {
+          set.status = 403;
+          return {
+            success: false,
+            message: 'Forbidden: You can only modify coupons for your own salon',
+          };
+        }
+      }
+
       try {
         const coupon = await couponService.updateCoupon(params.id, body as any);
         if (!coupon) {
@@ -170,7 +219,56 @@ export const couponRoutes = new Elysia({ prefix: '/api/coupons' })
   // 5. Delete / Archive Coupon
   .delete(
     '/:id',
-    async ({ params, set }) => {
+    async ({ headers, cookie: { engine_session }, params, set }) => {
+      const token =
+        (headers as any).authorization?.replace(/^Bearer\s+/i, '') ||
+        (engine_session ? (engine_session as any).value : null);
+
+      if (!token) {
+        set.status = 401;
+        return {
+          success: false,
+          message: 'Authentication required to delete coupons',
+        };
+      }
+      const user = await authService.validateSession(token);
+      if (!user) {
+        set.status = 401;
+        return {
+          success: false,
+          message: 'Invalid or expired session token',
+        };
+      }
+      if (user.role !== 'SUPER_ADMIN' && user.role !== 'SALON_OWNER') {
+        set.status = 403;
+        return {
+          success: false,
+          message: 'Forbidden: Insufficient privileges to delete coupons',
+        };
+      }
+
+      const existingCoupon = await couponService.getCouponById(params.id);
+      if (!existingCoupon) {
+        set.status = 404;
+        return {
+          success: false,
+          message: `Coupon not found: ${params.id}`,
+        };
+      }
+
+      if (user.role === 'SALON_OWNER') {
+        if (
+          (existingCoupon.salonId && existingCoupon.salonId !== user.salon?.id) ||
+          (existingCoupon.organizationId && existingCoupon.organizationId !== user.organization?.id)
+        ) {
+          set.status = 403;
+          return {
+            success: false,
+            message: 'Forbidden: You can only delete coupons for your own salon',
+          };
+        }
+      }
+
       try {
         const deleted = await couponService.deleteCoupon(params.id);
         return {

@@ -212,5 +212,74 @@ describe('ADR 005 - C8 & C9: Coupon Limits & Management Auth Security', () => {
       expect(data.success).toBe(true);
       expect(data.coupon).toBeDefined();
     });
+
+    it('C9.4: should reject customer role coupon update and delete with 403', async () => {
+      // 1. Admin creates a coupon
+      const created = await couponRepo.createCoupon({
+        code: `GUARD_${Date.now()}`,
+        targetType: 'SUBSCRIPTION',
+        discountType: 'FLAT',
+        discountValue: 25,
+      });
+
+      // 2. Customer attempts PATCH
+      const patchRes = await app.handle(
+        new Request(`http://localhost/api/coupons/${created.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${customerToken}`,
+          },
+          body: JSON.stringify({ discountValue: 50 }),
+        })
+      );
+      expect(patchRes.status).toBe(403);
+
+      // 3. Customer attempts DELETE
+      const deleteRes = await app.handle(
+        new Request(`http://localhost/api/coupons/${created.id}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${customerToken}`,
+          },
+        })
+      );
+      expect(deleteRes.status).toBe(403);
+    });
+
+    it('C9.5: should allow admin to update and delete coupon', async () => {
+      const created = await couponRepo.createCoupon({
+        code: `ADM_MUT_${Date.now()}`,
+        targetType: 'SUBSCRIPTION',
+        discountType: 'FLAT',
+        discountValue: 30,
+      });
+
+      const patchRes = await app.handle(
+        new Request(`http://localhost/api/coupons/${created.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({ discountValue: 45 }),
+        })
+      );
+      expect(patchRes.status).toBe(200);
+      const patchData = await patchRes.json();
+      expect(patchData.coupon.discountValue).toBe(45);
+
+      const deleteRes = await app.handle(
+        new Request(`http://localhost/api/coupons/${created.id}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+          },
+        })
+      );
+      expect(deleteRes.status).toBe(200);
+      const deletedData = await deleteRes.json();
+      expect(deletedData.success).toBe(true);
+    });
   });
 });
