@@ -336,7 +336,10 @@ describe('Omni-Channel Coupon Code System - Unit & Integration Tests', () => {
       const res = await app.handle(
         new Request(`http://localhost/api/coupons/${coupon.id}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${adminToken}`,
+          },
           body: JSON.stringify({
             status: 'INACTIVE',
             discountValue: 30,
