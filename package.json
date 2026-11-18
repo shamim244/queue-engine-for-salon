@@ -10,7 +10,12 @@
     "db:reset": "cd apps/api && bun src/db/reset.ts",
     "build:web": "cd apps/web && bun run build",
     "build": "bun run build:web",
-    "env:check": "bun scripts/validate-env.ts"
+    "env:check": "bun scripts/validate-env.ts",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:stop": "pm2 stop ecosystem.config.cjs",
+    "pm2:restart": "pm2 restart ecosystem.config.cjs",
+    "pm2:status": "pm2 status",
+    "pm2:logs": "pm2 logs"
   },
   "workspaces": [
     "apps/*"
