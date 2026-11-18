@@ -1,0 +1,189 @@
+name: Production CI/CD Deployment
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  filter:
+    name: Detect Changed Components
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.changes.outputs.api }}
+      web: ${{ steps.changes.outputs.web }}
+      gateway: ${{ steps.changes.outputs.gateway }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Evaluate Path Changes
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            api:
+              - 'apps/api/**'
+              - 'ecosystem.config.cjs'
+              - 'package.json'
+              - '.github/workflows/deploy.yml'
+            web:
+              - 'apps/web/**'
+              - 'package.json'
+              - '.github/workflows/deploy.yml'
+            gateway:
+              - 'gateway/**'
+              - '.github/workflows/deploy.yml'
+
+  test-backend:
+    name: Test Backend Quality Gate
+    needs: filter
+    if: needs.filter.outputs.api == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun Runtime
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Monorepo Dependencies
+        run: bun install
+
+      - name: Run Backend Integration & Security Tests
+        run: bun test apps/api/test
+
+  deploy-backend:
+    name: Deploy Backend Cluster (Zero-Downtime)
+    needs: [filter, test-backend]
+    if: always() && (needs.filter.outputs.api == 'true' || github.event_name == 'workflow_dispatch') && (needs.test-backend.result == 'success' || needs.filter.outputs.api != 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Add Server Host to Known Hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync Backend Files via Rsync
+        run: |
+          rsync -avz --delete \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='node_modules' \
+            --exclude='dist' \
+            apps/api/ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/salon/backend/
+
+      - name: Rolling Zero-Downtime Reload with PM2
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
+            cd /home/ubuntu/salon/backend && \
+            bun install && \
+            echo '⚡ Reloading worker salon-api-1...' && \
+            pm2 reload salon-api-1 --update-env && \
+            sleep 3 && \
+            curl -sf http://127.0.0.1:3001/api/health && \
+            echo '⚡ Reloading worker salon-api-2...' && \
+            pm2 reload salon-api-2 --update-env && \
+            sleep 3 && \
+            curl -sf http://127.0.0.1:3002/api/health && \
+            pm2 save
+          "
+
+  deploy-frontend:
+    name: Deploy Frontend Web Application
+    needs: filter
+    if: needs.filter.outputs.web == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Add Server Host to Known Hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync Frontend Files via Rsync
+        run: |
+          rsync -avz --delete \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            apps/web/ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/salon/frontend/
+
+      - name: Build Next.js & Reload PM2
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
+            cd /home/ubuntu/salon/frontend && \
+            bun install && \
+            bun run build && \
+            pm2 reload salon-frontend --update-env && \
+            pm2 save
+          "
+
+  deploy-gateway:
+    name: Sync & Reload Nginx Gateway
+    needs: filter
+    if: needs.filter.outputs.gateway == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Add Server Host to Known Hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync Gateway Configs
+        run: |
+          rsync -avz gateway/ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/salon/gateway/
+
+      - name: Test & Safely Reload Nginx
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
+            sudo cp /home/ubuntu/salon/gateway/salon-backend-gateway.conf /etc/nginx/sites-available/salon-backend-gateway && \
+            sudo cp /home/ubuntu/salon/gateway/salon-frontend-gateway.conf /etc/nginx/sites-available/salon-frontend-gateway && \
+            sudo nginx -t && \
+            sudo systemctl reload nginx
+          "
+
+  verify-production:
+    name: Validate Live Public Endpoints
+    needs: [deploy-backend, deploy-frontend, deploy-gateway]
+    if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Backend API Gateway (Port 8000)
+        run: |
+          curl -f -s -i http://${{ secrets.EC2_HOST }}:8000/api/health
+
+      - name: Verify Frontend Web Gateway (Port 80)
+        run: |
+          curl -f -s -I http://${{ secrets.EC2_HOST }}
