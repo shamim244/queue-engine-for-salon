@@ -24,6 +24,9 @@ export function isAllowedOrigin(
   if (!origin) return true; // Same-origin, direct CLI/curl, or native mobile client
   const clean = origin.trim().replace(/\/+$/, '');
 
+  // 0. Wildcard allow-all (development / flexible staging)
+  if (configuredOrigins.has('*') || (config.cors?.allowedOrigins || []).includes('*')) return true;
+
   // 1. Check statically configured origins
   if (configuredOrigins.has(clean)) return true;
 
