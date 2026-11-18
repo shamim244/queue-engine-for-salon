@@ -12,14 +12,15 @@ const nextConfig: NextConfig = {
     "127.0.0.1:3000",
   ],
   async rewrites() {
+    const apiTarget = process.env.INTERNAL_API_URL || "http://127.0.0.1:8000";
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:3001/api/:path*",
+        destination: `${apiTarget}/api/:path*`,
       },
       {
         source: "/ws",
-        destination: "http://localhost:3001/ws",
+        destination: `${apiTarget}/ws`,
       },
     ];
   },
