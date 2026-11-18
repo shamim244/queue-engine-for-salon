@@ -7,6 +7,7 @@
   "scripts": {
     "start": "bun index.ts",
     "dev": "bun --watch index.ts",
+    "build": "bun build index.ts --outdir dist --target bun",
     "db:reset": "bun src/db/reset.ts",
     "test": "bun test"
   },
