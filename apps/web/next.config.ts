@@ -8,11 +8,19 @@ const nextConfig: NextConfig = {
     "web.nexgentech.site",
     "nexgentech.site",
     "*.nexgentech.site",
+    "65.2.127.88",
+    "65.2.127.88:80",
+    "65.2.127.88:8000",
     "localhost:3000",
     "127.0.0.1:3000",
   ],
   async rewrites() {
-    const apiTarget = process.env.INTERNAL_API_URL || "http://127.0.0.1:8000";
+    const isProd = process.env.NODE_ENV === "production";
+    const defaultTarget = isProd
+      ? "http://127.0.0.1:8000"
+      : process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    const apiTarget = process.env.INTERNAL_API_URL || defaultTarget;
+
     return [
       {
         source: "/api/:path*",
