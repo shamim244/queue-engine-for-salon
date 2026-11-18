@@ -58,7 +58,7 @@ jobs:
         run: bun install
 
       - name: Run Backend Integration & Security Tests
-        run: bun test apps/api/test --bail --timeout 10000
+        run: bun test apps/api/test --parallel=1 --bail
 
   deploy-backend:
     name: Deploy Backend Cluster (Zero-Downtime)
