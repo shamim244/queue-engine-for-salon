@@ -7,17 +7,23 @@ export let isMySqlConnected = false;
 export async function initDatabase(): Promise<boolean> {
   try {
     // 1. Initial connection to verify server & create database
-    const tempConnection = await mysql.createConnection({
-      host: config.db.host,
-      port: config.db.port,
-      user: config.db.user,
-      password: config.db.password,
-    });
+    try {
+      const tempConnection = await mysql.createConnection({
+        host: config.db.host,
+        port: config.db.port,
+        user: config.db.user,
+        password: config.db.password,
+        ssl: (config.db as any).ssl,
+      });
 
-    await tempConnection.query(
-      `CREATE DATABASE IF NOT EXISTS \`${config.db.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
-    );
-    await tempConnection.end();
+      await tempConnection.query(
+        `CREATE DATABASE IF NOT EXISTS \`${config.db.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
+      );
+      await tempConnection.end();
+    } catch (tempErr: any) {
+      // In cloud databases like TiDB, CREATE DATABASE might be restricted or already exists
+      console.log(`[MySQL 8.0 Note] Pre-pool check: ${tempErr.message}`);
+    }
 
     // 2. Create the real connection pool
     pool = mysql.createPool({
@@ -26,6 +32,7 @@ export async function initDatabase(): Promise<boolean> {
       user: config.db.user,
       password: config.db.password,
       database: config.db.database,
+      ssl: (config.db as any).ssl,
       waitForConnections: true,
       connectionLimit: config.db.connectionLimit,
       queueLimit: 0,

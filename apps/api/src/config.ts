@@ -11,6 +11,9 @@ export const config = {
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'engine_que_salon',
     connectionLimit: 10,
+    ssl: process.env.DB_SSL === 'true' || process.env.DB_PORT === '4000'
+      ? { minVersion: 'TLSv1.2', rejectUnauthorized: true }
+      : undefined,
   },
 
   // WhatsApp / SMS
