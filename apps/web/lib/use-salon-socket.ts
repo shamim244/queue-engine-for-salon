@@ -47,6 +47,7 @@ export function useSalonSocket(
 
   const lastSeenRef = useRef<number>(Date.now());
   const connectingStartedAtRef = useRef<number | null>(null);
+  const lastProbeAtRef = useRef<number>(0);
   const isUnmountedRef = useRef(false);
   const callbackRef = useRef(onEvent);
   const connectRef = useRef<() => void>(() => {});
@@ -80,6 +81,7 @@ export function useSalonSocket(
     setIsConnected(true);
     setIsConnecting(false);
     setStatus("connected");
+    connectingStartedAtRef.current = null;
 
     if (socketRef.current) {
       try {
@@ -93,25 +95,31 @@ export function useSalonSocket(
     }
 
     if (!pollingIntervalRef.current) {
-      console.log("[WebSocket Fallback] Switching to resilient HTTP polling sync (4s interval)");
+      console.log("[WebSocket Fallback] Switching to resilient HTTP polling sync (3.5s interval)");
       if (callbackRef.current && !isUnmountedRef.current) {
         callbackRef.current({ type: "QUEUE_UPDATED", salonId });
       }
       pollingIntervalRef.current = setInterval(() => {
+        // Zero Server Waste: pause background HTTP polling ticks when browser tab is hidden/screen is off
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+          return;
+        }
         if (callbackRef.current && !isUnmountedRef.current) {
           callbackRef.current({ type: "QUEUE_UPDATED", salonId });
         }
-      }, 4000);
+      }, 3500);
     }
 
-    // Gentle background probe every 30s to restore WebSocket if route is added
+    // Socket leak prevention: do not repeatedly spawn hanging sockets every 30s over tunnel.
+    // Background probing is primarily handled on network 'online' and tab focus/visibility events,
+    // plus a conservative 5-minute backoff probe.
     if (!reconnectTimeoutRef.current) {
       reconnectTimeoutRef.current = setTimeout(() => {
         reconnectTimeoutRef.current = null;
         if (!isUnmountedRef.current && (typeof navigator === "undefined" || navigator.onLine)) {
           connectRef.current();
         }
-      }, 30000);
+      }, 300000); // 5-minute backoff
     }
   }, [salonId]);
 
@@ -272,28 +280,28 @@ export function useSalonSocket(
       }
     }, 12000);
 
-    // 2. Resilient Watchdog (Check every 2.5 seconds, generous 10s handshake threshold)
+    // 2. Resilient Fast Watchdog (Check every 200ms, 800ms handshake threshold)
     watchdogIntervalRef.current = setInterval(() => {
       if (isUnmountedRef.current || !salonId) return;
-
-      // Don't hammer reconnect if polling fallback is active
-      if (pollingIntervalRef.current) return;
 
       const ws = socketRef.current;
       const now = Date.now();
 
-      // Case A: Socket is dead or closed, but no reconnect is scheduled
-      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
-        if (!reconnectTimeoutRef.current) {
+      // Case A: Stuck in CONNECTING state for >= 800ms (e.g. tunnel/proxy has no WS server)
+      if (ws && ws.readyState === WebSocket.CONNECTING) {
+        if (connectingStartedAtRef.current && now - connectingStartedAtRef.current >= 800) {
+          console.warn("[WebSocket Watchdog] Handshake timed out (>=800ms), switching to silent HTTP polling fallback");
           activateFallback();
         }
         return;
       }
 
-      // Case B: Stuck in CONNECTING state for > 3.5s (proxy/tunnel does not support WS upgrade)
-      if (ws.readyState === WebSocket.CONNECTING) {
-        if (connectingStartedAtRef.current && now - connectingStartedAtRef.current > 3500) {
-          console.warn("[WebSocket Watchdog] Handshake timed out (>3.5s), switching to HTTP polling fallback");
+      // Don't hammer reconnect if polling fallback is active
+      if (pollingIntervalRef.current) return;
+
+      // Case B: Socket is dead or closed, but no reconnect is scheduled
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        if (!reconnectTimeoutRef.current) {
           activateFallback();
         }
         return;
@@ -306,19 +314,36 @@ export function useSalonSocket(
           ws.send(JSON.stringify({ type: "PING", timestamp: now }));
         } catch {}
       }
-    }, 2500);
+    }, 200);
 
     // 3. Tab Visibility & Device Network Listeners
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
         const ws = socketRef.current;
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-          connect();
-        } else {
+        if (ws && ws.readyState === WebSocket.OPEN) {
           try {
             ws.send(JSON.stringify({ type: "PING", timestamp: Date.now() }));
           } catch {}
+          return;
         }
+
+        // If a connection handshake is already actively in progress, do not abort or duplicate it
+        if (ws && ws.readyState === WebSocket.CONNECTING) {
+          return;
+        }
+
+        // When in fallback polling mode, trigger an immediate HTTP sync when the user returns to the tab
+        if (pollingIntervalRef.current && callbackRef.current && !isUnmountedRef.current && salonId) {
+          callbackRef.current({ type: "QUEUE_UPDATED", salonId });
+        }
+
+        // Socket leak & storm prevention: only probe WebSocket once every 15s in polling fallback mode
+        const now = Date.now();
+        if (pollingIntervalRef.current && now - lastProbeAtRef.current < 15000) {
+          return;
+        }
+        lastProbeAtRef.current = now;
+        connect();
       }
     };
 
@@ -326,6 +351,7 @@ export function useSalonSocket(
       console.log("[WebSocket] Network restored (online event)");
       reconnectAttemptsRef.current = 0;
       setReconnectAttempts(0);
+      lastProbeAtRef.current = Date.now();
       connect();
     };
 
@@ -338,6 +364,7 @@ export function useSalonSocket(
 
     if (typeof window !== "undefined") {
       document.addEventListener("visibilitychange", handleVisibilityChange);
+      window.addEventListener("focus", handleVisibilityChange);
       window.addEventListener("online", handleOnline);
       window.addEventListener("offline", handleOffline);
     }
@@ -348,6 +375,7 @@ export function useSalonSocket(
 
       if (typeof window !== "undefined") {
         document.removeEventListener("visibilitychange", handleVisibilityChange);
+        window.removeEventListener("focus", handleVisibilityChange);
         window.removeEventListener("online", handleOnline);
         window.removeEventListener("offline", handleOffline);
       }
