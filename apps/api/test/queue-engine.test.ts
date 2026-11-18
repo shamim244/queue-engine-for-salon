@@ -200,8 +200,8 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
   it('should support enterprise multi-identifier login (phone, email, username)', async () => {
     await authService.seedDefaultUsers();
 
-    // 1. Phone number login
-    const byPhone = await authService.authenticateUser('9876543210', 'Ramesh@123');
+    // 1. Phone number login (Ramesh: 9876543212)
+    const byPhone = await authService.authenticateUser('9876543212', 'Ramesh@123');
     expect(byPhone).not.toBeNull();
     expect(byPhone?.username).toBe('ramesh');
     expect(byPhone?.session).toBeDefined();
