@@ -22,12 +22,15 @@ import {
   ChevronLeft,
   Banknote,
   Coins,
+  SlidersHorizontal,
   Check,
   Info,
   Zap,
+  TicketPercent,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PhoneInput } from "@/components/ui/phone-input";
 
 export default function BookAppointmentPage({
   params,
@@ -75,10 +78,25 @@ export default function BookAppointmentPage({
   const [selectedDate, setSelectedDate] = useState<string>(() => getLocalDateString());
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState<string>("");
+  const [customerCountryCode, setCustomerCountryCode] = useState<string>("+91");
   const [customerPhone, setCustomerPhone] = useState<string>("");
-  // Payment Choice: "MINIMUM" (default minimum deposit or pay at salon if free) | "FULL" (100% full payment) | "CUSTOM"
-  const [paymentChoice, setPaymentChoice] = useState<"MINIMUM" | "FULL" | "CUSTOM">("MINIMUM");
-  const [customAmount, setCustomAmount] = useState<number>(0);
+  // Payment Choice: strictly 2 primary options: "PARTIAL" (enforcing owner's minimum rule & customizable) vs "FULL" (100% full prepayment)
+  const [paymentChoice, setPaymentChoice] = useState<"PARTIAL" | "FULL">("PARTIAL");
+  // Partial advance amount chosen by customer (bounded: minRequiredAdvance <= partialAmount <= totalPrice)
+  const [partialAmount, setPartialAmount] = useState<number>(0);
+
+  // Promotional Coupon Code State
+  const [couponInput, setCouponInput] = useState<string>("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    id: string;
+    code: string;
+    discountType: string;
+    discountValue: number;
+    maxDiscountAmount?: number | null;
+  } | null>(null);
+  const [couponDiscount, setCouponDiscount] = useState<number>(0);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [applyingCoupon, setApplyingCoupon] = useState<boolean>(false);
 
   // Slots State
   const [slots, setSlots] = useState<AppointmentSlot[]>([]);
@@ -108,7 +126,7 @@ export default function BookAppointmentPage({
           if (policyRes.policy.policyType === "FULL") {
             setPaymentChoice("FULL");
           } else {
-            setPaymentChoice("MINIMUM");
+            setPaymentChoice("PARTIAL");
           }
         }
       })
@@ -147,44 +165,107 @@ export default function BookAppointmentPage({
   const selectedService = salon?.services.find((s) => s.id === selectedServiceId);
   const selectedStylist = salon?.stylists.find((s) => s.id === selectedStylistId);
   const totalPrice = selectedService ? selectedService.basePrice : 0;
+  const discountedPrice = Math.max(0, totalPrice - couponDiscount);
+
+  // Auto-apply coupon from URL if available (e.g. /s/[slug]/book?coupon=CODE)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const codeParam = params.get("coupon");
+    if (codeParam && salon?.id && totalPrice > 0 && !appliedCoupon) {
+      setCouponInput(codeParam.trim().toUpperCase());
+      api.coupons
+        .apply({
+          code: codeParam.trim().toUpperCase(),
+          targetType: "SALON_SERVICE",
+          orderAmount: totalPrice,
+          salonId: salon.id,
+        })
+        .then((res) => {
+          if (res.valid && res.coupon) {
+            setAppliedCoupon(res.coupon);
+            setCouponDiscount(res.discountAmount);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [salon?.id, totalPrice, appliedCoupon]);
+
+  const handleApplyCoupon = async () => {
+    if (!couponInput.trim() || !salon?.id) return;
+    setApplyingCoupon(true);
+    setCouponError(null);
+    try {
+      const res = await api.coupons.apply({
+        code: couponInput.trim().toUpperCase(),
+        targetType: "SALON_SERVICE",
+        orderAmount: totalPrice,
+        salonId: salon.id,
+      });
+      if (res.valid && res.coupon) {
+        setAppliedCoupon(res.coupon);
+        setCouponDiscount(res.discountAmount);
+      } else {
+        setCouponError(res.message || "Invalid coupon code for this salon.");
+      }
+    } catch (err: any) {
+      setCouponError(err.message || "Could not apply coupon.");
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponDiscount(0);
+    setCouponError(null);
+    setCouponInput("");
+  };
 
   // Minimum required advance deposit computed from policy set by salon owner / admin
   const minRequiredAdvance = useMemo(() => {
     if (!policy.enabled || policy.policyType === "FREE") return 0;
-    if (policy.policyType === "FULL") return totalPrice;
+    if (policy.policyType === "FULL") return discountedPrice;
     if (policy.policyType === "PERCENTAGE") {
       const pct = typeof policy.percentage === "number" ? policy.percentage : 50;
-      return Math.max(0, Math.round((totalPrice * pct) / 100));
+      return Math.max(0, Math.round((discountedPrice * pct) / 100));
     }
     // FIXED_TOKEN
     const token = typeof policy.tokenAmount === "number" ? policy.tokenAmount : 100;
-    return token === 0 ? 0 : Math.min(totalPrice, token);
-  }, [policy, totalPrice]);
+    return token === 0 ? 0 : Math.min(discountedPrice, token);
+  }, [policy, discountedPrice]);
 
-  // Dynamic payable amount based on user choice (Minimum vs 100% Full)
-  const payableAmount = useMemo(() => {
-    if (policy.policyType === "FULL") {
-      return totalPrice + (policy.convenienceFee || 0);
-    }
-    if (policy.policyType === "FREE") {
-      if (paymentChoice === "FULL") {
-        return totalPrice + (policy.convenienceFee || 0);
+  // Auto-sync partial amount when minRequiredAdvance or discountedPrice changes
+  useEffect(() => {
+    setPartialAmount((prev) => {
+      if (prev < minRequiredAdvance || prev > discountedPrice || prev === 0) {
+        return minRequiredAdvance;
       }
-      return 0; // Pay at salon
+      return prev;
+    });
+  }, [minRequiredAdvance, discountedPrice]);
+
+  const currentPartialAmount = Math.max(
+    minRequiredAdvance,
+    Math.min(discountedPrice, partialAmount || minRequiredAdvance)
+  );
+
+  // Dynamic payable amount based on user choice (Partial vs 100% Full)
+  const payableAmount = useMemo(() => {
+    if (policy.policyType === "FULL" || paymentChoice === "FULL") {
+      return discountedPrice + (policy.convenienceFee || 0);
     }
-    // For PERCENTAGE or FIXED_TOKEN:
-    if (paymentChoice === "FULL") {
-      return totalPrice + (policy.convenienceFee || 0);
-    }
-    if (paymentChoice === "CUSTOM" && customAmount > 0) {
-      const clamped = Math.max(minRequiredAdvance, Math.min(totalPrice, customAmount));
-      return clamped + (policy.convenienceFee || 0);
-    }
-    return minRequiredAdvance + (policy.convenienceFee || 0);
-  }, [policy, totalPrice, minRequiredAdvance, paymentChoice, customAmount]);
+    return currentPartialAmount + (policy.convenienceFee || 0);
+  }, [policy, discountedPrice, paymentChoice, currentPartialAmount]);
 
   const isFreeBooking = payableAmount === 0;
-  const balanceAtChair = Math.max(0, totalPrice - Math.max(0, payableAmount - (policy.convenienceFee || 0)));
+  const balanceAtChair = Math.max(0, discountedPrice - Math.max(0, payableAmount - (policy.convenienceFee || 0)));
+  const partialPct = discountedPrice > 0 ? Math.round((currentPartialAmount / discountedPrice) * 100) : 0;
+  const minPct = policy.policyType === "PERCENTAGE"
+    ? (policy.percentage || 50)
+    : discountedPrice > 0
+    ? Math.round((minRequiredAdvance / discountedPrice) * 100)
+    : 0;
 
   const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,8 +274,9 @@ export default function BookAppointmentPage({
       return;
     }
 
-    if (!customerName.trim() || customerPhone.trim().length < 10) {
-      setErrorMsg("Please enter your name and a valid 10-digit phone number.");
+    const cleanDigits = customerPhone.replace(/\D/g, "");
+    if (!customerName.trim() || cleanDigits.length !== 10) {
+      setErrorMsg("Please enter your name and an exact 10-digit phone number.");
       return;
     }
 
@@ -203,12 +285,7 @@ export default function BookAppointmentPage({
 
     try {
       // 1. Determine advanceType payload for backend
-      const advanceTypePayload =
-        policy.policyType === "FREE" && paymentChoice !== "FULL"
-          ? "FREE"
-          : paymentChoice === "FULL"
-          ? "FULL"
-          : "MINIMUM";
+      const advanceTypePayload = paymentChoice === "FULL" ? "FULL" : "PARTIAL";
 
       // 2. Initiate booking & lock slot
       const initRes = await api.appointments.initiate({
@@ -218,9 +295,10 @@ export default function BookAppointmentPage({
         date: selectedDate,
         slotTime: selectedSlot,
         customerName: customerName.trim(),
-        customerPhone: customerPhone.trim(),
-        advanceType: advanceTypePayload as any,
-        customAdvanceAmount: paymentChoice === "CUSTOM" ? customAmount : undefined,
+        customerPhone: `${customerCountryCode}${cleanDigits}`,
+        advanceType: advanceTypePayload,
+        customAdvanceAmount: paymentChoice === "PARTIAL" ? currentPartialAmount : undefined,
+        couponCode: appliedCoupon?.code || undefined,
       });
 
       if (!initRes.success || !initRes.appointmentId) {
@@ -239,7 +317,15 @@ export default function BookAppointmentPage({
         }
       }
 
-      // 4. Redirect to digital booking pass
+      // 4. Cache contact for instant /me pass recovery
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("customer_phone", customerPhone.trim());
+          localStorage.setItem("customer_name", customerName.trim());
+        } catch {}
+      }
+
+      // 5. Redirect to digital booking pass
       router.push(`/s/${slug}/appointment/${initRes.appointmentId}`);
     } catch (err: any) {
       setErrorMsg(err.message || "Failed to book appointment. Please try again.");
@@ -524,7 +610,17 @@ export default function BookAppointmentPage({
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-500 block">Total Price</span>
-                  <span className="font-bold font-mono text-amber-400">₹{totalPrice}</span>
+                  {couponDiscount > 0 ? (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="line-through text-slate-500 text-xs">₹{totalPrice}</span>
+                      <span className="font-bold font-mono text-amber-400">₹{discountedPrice}</span>
+                      <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-1 rounded">
+                        -₹{couponDiscount}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="font-bold font-mono text-amber-400">₹{totalPrice}</span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-500 block">Stylist</span>
@@ -553,20 +649,101 @@ export default function BookAppointmentPage({
                   type="text"
                   placeholder="Full Name"
                   required
+                  maxLength={80}
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   className="w-full min-h-[48px] px-4 rounded-2xl bg-slate-900 border border-slate-800 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-amber-500 transition-all"
                 />
-                <input
-                  type="tel"
-                  placeholder="10-digit WhatsApp Phone Number"
-                  required
-                  maxLength={10}
+                <PhoneInput
                   value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, ""))}
-                  className="w-full min-h-[48px] px-4 rounded-2xl bg-slate-900 border border-slate-800 text-white placeholder-slate-500 text-sm font-mono focus:outline-none focus:border-amber-500 transition-all"
+                  onChange={setCustomerPhone}
+                  countryCode={customerCountryCode}
+                  onCountryCodeChange={setCustomerCountryCode}
+                  placeholder="9876543210"
+                  showDigitCounter={true}
+                  required
                 />
               </div>
+            </div>
+
+            {/* Promo / Coupon Code Section */}
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <TicketPercent className="h-4 w-4 text-amber-400" />
+                  <span>Promotional Coupon Code</span>
+                </label>
+                {appliedCoupon && (
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px]">
+                    ✓ Applied: {appliedCoupon.code}
+                  </Badge>
+                )}
+              </div>
+
+              {appliedCoupon ? (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-emerald-400 text-sm">
+                        {appliedCoupon.code}
+                      </span>
+                      <span className="text-xs text-emerald-300 font-semibold">
+                        (Saved ₹{couponDiscount})
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {appliedCoupon.discountType === "PERCENT"
+                        ? `${appliedCoupon.discountValue}% discount applied`
+                        : `₹${appliedCoupon.discountValue} flat discount applied`}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemoveCoupon}
+                    className="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 min-h-[36px]"
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. DIWALI25, FIRSTCUT"
+                      value={couponInput}
+                      onChange={(e) => {
+                        setCouponInput(e.target.value.toUpperCase());
+                        setCouponError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleApplyCoupon();
+                        }
+                      }}
+                      className="flex-1 min-h-[44px] px-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 font-mono text-sm uppercase focus:outline-none focus:border-amber-500"
+                    />
+                    <Button
+                      type="button"
+                      disabled={applyingCoupon || !couponInput.trim()}
+                      onClick={handleApplyCoupon}
+                      className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold min-h-[44px] px-4"
+                    >
+                      {applyingCoupon ? "Applying..." : "Apply"}
+                    </Button>
+                  </div>
+
+                  {couponError && (
+                    <p className="text-xs text-rose-400 flex items-center gap-1.5 pt-0.5 font-medium">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                      <span>{couponError}</span>
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Advance Deposit Policy Options */}
@@ -598,16 +775,16 @@ export default function BookAppointmentPage({
                     This salon requires 100% prepayment before arrival. Zero balance left to settle at salon checkout.
                   </p>
                 </div>
-              ) : minRequiredAdvance > 0 ? (
-                /* Salon has a minimum deposit requirement (Percentage or Token) */
-                <div className="space-y-2.5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {/* Option A: Minimum Required Deposit */}
+              ) : (
+                /* EXACTLY TWO BUTTONS: 1. Pay Partial (with Owner Minimum Rule) & 2. Pay in Full (100%) */
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {/* BUTTON 1: Pay Partial Deposit (Applies Owner's Minimum Rule) */}
                     <button
                       type="button"
-                      onClick={() => setPaymentChoice("MINIMUM")}
-                      className={`min-h-[64px] p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all active:scale-95 ${
-                        paymentChoice === "MINIMUM"
+                      onClick={() => setPaymentChoice("PARTIAL")}
+                      className={`min-h-[66px] p-3 rounded-2xl border text-left flex flex-col justify-between transition-all active:scale-95 ${
+                        paymentChoice === "PARTIAL"
                           ? "bg-amber-500/10 border-amber-500 text-white shadow-lg shadow-amber-500/10 ring-1 ring-amber-500"
                           : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
                       }`}
@@ -615,29 +792,27 @@ export default function BookAppointmentPage({
                       <div className="flex items-center justify-between w-full mb-1">
                         <span className="text-xs font-bold text-white flex items-center gap-1.5">
                           <Coins className="h-3.5 w-3.5 text-amber-400" />
-                          <span>Minimum Deposit</span>
+                          <span>Pay Partial</span>
                         </span>
                         <span className="text-xs font-extrabold text-amber-400 font-mono">
-                          ₹{minRequiredAdvance}
+                          ₹{currentPartialAmount}
                         </span>
                       </div>
                       <div className="flex items-center justify-between w-full text-[10px] text-slate-400">
-                        <span>
-                          {policy.policyType === "PERCENTAGE"
-                            ? `${policy.percentage || 50}% Required Min.`
-                            : "Fixed Token Min."}
+                        <span className="text-amber-400/90 font-medium font-mono">
+                          {partialPct}% Advance
                         </span>
-                        <span className="text-slate-300">
-                          Balance ₹{Math.max(0, totalPrice - minRequiredAdvance)} at chair
+                        <span className="text-slate-300 font-mono">
+                          ₹{totalPrice - currentPartialAmount} at chair
                         </span>
                       </div>
                     </button>
 
-                    {/* Option B: Pay 100% in Full */}
+                    {/* BUTTON 2: Pay in Full (100%) */}
                     <button
                       type="button"
                       onClick={() => setPaymentChoice("FULL")}
-                      className={`min-h-[64px] p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all active:scale-95 ${
+                      className={`min-h-[66px] p-3 rounded-2xl border text-left flex flex-col justify-between transition-all active:scale-95 ${
                         paymentChoice === "FULL"
                           ? "bg-emerald-500/10 border-emerald-500 text-white shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500"
                           : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
@@ -654,63 +829,115 @@ export default function BookAppointmentPage({
                       </div>
                       <div className="flex items-center justify-between w-full text-[10px] text-slate-400">
                         <span className="text-emerald-400/90 font-medium">100% Prepayment</span>
-                        <span className="text-slate-300">₹0 balance at chair</span>
+                        <span className="text-slate-300">₹0 at chair</span>
                       </div>
                     </button>
                   </div>
-                </div>
-              ) : (
-                /* Salon has Free Policy (₹0 minimum deposit) */
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {/* Option A: Pay at Salon */}
-                  <button
-                    type="button"
-                    onClick={() => setPaymentChoice("MINIMUM")}
-                    className={`min-h-[64px] p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all active:scale-95 ${
-                      paymentChoice === "MINIMUM"
-                        ? "bg-amber-500/10 border-amber-500 text-white shadow-lg shadow-amber-500/10 ring-1 ring-amber-500"
-                        : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between w-full mb-1">
-                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <Banknote className="h-3.5 w-3.5 text-amber-400" />
-                        <span>Pay at Salon</span>
-                      </span>
-                      <span className="text-xs font-extrabold text-amber-400 font-mono">
-                        ₹0 Now
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between w-full text-[10px] text-slate-400">
-                      <span>Reserve chair instantly</span>
-                      <span className="text-slate-300">Settle ₹{totalPrice} at chair</span>
-                    </div>
-                  </button>
 
-                  {/* Option B: Pay 100% in Full */}
-                  <button
-                    type="button"
-                    onClick={() => setPaymentChoice("FULL")}
-                    className={`min-h-[64px] p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all active:scale-95 ${
-                      paymentChoice === "FULL"
-                        ? "bg-emerald-500/10 border-emerald-500 text-white shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500"
-                        : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between w-full mb-1">
-                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                        <span>Pay in Full (100%)</span>
-                      </span>
-                      <span className="text-xs font-extrabold text-emerald-400 font-mono">
-                        ₹{totalPrice}
-                      </span>
+                  {/* INLINE PARTIAL AMOUNT ADJUSTER (Revealed when Button 1 is active) */}
+                  {paymentChoice === "PARTIAL" && (
+                    <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3.5 animate-in fade-in-50 duration-150">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                          <SlidersHorizontal className="h-3.5 w-3.5 text-amber-400" />
+                          <span>Custom Partial Advance</span>
+                        </span>
+                        <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-mono">
+                          {partialPct}% of Bill (₹{currentPartialAmount})
+                        </Badge>
+                      </div>
+
+                      {/* Smooth Slider Bounded strictly by [minRequiredAdvance, totalPrice] */}
+                      <div className="space-y-1.5">
+                        <input
+                          type="range"
+                          min={minRequiredAdvance}
+                          max={totalPrice}
+                          step={1}
+                          value={currentPartialAmount}
+                          onChange={(e) => setPartialAmount(Number(e.target.value))}
+                          className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                        />
+                        <div className="flex justify-between text-[10px] font-mono text-slate-400">
+                          <span className="text-amber-400/90 font-semibold">
+                            Min Rule: ₹{minRequiredAdvance} ({minPct}%)
+                          </span>
+                          <span className="text-slate-300">Max: ₹{totalPrice} (100%)</span>
+                        </div>
+                      </div>
+
+                      {/* Stepper & Number Controls + Quick Presets */}
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => setPartialAmount(minRequiredAdvance)}
+                            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all ${
+                              currentPartialAmount === minRequiredAdvance
+                                ? "bg-amber-500 text-slate-950 border-amber-400 shadow-sm"
+                                : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
+                            }`}
+                          >
+                            Min ({minPct}%)
+                          </button>
+
+                          {[60, 75, 80, 90]
+                            .filter((pct) => pct > minPct && pct < 100)
+                            .map((pct) => {
+                              const amt = Math.round((totalPrice * pct) / 100);
+                              const isSelected = currentPartialAmount === amt;
+                              return (
+                                <button
+                                  key={pct}
+                                  type="button"
+                                  onClick={() => setPartialAmount(amt)}
+                                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all ${
+                                    isSelected
+                                      ? "bg-amber-500 text-slate-950 border-amber-400 shadow-sm"
+                                      : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
+                                  }`}
+                                >
+                                  {pct}%
+                                </button>
+                              );
+                            })}
+                        </div>
+
+                        {/* +/- Stepper for exact Rupee adjustment */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={currentPartialAmount <= minRequiredAdvance}
+                            onClick={() =>
+                              setPartialAmount((prev) => Math.max(minRequiredAdvance, prev - 5))
+                            }
+                            className="h-7 px-2 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center text-[11px] font-bold text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none active:scale-95"
+                          >
+                            -5
+                          </button>
+                          <span className="font-mono text-xs font-bold text-white px-1">
+                            ₹{currentPartialAmount}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={currentPartialAmount >= totalPrice}
+                            onClick={() =>
+                              setPartialAmount((prev) => Math.min(totalPrice, prev + 5))
+                            }
+                            className="h-7 px-2 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center text-[11px] font-bold text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none active:scale-95"
+                          >
+                            +5
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Rule Explanation Note */}
+                      <p className="text-[10px] text-slate-500 leading-tight">
+                        * Owner Rule: You cannot pay less than ₹{minRequiredAdvance} ({minPct}% minimum
+                        deposit). You can pay any custom amount up to ₹{totalPrice}.
+                      </p>
                     </div>
-                    <div className="flex items-center justify-between w-full text-[10px] text-slate-400">
-                      <span className="text-emerald-400/90 font-medium">100% Prepayment</span>
-                      <span className="text-slate-300">₹0 balance at chair</span>
-                    </div>
-                  </button>
+                  )}
                 </div>
               )}
 

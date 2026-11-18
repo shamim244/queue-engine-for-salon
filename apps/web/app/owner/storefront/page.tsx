@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
@@ -10,6 +10,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { PhoneInput, DEFAULT_COUNTRIES } from "@/components/ui/phone-input";
+import QRCode from "qrcode";
 import {
   Store,
   ExternalLink,
@@ -29,6 +31,8 @@ import {
   Trash2,
   Wifi,
   Sun,
+  Eye,
+  MessageCircle,
 } from "lucide-react";
 
 const STANDARD_AMENITIES = [
@@ -64,7 +68,10 @@ function OwnerStorefrontContent() {
   const [address, setAddress] = useState("");
   const [googleMapsUrl, setGoogleMapsUrl] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneCountryCode, setPhoneCountryCode] = useState("+91");
   const [whatsappPhone, setWhatsappPhone] = useState("");
+  const [whatsappCountryCode, setWhatsappCountryCode] = useState("+91");
+  const [sameAsCallingPhone, setSameAsCallingPhone] = useState(false);
   const [email, setEmail] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
   const [upiPaymentId, setUpiPaymentId] = useState("");
@@ -76,6 +83,27 @@ function OwnerStorefrontContent() {
   const [wifiPassword, setWifiPassword] = useState("");
   const [enableLoungeWifi, setEnableLoungeWifi] = useState(true);
   const [enableScreenWakeLock, setEnableScreenWakeLock] = useState(true);
+
+  // Live UPI QR Canvas Ref
+  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const parsePhoneInput = (raw: string) => {
+    if (!raw) return { code: "+91", national: "" };
+    let code = "+91";
+    let digits = raw.replace(/\D/g, "");
+    if (raw.startsWith("+")) {
+      for (const c of DEFAULT_COUNTRIES) {
+        if (raw.startsWith(c.code)) {
+          code = c.code;
+          digits = raw.slice(c.code.length).replace(/\D/g, "");
+          break;
+        }
+      }
+    } else if (digits.length === 12 && digits.startsWith("91")) {
+      digits = digits.slice(2);
+    }
+    return { code, national: digits.slice(0, 10) };
+  };
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -96,8 +124,16 @@ function OwnerStorefrontContent() {
           setOperatingHours(s.operatingHours || "Mon - Sat: 8:00 AM – 9:00 PM | Sun: 8:00 AM – 2:00 PM");
           setAddress(s.address || "");
           setGoogleMapsUrl(s.googleMapsUrl || "");
-          setPhone(s.phone || "");
-          setWhatsappPhone(s.whatsappPhone || s.phone || "");
+
+          const parsedPhone = parsePhoneInput(s.phone || "");
+          setPhone(parsedPhone.national);
+          setPhoneCountryCode(parsedPhone.code);
+
+          const parsedWA = parsePhoneInput(s.whatsappPhone || s.phone || "");
+          setWhatsappPhone(parsedWA.national);
+          setWhatsappCountryCode(parsedWA.code);
+          setSameAsCallingPhone(Boolean(s.whatsappPhone && s.phone && s.whatsappPhone === s.phone));
+
           setEmail(s.email || "");
           setInstagramHandle(s.instagramHandle || "");
           setUpiPaymentId(s.upiPaymentId || "");
@@ -122,6 +158,20 @@ function OwnerStorefrontContent() {
 
     loadSalonData();
   }, [currentSlug]);
+
+  // Client-Side NPCI UPI QR Code Generation (Zero Server Waste)
+  useEffect(() => {
+    if (!upiPaymentId || !upiPaymentId.includes("@") || !qrCanvasRef.current) return;
+    const upiUri = `upi://pay?pa=${encodeURIComponent(upiPaymentId.trim())}&pn=${encodeURIComponent(name.trim() || "Salon")}&cu=INR`;
+    QRCode.toCanvas(qrCanvasRef.current, upiUri, {
+      width: 140,
+      margin: 1,
+      color: {
+        dark: "#0f172a",
+        light: "#ffffff",
+      },
+    }).catch(() => {});
+  }, [upiPaymentId, name]);
 
   const toggleAmenity = (item: string) => {
     if (amenities.includes(item)) {
@@ -148,21 +198,37 @@ function OwnerStorefrontContent() {
 
     try {
       setSaving(true);
+      const cleanPhoneDigits = phone.trim().replace(/\D/g, "").slice(0, 10);
+      const formattedPhone = cleanPhoneDigits ? `${phoneCountryCode}${cleanPhoneDigits}` : "";
+
+      const cleanWADigits = sameAsCallingPhone
+        ? cleanPhoneDigits
+        : whatsappPhone.trim().replace(/\D/g, "").slice(0, 10);
+      const formattedWA = sameAsCallingPhone
+        ? formattedPhone
+        : cleanWADigits
+        ? `${whatsappCountryCode}${cleanWADigits}`
+        : "";
+
       const res = await api.salons.update(salon.id, {
-        name,
-        tagline,
-        about,
-        operatingHours,
-        address,
-        googleMapsUrl,
-        phone,
-        whatsappPhone,
-        email,
-        instagramHandle,
-        upiPaymentId,
-        announcement,
+        name: name.trim(),
+        tagline: tagline.trim(),
+        about: about.trim(),
+        operatingHours: operatingHours.trim(),
+        address: address.trim(),
+        googleMapsUrl: googleMapsUrl.trim(),
+        phone: formattedPhone,
+        whatsappPhone: formattedWA,
+        email: email.trim(),
+        instagramHandle: instagramHandle.trim(),
+        upiPaymentId: upiPaymentId.trim(),
+        announcement: announcement.trim(),
         announcementActive,
         amenities,
+        wifiSsid: wifiSsid.trim(),
+        wifiPassword: wifiPassword.trim(),
+        enableLoungeWifi,
+        enableScreenWakeLock,
       });
 
       if (res?.salon) {
@@ -256,6 +322,103 @@ function OwnerStorefrontContent() {
       </div>
 
       <form onSubmit={handleSaveStorefront} className="space-y-6">
+        {/* 0. INTERACTIVE LIVE STOREFRONT PREVIEW CARD */}
+        <Card className="border border-amber-500/30 bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/20 shadow-2xl overflow-hidden">
+          <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                <Eye className="h-4 w-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>Interactive Live Preview</span>
+                  <span className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                    Real-Time Mirror
+                  </span>
+                </h2>
+                <p className="text-[11px] text-slate-400">
+                  Visualizing how customers see your storefront on <code className="text-amber-300 font-mono">/s/{currentSlug}</code>
+                </p>
+              </div>
+            </div>
+            <Link
+              href={liveStorefrontUrl}
+              target="_blank"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
+            >
+              <ExternalLink className="h-3 w-3 text-blue-400" />
+              <span>Open in Tab</span>
+            </Link>
+          </div>
+
+          <div className="p-4 sm:p-6 space-y-4">
+            {/* Announcement Alert (if active) */}
+            {announcementActive && announcement && (
+              <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent border border-amber-500/40 text-amber-200 text-xs flex items-center gap-2.5">
+                <Megaphone className="h-4 w-4 text-amber-400 shrink-0" />
+                <span className="font-medium truncate">{announcement}</span>
+              </div>
+            )}
+
+            {/* Hero Banner Simulation */}
+            <div className="rounded-2xl bg-slate-950/70 border border-slate-800 p-4 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-2 min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="warning" className="text-[10px] px-2 py-0.5">
+                    ⭐ 4.9 RATED SALON
+                  </Badge>
+                  <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Accepting Walk-ins
+                  </span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-white truncate">
+                  {name || "Your Salon Name"}
+                </h3>
+                <p className="text-xs sm:text-sm text-amber-300/90 font-medium truncate">
+                  {tagline || "Authentic Grooming, Haircut & Luxury Spa"}
+                </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-slate-400">
+                  {address && (
+                    <span className="flex items-center gap-1 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                      <MapPin className="h-3 w-3 text-amber-400" />
+                      <span className="truncate max-w-[180px]">{address}</span>
+                    </span>
+                  )}
+                  {operatingHours && (
+                    <span className="flex items-center gap-1 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                      <Clock className="h-3 w-3 text-blue-400" />
+                      <span>{operatingHours.split("|")[0]}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Action Buttons Preview */}
+              <div className="flex flex-wrap md:flex-col gap-2 shrink-0">
+                {phone && (
+                  <div className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5" />
+                    <span>Call {phoneCountryCode} {phone}</span>
+                  </div>
+                )}
+                {(sameAsCallingPhone ? phone : whatsappPhone) && (
+                  <div className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold flex items-center gap-1.5">
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    <span>WhatsApp Chat</span>
+                  </div>
+                )}
+                {googleMapsUrl && (
+                  <div className="px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5" />
+                    <span>Map Directions</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </Card>
+
         {/* 1. ANNOUNCEMENT BANNER */}
         <Card className="border border-slate-800 bg-slate-900/60 shadow-xl">
           <CardHeader>
@@ -370,7 +533,7 @@ function OwnerStorefrontContent() {
               <CardTitle className="text-base text-white">Operating Hours &amp; Contact Details</CardTitle>
             </div>
             <CardDescription className="text-xs text-slate-400">
-              Provide direct contact and navigation links so customers can call, WhatsApp, or navigate to your salon.
+              Provide direct contact, navigation, and UPI payment details so customers can reach, find, or pay your salon effortlessly.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -401,30 +564,83 @@ function OwnerStorefrontContent() {
                 />
               </div>
 
+              {/* Direct Calling Phone with Country Code and 10-digit validation */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                   <Phone className="h-3.5 w-3.5 text-emerald-400" />
                   <span>Phone Number (For Direct Calling)</span>
                 </label>
-                <Input
+                <PhoneInput
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+91 98765 43210"
-                  className="bg-slate-950 border-slate-800"
+                  onChange={(val) => {
+                    setPhone(val);
+                    if (sameAsCallingPhone) {
+                      setWhatsappPhone(val);
+                    }
+                  }}
+                  countryCode={phoneCountryCode}
+                  onCountryCodeChange={(code) => {
+                    setPhoneCountryCode(code);
+                    if (sameAsCallingPhone) {
+                      setWhatsappCountryCode(code);
+                    }
+                  }}
+                  placeholder="9876543210"
+                  showDigitCounter={true}
+                  disabled={saving}
                 />
+                <p className="text-[11px] text-slate-400">
+                  Customers can tap one button on your storefront to call this line.
+                </p>
               </div>
 
+              {/* WhatsApp Chat Number with Same As Calling Phone toggle */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <span className="text-emerald-400 font-bold">WA</span>
-                  <span>WhatsApp Chat Number</span>
-                </label>
-                <Input
-                  value={whatsappPhone}
-                  onChange={(e) => setWhatsappPhone(e.target.value)}
-                  placeholder="+91 98765 43210"
-                  className="bg-slate-950 border-slate-800"
-                />
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <MessageCircle className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>WhatsApp Chat Number</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs text-amber-300 hover:text-amber-200">
+                    <input
+                      type="checkbox"
+                      checked={sameAsCallingPhone}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setSameAsCallingPhone(checked);
+                        if (checked) {
+                          setWhatsappPhone(phone);
+                          setWhatsappCountryCode(phoneCountryCode);
+                        }
+                      }}
+                      className="rounded border-slate-700 bg-slate-800 text-amber-500 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span>Same as Calling Phone</span>
+                  </label>
+                </div>
+                {sameAsCallingPhone ? (
+                  <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 flex items-center justify-between">
+                    <span className="font-mono text-emerald-400">
+                      {phoneCountryCode} {phone || "Not set yet"}
+                    </span>
+                    <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
+                      Synced with Calling Phone
+                    </Badge>
+                  </div>
+                ) : (
+                  <PhoneInput
+                    value={whatsappPhone}
+                    onChange={setWhatsappPhone}
+                    countryCode={whatsappCountryCode}
+                    onCountryCodeChange={setWhatsappCountryCode}
+                    placeholder="9876543210"
+                    showDigitCounter={true}
+                    disabled={saving}
+                  />
+                )}
+                <p className="text-[11px] text-slate-400">
+                  Used for instant 1-tap customer chat and queue summon notifications.
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -453,30 +669,79 @@ function OwnerStorefrontContent() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5 text-blue-400" />
-                  <span>Google Maps Directions URL</span>
-                </label>
+              {/* Google Maps Directions URL with Test Link */}
+              <div className="space-y-1.5 md:col-span-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 text-blue-400" />
+                    <span>Google Maps Directions URL</span>
+                  </label>
+                  {googleMapsUrl && (
+                    <a
+                      href={googleMapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 font-semibold transition-colors"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      <span>Test Directions Link ↗</span>
+                    </a>
+                  )}
+                </div>
                 <Input
                   value={googleMapsUrl}
                   onChange={(e) => setGoogleMapsUrl(e.target.value)}
-                  placeholder="https://maps.google.com/?q=..."
+                  placeholder="https://maps.google.com/?q=... or https://goo.gl/maps/..."
                   className="bg-slate-950 border-slate-800"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <QrCode className="h-3.5 w-3.5 text-amber-400" />
-                  <span>UPI Payment ID (For Direct Payments)</span>
-                </label>
-                <Input
-                  value={upiPaymentId}
-                  onChange={(e) => setUpiPaymentId(e.target.value)}
-                  placeholder="rameshbarber@upi"
-                  className="bg-slate-950 border-slate-800"
-                />
+              {/* UPI Payment ID with Client-Side Live NPCI QR Preview */}
+              <div className="space-y-2 md:col-span-2 p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <QrCode className="h-4 w-4 text-amber-400" />
+                    <span>Salon UPI Payment ID (VPA)</span>
+                  </label>
+                  {upiPaymentId && upiPaymentId.includes("@") && (
+                    <Badge className="bg-emerald-500/15 border-emerald-500/40 text-emerald-300 text-[10px] w-fit">
+                      ✓ Valid NPCI UPI Format
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                  <div className="sm:col-span-2 space-y-2">
+                    <Input
+                      value={upiPaymentId}
+                      onChange={(e) => setUpiPaymentId(e.target.value.trim().toLowerCase())}
+                      placeholder="e.g. rameshsalon@okhdfcbank or 9876543210@upi"
+                      className="bg-slate-900 border-slate-700 text-sm font-mono"
+                    />
+                    <p className="text-[11px] text-slate-400">
+                      Used for zero-fee direct customer payments on counter billing &amp; mirror displays.
+                    </p>
+                  </div>
+
+                  {/* Live UPI QR Preview Canvas */}
+                  <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                    {upiPaymentId && upiPaymentId.includes("@") ? (
+                      <div className="space-y-1.5 flex flex-col items-center">
+                        <div className="p-1.5 bg-white rounded-lg shadow-md">
+                          <canvas ref={qrCanvasRef} className="block w-24 h-24 sm:w-28 sm:h-28" />
+                        </div>
+                        <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+                          Live Scannable QR
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="py-4 text-slate-500 text-center space-y-1">
+                        <QrCode className="h-8 w-8 mx-auto opacity-40 text-slate-400" />
+                        <p className="text-[10px] text-slate-400">Enter a valid UPI ID (must contain @) to preview QR</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </CardContent>

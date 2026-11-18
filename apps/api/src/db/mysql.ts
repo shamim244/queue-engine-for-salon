@@ -146,7 +146,7 @@ async function runMigrations() {
         id VARCHAR(36) PRIMARY KEY,
         name VARCHAR(150) NOT NULL,
         slug VARCHAR(100) UNIQUE NOT NULL,
-        tier ENUM('STARTER', 'PRO', 'ENTERPRISE') DEFAULT 'STARTER',
+        tier ENUM('FREE', 'STARTER', 'PRO', 'ENTERPRISE') DEFAULT 'FREE',
         owner_id VARCHAR(36) NULL,
         max_branches INT DEFAULT 1,
         max_stylists_per_branch INT DEFAULT 2,
@@ -252,7 +252,7 @@ async function runMigrations() {
         reviewed_by VARCHAR(64) NULL,
         reviewed_at TIMESTAMP NULL,
         rejection_reason TEXT NULL,
-        status ENUM('PENDING', 'PENDING_APPROVAL', 'COMPLETED', 'FAILED', 'EXPIRED', 'REFUNDED', 'REJECTED') DEFAULT 'PENDING',
+        status ENUM('PENDING', 'PENDING_APPROVAL', 'PROCESSING', 'COMPLETED', 'FAILED', 'EXPIRED', 'REFUNDED', 'REJECTED') DEFAULT 'PENDING',
         payment_data JSON NULL,
         metadata JSON NULL,
         expires_at TIMESTAMP NOT NULL,
@@ -298,6 +298,7 @@ async function runMigrations() {
         max_uses INT NULL,
         used_count INT DEFAULT 0,
         max_uses_per_user INT DEFAULT 1,
+        is_first_time_only TINYINT(1) DEFAULT 0,
         valid_from TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         valid_until TIMESTAMP NULL,
         status ENUM('ACTIVE', 'INACTIVE', 'EXPIRED') DEFAULT 'ACTIVE',
@@ -532,6 +533,41 @@ async function runMigrations() {
       allowed_country_codes JSON NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`,
+
+    `CREATE TABLE IF NOT EXISTS loyalty_cards (
+      id VARCHAR(36) PRIMARY KEY,
+      salon_id VARCHAR(36) NOT NULL,
+      customer_phone VARCHAR(20) NOT NULL,
+      customer_name VARCHAR(100) NULL,
+      current_stamps INT NOT NULL DEFAULT 0,
+      total_lifetime_stamps INT NOT NULL DEFAULT 0,
+      completed_milestones INT NOT NULL DEFAULT 0,
+      last_stamp_awarded_at TIMESTAMP NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_salon_customer_phone (salon_id, customer_phone),
+      INDEX idx_salon_stamps (salon_id, current_stamps),
+      INDEX idx_customer_phone (customer_phone)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`,
+
+    `CREATE TABLE IF NOT EXISTS loyalty_vouchers (
+      id VARCHAR(36) PRIMARY KEY,
+      voucher_code VARCHAR(32) UNIQUE NOT NULL,
+      salon_id VARCHAR(36) NOT NULL,
+      customer_phone VARCHAR(20) NOT NULL,
+      reward_service_id VARCHAR(36) NOT NULL,
+      reward_service_name VARCHAR(100) NOT NULL,
+      reward_service_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+      status ENUM('ACTIVE', 'REDEEMED', 'EXPIRED', 'CANCELLED') NOT NULL DEFAULT 'ACTIVE',
+      unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP NULL,
+      redeemed_at TIMESTAMP NULL,
+      redeemed_ticket_id VARCHAR(36) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_salon_phone_status (salon_id, customer_phone, status),
+      INDEX idx_voucher_code (voucher_code)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
   ];
 
@@ -542,13 +578,13 @@ async function runMigrations() {
   // Safe Column additions for existing installations
   const safeColumns = [
     `UPDATE organizations SET tier = 'STARTER' WHERE tier = 'SOLO';`,
-    `ALTER TABLE organizations MODIFY COLUMN tier ENUM('STARTER', 'PRO', 'ENTERPRISE') DEFAULT 'STARTER';`,
+    `ALTER TABLE organizations MODIFY COLUMN tier ENUM('FREE', 'STARTER', 'PRO', 'ENTERPRISE') DEFAULT 'FREE';`,
     `ALTER TABLE organizations ADD COLUMN plan_id VARCHAR(36) NULL;`,
     `ALTER TABLE salons ADD COLUMN organization_id VARCHAR(36) NULL;`,
     `ALTER TABLE salons ADD COLUMN operating_mode VARCHAR(50) NULL DEFAULT NULL;`,
     `ALTER TABLE salons MODIFY COLUMN operating_mode VARCHAR(50) NULL DEFAULT NULL;`,
     `ALTER TABLE payment_orders MODIFY COLUMN provider ENUM('UPI_QR', 'CASH', 'RAZORPAY', 'WALLET') NOT NULL;`,
-    `ALTER TABLE payment_orders MODIFY COLUMN status ENUM('PENDING', 'PENDING_APPROVAL', 'COMPLETED', 'FAILED', 'EXPIRED', 'REFUNDED', 'REJECTED') DEFAULT 'PENDING';`,
+    `ALTER TABLE payment_orders MODIFY COLUMN status ENUM('PENDING', 'PENDING_APPROVAL', 'PROCESSING', 'COMPLETED', 'FAILED', 'EXPIRED', 'REFUNDED', 'REJECTED') DEFAULT 'PENDING';`,
     `ALTER TABLE payment_orders ADD COLUMN utr_number VARCHAR(64) NULL;`,
     `ALTER TABLE payment_orders ADD COLUMN payment_proof_note TEXT NULL;`,
     `ALTER TABLE payment_orders ADD COLUMN reviewed_by VARCHAR(64) NULL;`,
@@ -584,7 +620,15 @@ async function runMigrations() {
     `ALTER TABLE users ADD COLUMN status VARCHAR(30) DEFAULT 'ACTIVE';`,
     `ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP NULL;`,
     `ALTER TABLE users MODIFY COLUMN role VARCHAR(50) NOT NULL;`,
-    `ALTER TABLE users MODIFY COLUMN status VARCHAR(30) DEFAULT 'ACTIVE';`
+    `ALTER TABLE users MODIFY COLUMN status VARCHAR(30) DEFAULT 'ACTIVE';`,
+    `ALTER TABLE salons ADD COLUMN loyalty_reward_service_id VARCHAR(36) NULL;`,
+    `ALTER TABLE salons ADD COLUMN loyalty_reward_service_name VARCHAR(100) NULL;`,
+    `ALTER TABLE salons ADD COLUMN loyalty_cooldown_hours INT NOT NULL DEFAULT 4;`,
+    `ALTER TABLE salons ADD COLUMN loyalty_voucher_validity_days INT NOT NULL DEFAULT 90;`,
+    `ALTER TABLE customers ADD COLUMN grooming_specs TEXT NULL;`,
+    `ALTER TABLE customers ADD COLUMN preferred_barber_id VARCHAR(36) NULL;`,
+    `ALTER TABLE customers ADD COLUMN preferred_barber_name VARCHAR(100) NULL;`,
+    `ALTER TABLE customers ADD COLUMN notes TEXT NULL;`
   ];
 
   for (const colSql of safeColumns) {

@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ServiceIcon } from "@/components/ui/service-icon";
 import {
   QrCode,
   Tv,
@@ -405,8 +406,8 @@ export function InspectTenantModal({
                   <tbody className="divide-y divide-slate-800/60 text-slate-300">
                     {salon.services?.map((srv) => (
                       <tr key={srv.id} className="hover:bg-slate-900/30">
-                        <td className="py-2.5 px-3 font-semibold text-white flex items-center gap-1.5">
-                          <span>{srv.icon || "✂️"}</span>
+                        <td className="py-2.5 px-3 font-semibold text-white flex items-center gap-2">
+                          <ServiceIcon icon={srv.icon} size={16} />
                           <span>{srv.name}</span>
                         </td>
                         <td className="py-2.5 px-3 text-emerald-400 font-bold">

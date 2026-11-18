@@ -44,6 +44,7 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
       serviceId: t.String({ maxLength: 64 }),
       addOnIds: t.Optional(t.Array(t.String({ maxLength: 64 }), { maxItems: 10 })),
       stylistId: t.Optional(t.Nullable(t.String({ maxLength: 64 }))),
+      couponCode: t.Optional(t.String({ maxLength: 50 })),
     })
   })
 
@@ -170,23 +171,40 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
     })
   })
 
-  // 7. Finish Service & Log Payment (Cash or Online)
+  // 7. Finish Service & Log Payment (Cash or Online) - Restricted strictly to Staff / Barber Station
   .post('/finish', async ({ body, headers, cookie: { engine_session }, set }) => {
     try {
       const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
-      if (token) {
-        const auth = await authService.validateSession(token);
-        if (auth && auth.role === 'CUSTOMER') {
-          set.status = 403;
-          return { success: false, message: 'Forbidden: Customers cannot execute barber station operations' };
-        }
+      if (!token) {
+        set.status = 401;
+        return { success: false, message: 'Authentication required: Only authorized staff or salon owners can execute checkout operations' };
       }
-      const { ticketId, paymentStatus, paymentAmount } = body as {
+      const auth = await authService.validateSession(token);
+      if (!auth || (auth.role !== 'STAFF' && auth.role !== 'SALON_OWNER' && auth.role !== 'SUPER_ADMIN')) {
+        set.status = 403;
+        return { success: false, message: 'Forbidden: Only authorized staff or salon owners can execute checkout operations' };
+      }
+
+      const { ticketId, paymentStatus, paymentAmount, couponCode, couponDiscount } = body as {
         ticketId: string;
         paymentStatus: 'CASH_PAID' | 'ONLINE_PAID';
         paymentAmount?: number;
+        couponCode?: string;
+        couponDiscount?: number;
       };
-      const ticket = await queueEngine.finishService(ticketId, paymentStatus, paymentAmount);
+
+      const existing = await repository.getTicketById(ticketId);
+      if (!existing) {
+        set.status = 404;
+        return { success: false, message: 'Ticket not found' };
+      }
+
+      if (auth.role !== 'SUPER_ADMIN' && auth.salonId && auth.salonId !== existing.salonId) {
+        set.status = 403;
+        return { success: false, message: 'Forbidden: Cannot finish tickets from another salon' };
+      }
+
+      const ticket = await queueEngine.finishService(ticketId, paymentStatus, paymentAmount, couponCode, couponDiscount);
       if (!ticket) {
         set.status = 404;
         return { success: false, message: 'Ticket not found' };
@@ -202,6 +220,8 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
       ticketId: t.String(),
       paymentStatus: t.Union([t.Literal('CASH_PAID'), t.Literal('ONLINE_PAID')]),
       paymentAmount: t.Optional(t.Number()),
+      couponCode: t.Optional(t.String({ maxLength: 50 })),
+      couponDiscount: t.Optional(t.Number()),
     })
   })
 
@@ -297,32 +317,58 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
 
   // 8.2 Cancel / Remove Ticket (Front Desk Manual Removal / Customer Cancellation)
   .post('/cancel', async ({ body, headers, cookie: { engine_session }, set }) => {
-    const { ticketId, reason } = body as { ticketId: string; reason?: string };
-    const existing = await repository.getTicketById(ticketId);
-    if (!existing) {
-      set.status = 404;
-      return { message: 'Ticket not found' };
-    }
+    try {
+      const { ticketId, reason } = body as { ticketId: string; reason?: string };
+      const existing = await repository.getTicketById(ticketId);
+      if (!existing) {
+        set.status = 404;
+        return { success: false, message: 'Ticket not found' };
+      }
 
-    const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
-    if (token) {
-      const auth = await authService.validateSession(token);
-      if (auth && auth.role === 'CUSTOMER') {
-        const userDigits = (auth.phone || '').replace(/[^0-9]/g, '');
-        const ticketDigits = (existing.customerPhone || '').replace(/[^0-9]/g, '');
-        const isOwner =
-          (userDigits && ticketDigits && (userDigits.endsWith(ticketDigits.slice(-10)) || ticketDigits.endsWith(userDigits.slice(-10)))) ||
-          auth.username === existing.customerName ||
-          auth.fullName === existing.customerName;
-        if (!isOwner) {
-          set.status = 403;
-          return { success: false, message: 'Forbidden: Customers can only cancel their own queue ticket' };
+      if (['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(existing.status)) {
+        set.status = 400;
+        return { success: false, message: `Ticket is already ${existing.status.toLowerCase()}` };
+      }
+
+      const token = headers.authorization?.replace(/^Bearer\s+/i, '') || (engine_session ? engine_session.value : null);
+      let isStaffOrOwner = false;
+
+      if (token) {
+        const auth = await authService.validateSession(token);
+        if (auth && (auth.role === 'STAFF' || auth.role === 'SALON_OWNER' || auth.role === 'SUPER_ADMIN')) {
+          if (auth.role === 'SUPER_ADMIN' || !auth.salonId || auth.salonId === existing.salonId) {
+            isStaffOrOwner = true;
+          }
+        } else if (auth && auth.role === 'CUSTOMER') {
+          const userDigits = (auth.phone || '').replace(/[^0-9]/g, '');
+          const ticketDigits = (existing.customerPhone || '').replace(/[^0-9]/g, '');
+          const isOwner =
+            (userDigits && ticketDigits && (userDigits.endsWith(ticketDigits.slice(-10)) || ticketDigits.endsWith(userDigits.slice(-10)))) ||
+            auth.username === existing.customerName ||
+            auth.fullName === existing.customerName;
+          if (!isOwner) {
+            set.status = 403;
+            return { success: false, message: 'Forbidden: Customers can only cancel their own queue ticket' };
+          }
         }
       }
-    }
 
-    const ticket = await queueEngine.cancelTicket(ticketId, reason);
-    return { success: true, ticket };
+      // If user is not staff/owner, they CANNOT cancel a ticket that is already seated in chair / in service!
+      if (!isStaffOrOwner && (existing.status === 'IN_CHAIR' || existing.status === 'IN_SERVICE')) {
+        set.status = 403;
+        return {
+          success: false,
+          message: 'Cannot cancel ticket: Service is currently in progress in the chair. Please settle checkout with your barber.',
+        };
+      }
+
+      const ticket = await queueEngine.cancelTicket(ticketId, reason, isStaffOrOwner);
+      return { success: true, ticket };
+    } catch (err: any) {
+      console.error('[queueRoutes:cancel] Error:', err);
+      set.status = 400;
+      return { success: false, message: err?.message || 'Failed to cancel ticket' };
+    }
   }, {
     body: t.Object({
       ticketId: t.String(),

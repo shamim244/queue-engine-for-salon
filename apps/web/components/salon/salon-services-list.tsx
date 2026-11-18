@@ -6,6 +6,7 @@ import type { Service } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
+import { ServiceIcon } from "@/components/ui/service-icon";
 import { Scissors, ChevronRight, Zap } from "lucide-react";
 
 interface SalonServicesListProps {
@@ -70,7 +71,9 @@ export function SalonServicesList({ services, slug, showAllLink = false }: Salon
           >
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-2">
-                <span className="text-2xl group-hover:scale-110 transition-transform">{srv.icon || "✂️"}</span>
+                <div className="h-10 w-10 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center p-1.5 group-hover:scale-110 transition-transform shrink-0">
+                  <ServiceIcon icon={srv.icon} size={24} />
+                </div>
                 <Badge variant={srv.isAddOn ? "purple" : "secondary"} className="text-[10px]">
                   {srv.isAddOn ? "Add-On" : `${srv.estimatedDurationMinutes} mins`}
                 </Badge>

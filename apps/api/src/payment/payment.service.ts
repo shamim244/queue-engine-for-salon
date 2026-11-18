@@ -77,8 +77,21 @@ export class PaymentService {
         plan = await planRepo.getPlanBySlug(input.targetId);
       }
       if (!plan) {
+        const allPlans = await planRepo.getAllPlans({ status: 'ACTIVE' });
+        const targetLower = (input.targetId || '').toLowerCase();
+        plan = allPlans.find(
+          (p) =>
+            p.id.toLowerCase() === targetLower ||
+            p.slug.toLowerCase() === targetLower ||
+            (p.badge && p.badge.toLowerCase().includes(targetLower)) ||
+            p.name.toLowerCase().includes(targetLower)
+        ) || null;
+      }
+      if (!plan) {
         throw new Error(`Subscription plan not found: ${input.targetId}`);
       }
+
+      input.targetId = plan.id;
 
       const cycle = (input.metadata?.cycle || '1m') as BillingCycle;
       const cycleKey = `cycle${cycle.toUpperCase()}Enabled` as keyof typeof plan;
@@ -226,14 +239,17 @@ export class PaymentService {
       throw new Error(`Payment order not found: ${input.orderId}`);
     }
 
-    if (order.status === 'COMPLETED') {
-      return {
-        success: true,
-        orderId: order.id,
-        status: 'COMPLETED',
-        utrNumber: order.utrNumber,
-        message: 'Order already completed and active.',
-      };
+    if (order.status !== 'PENDING') {
+      if (order.status === 'COMPLETED') {
+        return {
+          success: true,
+          orderId: order.id,
+          status: 'COMPLETED',
+          utrNumber: order.utrNumber,
+          message: 'Order already completed and active.',
+        };
+      }
+      throw new Error(`Cannot submit payment for order in ${order.status} state. Only PENDING orders can be submitted.`);
     }
 
     if (input.provider === 'UPI_QR') {
@@ -273,17 +289,40 @@ export class PaymentService {
       throw new Error(`Payment order not found: ${input.orderId}`);
     }
 
-    if (order.status === 'COMPLETED') {
-      const activeSub = order.organizationId
-        ? await paymentRepo.getActiveSubscriptionByOrgId(order.organizationId)
-        : null;
-      return {
-        success: true,
-        orderId: order.id,
-        status: 'COMPLETED',
-        subscription: activeSub,
-        message: 'Order already approved and completed.',
-      };
+    if (order.status !== 'PENDING_APPROVAL') {
+      if (order.status === 'COMPLETED') {
+        const activeSub = order.organizationId
+          ? await paymentRepo.getActiveSubscriptionByOrgId(order.organizationId)
+          : null;
+        return {
+          success: true,
+          orderId: order.id,
+          status: 'COMPLETED',
+          subscription: activeSub,
+          message: 'Order already approved and completed.',
+        };
+      }
+      throw new Error(`Cannot approve order in ${order.status} state. Only PENDING_APPROVAL orders can be approved.`);
+    }
+
+    // Atomic Concurrency Claim: Claim order from PENDING_APPROVAL to PROCESSING
+    const claimed = await paymentRepo.claimOrderForProcessing(order.id, 'PENDING_APPROVAL');
+    if (!claimed) {
+      // Recheck if another concurrent worker completed it
+      const current = await paymentRepo.getOrderById(order.id);
+      if (current?.status === 'COMPLETED') {
+        const activeSub = order.organizationId
+          ? await paymentRepo.getActiveSubscriptionByOrgId(order.organizationId)
+          : null;
+        return {
+          success: true,
+          orderId: order.id,
+          status: 'COMPLETED',
+          subscription: activeSub,
+          message: 'Order already approved and completed.',
+        };
+      }
+      throw new Error('Order is currently being processed by another administrator.');
     }
 
     const transactionRef =
@@ -291,12 +330,18 @@ export class PaymentService {
 
     // Fulfill subscription downstream
     let subscription: OrganizationSubscription | null = null;
-    if (order.targetType === 'SUBSCRIPTION') {
-      subscription = await this.fulfillSubscription(order, transactionRef);
-    }
+    try {
+      if (order.targetType === 'SUBSCRIPTION') {
+        subscription = await this.fulfillSubscription(order, transactionRef);
+      }
 
-    // Update order status to COMPLETED
-    await paymentRepo.approvePaymentOrder(order.id, input.adminId || 'admin', transactionRef);
+      // Update order status to COMPLETED
+      await paymentRepo.approvePaymentOrder(order.id, input.adminId || 'admin', transactionRef);
+    } catch (fulfillErr: any) {
+      // Roll back claim to PENDING_APPROVAL on failure so admin can inspect and retry
+      await paymentRepo.updateOrderStatus(order.id, 'PENDING_APPROVAL');
+      throw fulfillErr;
+    }
 
     return {
       success: true,
@@ -347,6 +392,17 @@ export class PaymentService {
       plan = await planRepo.getPlanBySlug(order.targetId);
     }
     if (!plan) {
+      const allPlans = await planRepo.getAllPlans({ status: 'ACTIVE' });
+      const targetLower = order.targetId.toLowerCase();
+      plan = allPlans.find(
+        (p) =>
+          p.id.toLowerCase() === targetLower ||
+          p.slug.toLowerCase() === targetLower ||
+          (p.badge && p.badge.toLowerCase().includes(targetLower)) ||
+          p.name.toLowerCase().includes(targetLower)
+      ) || null;
+    }
+    if (!plan) {
       throw new Error(`Plan not found for fulfillment: ${order.targetId}`);
     }
 
@@ -380,6 +436,18 @@ export class PaymentService {
     const couponDiscount = Number(order.metadata?.couponDiscount || 0);
     const couponId = order.metadata?.couponId || null;
 
+    // ADR 005 C2: Debit wallet FIRST if credits were applied. Must not swallow errors!
+    const walletDeducted = Number(order.metadata?.walletDeducted || 0);
+    if (walletDeducted > 0) {
+      await walletService.deductForCheckout({
+        walletType: 'OWNER',
+        identifier: orgId,
+        amount: walletDeducted,
+        reason: `Applied wallet credits to subscription order ${order.id}`,
+        referenceId: order.id,
+      });
+    }
+
     const subscription: OrganizationSubscription = {
       id: subId,
       organizationId: orgId,
@@ -390,7 +458,7 @@ export class PaymentService {
       basePrice,
       couponId,
       couponDiscount,
-      walletDeducted: Number(order.metadata?.walletDeducted || 0),
+      walletDeducted,
       netAmountPaid: order.amount,
       paymentMethod: order.provider,
       paymentOrderId: order.id,
@@ -413,27 +481,53 @@ export class PaymentService {
       });
     }
 
-    // Debit wallet if credits were applied
-    const walletDeducted = Number(order.metadata?.walletDeducted || 0);
-    if (walletDeducted > 0) {
-      try {
-        await walletService.deductForCheckout({
-          walletType: 'OWNER',
-          identifier: orgId,
-          amount: walletDeducted,
-          reason: `Applied wallet credits to subscription order ${order.id}`,
-          referenceId: order.id,
-        });
-      } catch (err: any) {
-        console.warn(`[paymentService] Wallet debit warning: ${err.message}`);
-      }
-    }
-
     // Process B2B referral conversion if this org was referred
     try {
-      await referralService.processConversion('B2B_OWNER', orgId, order.id);
+      const isReferralCoupon = couponId?.startsWith('b2b_') || couponId?.startsWith('partner_') || !!order.metadata?.partnerCode;
+      const originalAmount = Number(order.metadata?.originalAmount || basePrice || order.amount);
+      const subscriptionDiscount = Number(
+        order.metadata?.subscriptionDiscount ?? (isReferralCoupon ? 0 : (couponDiscount || 0))
+      );
+      const friendDiscount = Number(
+        order.metadata?.friendDiscount ?? (isReferralCoupon ? (order.metadata?.couponDiscount ?? order.metadata?.discountApplied ?? couponDiscount ?? 0) : 0)
+      );
+
+      await referralService.processConversion(
+        'B2B_OWNER',
+        orgId,
+        order.id,
+        null,
+        order.amount,
+        {
+          originalAmount,
+          subscriptionDiscount,
+          friendDiscount,
+        }
+      );
     } catch (err: any) {
       console.warn(`[paymentService] Referral conversion error: ${err.message}`);
+    }
+
+    // Process Partner Network Commission & Qualification Unlock
+    try {
+      const { partnerRepo } = await import('../db/repositories/partner.repo');
+      const { salonRepo } = await import('../db/repositories/salon.repo');
+      let targetSalonId = order.salonId;
+      if (!targetSalonId && orgId) {
+        const salons = await salonRepo.getAllSalons();
+        const match = salons.find((s) => s.organizationId === orgId);
+        if (match) targetSalonId = match.id;
+      }
+      if (targetSalonId) {
+        await partnerRepo.processSubscriptionPayment({
+          salonId: targetSalonId,
+          grossAmount: basePrice,
+          discountAmount: couponDiscount,
+          paymentReference: order.id,
+        });
+      }
+    } catch (err: any) {
+      console.warn(`[paymentService] Partner subscription commission warning: ${err.message}`);
     }
 
     // Update organization's active plan and quotas

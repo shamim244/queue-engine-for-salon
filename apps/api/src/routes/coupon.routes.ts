@@ -39,6 +39,142 @@ export const couponRoutes = new Elysia({ prefix: '/api/coupons' })
     }
   )
 
+  // 1b. Query Auto Referral Discount for Salon / Organization
+  .get(
+    '/auto-referral',
+    async ({ query }) => {
+      try {
+        const { partnerRepo } = await import('../db/repositories/partner.repo');
+        const { salonRepo } = await import('../db/repositories/salon.repo');
+        const { referralRepo } = await import('../db/repositories/referral.repo');
+        const { referralService } = await import('../wallet/referral.service');
+        const { organizationRepo } = await import('../db/repositories/organization.repo');
+        const { repository } = await import('../db/repository');
+        const platformSettings = repository.getPlatformSettings();
+        const b2bDiscountPercent = Math.max(0, Math.min(100, platformSettings.b2bReferral?.refereeDiscountPercent ?? 20));
+
+        let partner: any = null;
+        let b2bReferral: { code: string; name: string; discountPercent: number } | null = null;
+
+        let targetOrgId = query.organizationId;
+        if (!targetOrgId && query.salonId) {
+          const salon = await salonRepo.getSalonById(query.salonId);
+          if (salon?.organizationId) targetOrgId = salon.organizationId;
+        }
+
+        // Check if organization is eligible for B2B referral discount (one-time rule)
+        let isEligibleForB2B = true;
+        if (targetOrgId) {
+          const eligibility = await referralService.isOrgEligibleForReferral(targetOrgId);
+          if (!eligibility.eligible) {
+            isEligibleForB2B = false;
+          }
+        }
+
+        // 1. Direct cookie / query code check for B2B Salon Referral
+        if (isEligibleForB2B && query.cookieCode) {
+          const referrerOrgId = await referralService.resolveReferrerOrg(query.cookieCode);
+          if (referrerOrgId && (!query.organizationId || referrerOrgId !== query.organizationId)) {
+            const org = await organizationRepo.getOrganizationById(referrerOrgId);
+            b2bReferral = {
+              code: query.cookieCode.trim().toUpperCase(),
+              name: org?.name || 'Referred Salon',
+              discountPercent: b2bDiscountPercent,
+            };
+          }
+        }
+
+        // 2. Direct cookie / query code check for Affiliate Partner
+        if (!b2bReferral && query.cookieCode) {
+          const directPartner = await partnerRepo.getPartnerByCode(query.cookieCode);
+          if (directPartner && directPartner.status === 'ACTIVE') {
+            partner = directPartner;
+          }
+        }
+
+        // 3. Organization / Salon attribution check for B2B Referral (e.g. Free plan onboarding)
+        if (isEligibleForB2B && !b2bReferral && !partner) {
+          if (targetOrgId) {
+            const pendingAttr = await referralRepo.getPendingAttributionForOrg(targetOrgId);
+            if (pendingAttr && pendingAttr.referrerOrgId) {
+              const org = await organizationRepo.getOrganizationById(pendingAttr.referrerOrgId);
+              b2bReferral = {
+                code: pendingAttr.referrerCode,
+                name: org?.name || 'Referred Salon',
+                discountPercent: b2bDiscountPercent,
+              };
+            }
+          }
+        }
+
+        // 4. Salon attribution check for Affiliate Partner
+        if (!b2bReferral && !partner) {
+          let targetSalonId = query.salonId;
+          if (!targetSalonId && query.organizationId) {
+            const salons = await salonRepo.getAllSalons();
+            const match = salons.find((s) => s.organizationId === query.organizationId);
+            if (match) targetSalonId = match.id;
+          }
+          if (targetSalonId) {
+            const attribution = await partnerRepo.getAttributionBySalonId(targetSalonId);
+            if (attribution) {
+              const attrPartner = await partnerRepo.getPartnerById(attribution.partnerId);
+              if (attrPartner && attrPartner.status === 'ACTIVE') {
+                partner = attrPartner;
+              }
+            }
+          }
+        }
+
+        if (b2bReferral) {
+          return {
+            success: true,
+            hasReferralDiscount: true,
+            partnerCode: b2bReferral.code,
+            partnerName: b2bReferral.name,
+            discountPercent: b2bReferral.discountPercent,
+            message: `Special ${b2bReferral.discountPercent}% Salon Referral Discount applied from ${b2bReferral.name}!`,
+          };
+        }
+
+        if (partner) {
+          const settings = await partnerRepo.getProgramSettings();
+          const discountPercent = Math.max(0, Math.min(100, settings.defaultReferralDiscountPercent ?? 10));
+          return {
+            success: true,
+            hasReferralDiscount: true,
+            partnerCode: partner.referralCode,
+            partnerName: partner.fullName,
+            discountPercent,
+            message: `Special ${discountPercent}% Partner Discount applied from ${partner.fullName}!`,
+          };
+        }
+
+        return {
+          success: true,
+          hasReferralDiscount: false,
+          partnerCode: null,
+          discountPercent: 0,
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          hasReferralDiscount: false,
+          partnerCode: null,
+          discountPercent: 0,
+          message: err.message,
+        };
+      }
+    },
+    {
+      query: t.Object({
+        salonId: t.Optional(t.String()),
+        organizationId: t.Optional(t.String()),
+        cookieCode: t.Optional(t.String()),
+      }),
+    }
+  )
+
   // 2. List All Coupons
   .get(
     '/',
@@ -117,6 +253,7 @@ export const couponRoutes = new Elysia({ prefix: '/api/coupons' })
         minOrderAmount: t.Optional(t.Union([t.Number({ minimum: 0 }), t.Null()])),
         maxUses: t.Optional(t.Union([t.Number({ minimum: 1 }), t.Null()])),
         maxUsesPerUser: t.Optional(t.Union([t.Number({ minimum: 1 }), t.Null()])),
+        isFirstTimeOnly: t.Optional(t.Union([t.Boolean(), t.Null()])),
         validFrom: t.Optional(t.Union([t.String(), t.Null()])),
         validUntil: t.Optional(t.Union([t.String(), t.Null()])),
         status: t.Optional(t.Union([t.Literal('ACTIVE'), t.Literal('INACTIVE'), t.Literal('EXPIRED')])),
@@ -209,6 +346,7 @@ export const couponRoutes = new Elysia({ prefix: '/api/coupons' })
         minOrderAmount: t.Optional(t.Union([t.Number({ minimum: 0 }), t.Null()])),
         maxUses: t.Optional(t.Union([t.Number({ minimum: 1 }), t.Null()])),
         maxUsesPerUser: t.Optional(t.Union([t.Number({ minimum: 1 }), t.Null()])),
+        isFirstTimeOnly: t.Optional(t.Union([t.Boolean(), t.Null()])),
         validFrom: t.Optional(t.Union([t.String(), t.Null()])),
         validUntil: t.Optional(t.Union([t.String(), t.Null()])),
         status: t.Optional(t.Union([t.Literal('ACTIVE'), t.Literal('INACTIVE'), t.Literal('EXPIRED')])),

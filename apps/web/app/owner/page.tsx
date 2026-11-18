@@ -4,10 +4,11 @@ import React, { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import type { Ticket } from "@/lib/api";
+import type { Ticket, PaymentOrder } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 import {
   CheckCircle2,
   AlertCircle,
@@ -15,6 +16,8 @@ import {
   X,
   UserPlus,
   RefreshCw,
+  Clock,
+  ArrowRight,
 } from "lucide-react";
 import {
   OwnerKpiSummary,
@@ -46,6 +49,10 @@ function OwnerDashboardContent() {
   const [seatTicket, setSeatTicket] = useState<Ticket | null>(null);
   const [cancelTargetTicket, setCancelTargetTicket] = useState<Ticket | null>(null);
 
+  // Payment Order Verification Status
+  const [pendingPaymentOrder, setPendingPaymentOrder] = useState<PaymentOrder | null>(null);
+  const [rejectedPaymentOrder, setRejectedPaymentOrder] = useState<PaymentOrder | null>(null);
+
   // In-App Toast Notification Banner (Zero blocking browser alerts)
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
@@ -72,6 +79,29 @@ function OwnerDashboardContent() {
         averageServiceDurationMinutes: metricsRes.averageServiceDurationMinutes || 25,
       });
       setActiveTickets(queueRes.tickets || []);
+
+      // Check organization payment orders for pending verification or rejection
+      const orgId = salonRes.salon.organizationId || salon?.organizationId;
+      if (orgId) {
+        try {
+          const ordersRes = await api.payments.getOrders({
+            organizationId: orgId,
+            limit: 10,
+          });
+          if (ordersRes.orders && ordersRes.orders.length > 0) {
+            const pending = ordersRes.orders.find((o) => o.status === "PENDING_APPROVAL");
+            setPendingPaymentOrder(pending || null);
+            if (!pending) {
+              const rejected = ordersRes.orders.find((o) => o.status === "REJECTED");
+              setRejectedPaymentOrder(rejected || null);
+            } else {
+              setRejectedPaymentOrder(null);
+            }
+          }
+        } catch {
+          // non-fatal order status fetch
+        }
+      }
     } catch (err) {
       console.error("Failed to refresh owner metrics:", err);
     } finally {
@@ -163,6 +193,70 @@ function OwnerDashboardContent() {
           >
             <X className="h-4 w-4" />
           </button>
+        </div>
+      )}
+
+      {/* Payment Verification Status Banner (Manual UPI Approval) */}
+      {pendingPaymentOrder && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0 mt-0.5">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-white text-sm">Payment Verification Under Process</span>
+                <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px]">
+                  Pending Super Admin Approval
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Your subscription payment of <strong>₹{pendingPaymentOrder.amount}</strong> (Ref / UTR: <span className="font-mono text-amber-300 font-semibold">{pendingPaymentOrder.utrNumber || "Manual Transfer"}</span>) is under review. Your salon is <strong>100% active on the Free Plan</strong> (1 station & live queue). Premium features will activate automatically once verified!
+              </p>
+            </div>
+          </div>
+          <Link href={`/owner/billing?salon=${salon?.slug || currentSlug}`}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-amber-500/40 text-amber-300 hover:bg-amber-950/60 text-xs shrink-0 min-h-[40px] px-4 font-semibold"
+            >
+              View Billing Details <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            </Button>
+          </Link>
+        </div>
+      )}
+
+      {/* Rejected Payment Notification */}
+      {rejectedPaymentOrder && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-rose-950/40 border border-rose-500/40 text-rose-200 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 shrink-0 mt-0.5">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-white text-sm">Payment Verification Rejected</span>
+                <Badge className="bg-rose-500/20 text-rose-300 border-rose-500/30 text-[10px]">
+                  Action Needed
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Your payment reference of <strong>₹{rejectedPaymentOrder.amount}</strong> was not approved. Reason: <span className="text-rose-300 font-medium">{rejectedPaymentOrder.rejectionReason || "Bank reference could not be verified."}</span>
+                <span className="block mt-0.5 text-slate-400">
+                  Your salon remains active on the <strong>Free Plan (₹0)</strong> with zero data loss. You can retry with a valid UTR in Owner Billing.
+                </span>
+              </p>
+            </div>
+          </div>
+          <Link href={`/owner/billing?salon=${salon?.slug || currentSlug}`}>
+            <Button
+              size="sm"
+              className="bg-rose-600 hover:bg-rose-500 text-white text-xs shrink-0 min-h-[40px] px-4 font-semibold shadow-md shadow-rose-600/20"
+            >
+              Resolve in Billing <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            </Button>
+          </Link>
         </div>
       )}
 

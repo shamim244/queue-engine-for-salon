@@ -24,8 +24,8 @@ export const queueRepo = {
       await db.query(
         `INSERT INTO queue_tickets 
           (id, salon_id, stylist_id, ticket_number, customer_name, customer_phone, service_id, service_name, 
-           selected_add_ons, total_price, total_duration_minutes, status, source, estimated_wait_minutes, payment_status, check_in_time, notes, grooming_tags)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()), ?, ?)`,
+           selected_add_ons, total_price, total_duration_minutes, status, source, estimated_wait_minutes, payment_status, check_in_time, notes, grooming_tags, coupon_code, coupon_discount, coupon_id, coupon_discount_type, coupon_discount_value, coupon_max_discount)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()), ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           ticket.id,
           ticket.salonId,
@@ -45,6 +45,12 @@ export const queueRepo = {
           toMySqlDatetime(ticket.checkInTime),
           ticket.notes || null,
           ticket.groomingTags ? JSON.stringify(ticket.groomingTags) : null,
+          ticket.couponCode || null,
+          ticket.couponDiscount !== undefined ? ticket.couponDiscount : 0,
+          ticket.couponId || null,
+          ticket.couponDiscountType || null,
+          ticket.couponDiscountValue !== undefined ? ticket.couponDiscountValue : null,
+          ticket.couponMaxDiscount !== undefined ? ticket.couponMaxDiscount : null,
         ]
       );
     }
@@ -88,6 +94,12 @@ export const queueRepo = {
         positionInQueue: 0,
         notes: r.notes || null,
         groomingTags: typeof r.grooming_tags === 'string' ? JSON.parse(r.grooming_tags || '[]') : (r.grooming_tags || []),
+        couponCode: r.coupon_code || undefined,
+        couponDiscount: r.coupon_discount ? Number(r.coupon_discount) : undefined,
+        couponId: r.coupon_id || undefined,
+        couponDiscountType: r.coupon_discount_type || undefined,
+        couponDiscountValue: r.coupon_discount_value !== null && r.coupon_discount_value !== undefined ? Number(r.coupon_discount_value) : undefined,
+        couponMaxDiscount: r.coupon_max_discount !== null && r.coupon_max_discount !== undefined ? Number(r.coupon_max_discount) : undefined,
       }));
     } else {
       tickets = Array.from(memoryStore.tickets.values())
@@ -129,6 +141,12 @@ export const queueRepo = {
         positionInQueue: 0,
         notes: r.notes || null,
         groomingTags: typeof r.grooming_tags === 'string' ? JSON.parse(r.grooming_tags || '[]') : (r.grooming_tags || []),
+        couponCode: r.coupon_code || undefined,
+        couponDiscount: r.coupon_discount ? Number(r.coupon_discount) : undefined,
+        couponId: r.coupon_id || undefined,
+        couponDiscountType: r.coupon_discount_type || undefined,
+        couponDiscountValue: r.coupon_discount_value !== null && r.coupon_discount_value !== undefined ? Number(r.coupon_discount_value) : undefined,
+        couponMaxDiscount: r.coupon_max_discount !== null && r.coupon_max_discount !== undefined ? Number(r.coupon_max_discount) : undefined,
       };
     } else {
       ticket = memoryStore.tickets.get(ticketId) || null;
@@ -277,6 +295,12 @@ export const queueRepo = {
         paymentStatus: r.payment_status,
         paymentAmount: r.payment_amount ? Number(r.payment_amount) : null,
         positionInQueue: 0,
+        couponCode: r.coupon_code || undefined,
+        couponDiscount: r.coupon_discount ? Number(r.coupon_discount) : undefined,
+        couponId: r.coupon_id || undefined,
+        couponDiscountType: r.coupon_discount_type || undefined,
+        couponDiscountValue: r.coupon_discount_value !== null && r.coupon_discount_value !== undefined ? Number(r.coupon_discount_value) : undefined,
+        couponMaxDiscount: r.coupon_max_discount !== null && r.coupon_max_discount !== undefined ? Number(r.coupon_max_discount) : undefined,
       }));
     }
 
@@ -298,10 +322,14 @@ export const queueRepo = {
       completedTime?: string;
       paymentStatus?: 'PENDING' | 'CASH_PAID' | 'ONLINE_PAID';
       paymentAmount?: number;
+      couponCode?: string | null;
+      couponDiscount?: number;
+      couponId?: string | null;
     }
   ): Promise<QueueTicket | null> {
     const ticket = await this.getTicketById(ticketId);
     if (!ticket) return null;
+    const oldStatus = ticket.status;
 
     if (isMySqlConnected) {
       const db = getDb();
@@ -312,7 +340,10 @@ export const queueRepo = {
              started_time = COALESCE(?, started_time),
              completed_time = COALESCE(?, completed_time),
              payment_status = COALESCE(?, payment_status),
-             payment_amount = COALESCE(?, payment_amount)
+             payment_amount = COALESCE(?, payment_amount),
+             coupon_code = COALESCE(?, coupon_code),
+             coupon_discount = COALESCE(?, coupon_discount),
+             coupon_id = COALESCE(?, coupon_id)
          WHERE id = ?`,
         [
           status,
@@ -322,6 +353,9 @@ export const queueRepo = {
           toMySqlDatetime(metadata?.completedTime),
           metadata?.paymentStatus || null,
           metadata?.paymentAmount !== undefined ? metadata.paymentAmount : null,
+          metadata?.couponCode !== undefined ? metadata.couponCode : null,
+          metadata?.couponDiscount !== undefined ? metadata.couponDiscount : null,
+          metadata?.couponId !== undefined ? metadata.couponId : null,
           ticketId,
         ]
       );
@@ -335,6 +369,15 @@ export const queueRepo = {
     if (metadata?.completedTime) ticket.completedTime = metadata.completedTime;
     if (metadata?.paymentStatus) ticket.paymentStatus = metadata.paymentStatus;
     if (metadata?.paymentAmount !== undefined) ticket.paymentAmount = metadata.paymentAmount;
+    if (metadata?.couponCode !== undefined) ticket.couponCode = metadata.couponCode;
+    if (metadata?.couponDiscount !== undefined) ticket.couponDiscount = metadata.couponDiscount;
+    if (metadata?.couponId !== undefined) ticket.couponId = metadata.couponId;
+
+    // Trigger Partner Qualification Milestone evaluator (strictly transition from non-COMPLETED -> COMPLETED)
+    if (oldStatus !== 'COMPLETED' && status === 'COMPLETED' && ticket.salonId) {
+      const { partnerRepo } = await import('./partner.repo');
+      await partnerRepo.incrementSalonTicketCount(ticket.salonId, ticketId).catch(() => {});
+    }
 
     memoryStore.tickets.set(ticketId, ticket);
     return ticket;
@@ -365,6 +408,10 @@ export const queueRepo = {
       selectedAddOns: Array<{ id: string; name: string; price: number; durationMinutes: number }>;
       totalPrice: number;
       totalDurationMinutes: number;
+      couponDiscount?: number;
+      couponDiscountType?: any;
+      couponDiscountValue?: number | null;
+      couponMaxDiscount?: number | null;
     }
   ): Promise<QueueTicket | null> {
     const ticket = await this.getTicketById(ticketId);
@@ -378,7 +425,11 @@ export const queueRepo = {
              service_name = COALESCE(?, service_name),
              selected_add_ons = ?,
              total_price = ?,
-             total_duration_minutes = ?
+             total_duration_minutes = ?,
+             coupon_discount = COALESCE(?, coupon_discount),
+             coupon_discount_type = COALESCE(?, coupon_discount_type),
+             coupon_discount_value = COALESCE(?, coupon_discount_value),
+             coupon_max_discount = COALESCE(?, coupon_max_discount)
          WHERE id = ?`,
         [
           params.serviceId || null,
@@ -386,6 +437,10 @@ export const queueRepo = {
           JSON.stringify(params.selectedAddOns),
           params.totalPrice,
           params.totalDurationMinutes,
+          params.couponDiscount !== undefined ? params.couponDiscount : null,
+          params.couponDiscountType !== undefined ? params.couponDiscountType : null,
+          params.couponDiscountValue !== undefined ? params.couponDiscountValue : null,
+          params.couponMaxDiscount !== undefined ? params.couponMaxDiscount : null,
           ticketId,
         ]
       );
@@ -396,6 +451,10 @@ export const queueRepo = {
     ticket.selectedAddOns = params.selectedAddOns;
     ticket.totalPrice = params.totalPrice;
     ticket.totalDurationMinutes = params.totalDurationMinutes;
+    if (params.couponDiscount !== undefined) ticket.couponDiscount = params.couponDiscount;
+    if (params.couponDiscountType !== undefined) ticket.couponDiscountType = params.couponDiscountType;
+    if (params.couponDiscountValue !== undefined) ticket.couponDiscountValue = params.couponDiscountValue;
+    if (params.couponMaxDiscount !== undefined) ticket.couponMaxDiscount = params.couponMaxDiscount;
 
     memoryStore.tickets.set(ticketId, ticket);
     return ticket;

@@ -34,10 +34,13 @@ export interface OnboardingFormData {
   operatingMode?: string;
   organizationName?: string;
   organizationSlug?: string;
-  tier?: "STARTER" | "PRO" | "ENTERPRISE";
+  tier?: "FREE" | "STARTER" | "PRO" | "ENTERPRISE";
+  planId?: string;
+  billingCycle?: string;
   ownerUser: OwnerUserInput;
   stylists: StylistInput[];
   services: ServiceInput[];
+  partnerCode?: string;
 }
 
 export interface ValidationResult {
@@ -159,8 +162,25 @@ export function validateOnboardingForm(formData: OnboardingFormData): Validation
     errors.name = "Salon name is required.";
   }
 
+  const allDigits = (formData.phone || "").replace(/\D/g, "");
+  const nationalDigits = (allDigits.length === 12 && allDigits.startsWith("91"))
+    ? allDigits.slice(2)
+    : allDigits;
+
   if (!formData.phone || !formData.phone.trim()) {
     errors.phone = "Primary contact phone is required.";
+  } else if (nationalDigits.length !== 10) {
+    errors.phone = "Primary contact phone must be an exact 10-digit mobile number.";
+  }
+
+  if (formData.ownerUser?.phone) {
+    const allOwnerDigits = formData.ownerUser.phone.replace(/\D/g, "");
+    const nationalOwnerDigits = (allOwnerDigits.length === 12 && allOwnerDigits.startsWith("91"))
+      ? allOwnerDigits.slice(2)
+      : allOwnerDigits;
+    if (nationalOwnerDigits.length !== 10) {
+      errors.ownerPhone = "Owner WhatsApp phone must be an exact 10-digit mobile number.";
+    }
   }
 
   if (!formData.ownerUser || !formData.ownerUser.username || !formData.ownerUser.username.trim()) {
@@ -192,23 +212,44 @@ export function buildOnboardPayload(formData: OnboardingFormData): OnboardSalonP
   const cleanName = formData.name.trim();
   const cleanSlug = formData.slug?.trim() ? slugify(formData.slug) : slugify(cleanName);
 
+  const rawPhone = (formData.phone || "").trim();
+  const country = formData.countryCode || "+91";
+  let normalizedPhone = rawPhone;
+  if (rawPhone && !rawPhone.startsWith("+")) {
+    const cleanDigits = rawPhone.replace(/\D/g, "").slice(0, 10);
+    normalizedPhone = `${country}${cleanDigits}`;
+  }
+
+  let normalizedOwnerPhone = normalizedPhone;
+  if (formData.ownerUser?.phone) {
+    const rawOwner = formData.ownerUser.phone.trim();
+    if (rawOwner.startsWith("+")) {
+      normalizedOwnerPhone = rawOwner;
+    } else {
+      const cleanOwner = rawOwner.replace(/\D/g, "").slice(0, 10);
+      normalizedOwnerPhone = `${country}${cleanOwner}`;
+    }
+  }
+
   return {
     salonName: cleanName,
     name: cleanName,
     slug: cleanSlug,
-    phone: formData.phone.trim(),
+    phone: normalizedPhone,
     address: formData.address?.trim() || undefined,
     currency: formData.currency || "INR",
-    countryCode: formData.countryCode || "+91",
+    countryCode: country,
     upiPaymentId: formData.upiPaymentId?.trim() || undefined,
     operatingMode: formData.operatingMode || undefined,
     organizationName: formData.organizationName?.trim() || undefined,
     organizationSlug: formData.organizationSlug?.trim() ? slugify(formData.organizationSlug) : undefined,
-    tier: formData.tier || "STARTER",
+    tier: formData.tier || "FREE",
+    planId: formData.planId || undefined,
+    billingCycle: formData.billingCycle || undefined,
     ownerUser: {
       username: formData.ownerUser.username.trim().toLowerCase(),
       password: formData.ownerUser.password,
-      phone: formData.ownerUser.phone?.trim() || formData.phone.trim(),
+      phone: normalizedOwnerPhone,
       email: formData.ownerUser.email?.trim() || undefined,
     },
     stylists: formData.stylists.map((st) => ({
@@ -224,6 +265,7 @@ export function buildOnboardPayload(formData: OnboardingFormData): OnboardSalonP
       isAddOn: Boolean(srv.isAddOn),
       icon: srv.icon || undefined,
     })),
+    partnerCode: formData.partnerCode?.trim() || undefined,
   };
 }
 
@@ -243,6 +285,19 @@ export async function submitOnboarding(
   if (!validation.isValid) {
     const errorDetails = Object.values(validation.errors).join("; ");
     throw new Error(`Validation failed: ${errorDetails}`);
+  }
+
+  if (!formData.partnerCode && typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem("engine_partner_data");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const code = parsed?.referralCode || parsed?.referral_code;
+        if (code) {
+          formData.partnerCode = String(code).trim().toUpperCase();
+        }
+      }
+    } catch {}
   }
 
   const payload = buildOnboardPayload(formData);

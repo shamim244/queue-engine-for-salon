@@ -32,6 +32,7 @@ export const queueEngine = {
     addOnIds?: string[];
     stylistId?: string | null;
     source?: TicketSource;
+    couponCode?: string;
   }): Promise<QueueTicket> {
     const salon = await repository.getSalonBySlug(params.salonSlug);
     if (!salon) throw new Error('Salon not found');
@@ -69,6 +70,40 @@ export const queueEngine = {
     const totalPrice = service.basePrice + selectedAddOns.reduce((sum, a) => sum + a.price, 0);
     const totalDurationMinutes = baseDuration + selectedAddOns.reduce((sum, a) => sum + a.durationMinutes, 0);
 
+    // Optional Coupon Validation during Queue Check-in
+    let couponCode: string | null = null;
+    let couponDiscount = 0;
+    let couponId: string | null = null;
+    let couponDiscountType: any = null;
+    let couponDiscountValue: number | null = null;
+    let couponMaxDiscount: number | null = null;
+
+    if (params.couponCode && params.couponCode.trim()) {
+      try {
+        const { couponService } = await import('../coupon/coupon.service');
+        const couponResult = await couponService.validateAndApplyCoupon({
+          code: params.couponCode.trim(),
+          targetType: 'SALON_SERVICE',
+          orderAmount: totalPrice,
+          salonId: salon.id,
+          userId: params.customerPhone ? params.customerPhone.trim() : undefined,
+        });
+
+        if (couponResult.valid && couponResult.coupon) {
+          couponCode = couponResult.coupon.code;
+          couponDiscount = couponResult.discountAmount;
+          couponId = couponResult.coupon.id;
+          couponDiscountType = couponResult.coupon.discountType;
+          couponDiscountValue = couponResult.coupon.discountValue;
+          couponMaxDiscount = couponResult.coupon.maxDiscountAmount ?? null;
+        } else {
+          throw new Error(couponResult.message || 'Invalid coupon code for this salon.');
+        }
+      } catch (err: any) {
+        throw new Error(err.message || 'Failed to apply coupon.');
+      }
+    }
+
     const ticketNumber = await repository.getNextTicketNumber(salon.id);
     const ticketId = 'tkt-' + Math.random().toString(36).substring(2, 9);
 
@@ -90,6 +125,12 @@ export const queueEngine = {
       checkInTime: new Date().toISOString(),
       paymentStatus: 'PENDING',
       positionInQueue: 1,
+      couponCode,
+      couponDiscount,
+      couponId,
+      couponDiscountType,
+      couponDiscountValue,
+      couponMaxDiscount,
     };
 
     try {
@@ -269,7 +310,9 @@ export const queueEngine = {
   async finishService(
     ticketId: string,
     paymentStatus: PaymentStatus = 'CASH_PAID',
-    paymentAmount?: number
+    paymentAmount?: number,
+    appliedCouponCode?: string,
+    appliedCouponDiscount?: number
   ): Promise<QueueTicket | null> {
     const ticket = await repository.getTicketById(ticketId);
     if (!ticket) return null;
@@ -281,13 +324,85 @@ export const queueEngine = {
 
     const amount = paymentAmount !== undefined ? paymentAmount : ticket.totalPrice;
 
+    // Resolve coupon: if staff applied a coupon at checkout or ticket already has one
+    let couponCode = ticket.couponCode || null;
+    let couponDiscount = ticket.couponDiscount || 0;
+    let couponId = ticket.couponId || null;
+
+    if (appliedCouponCode && appliedCouponCode.trim() && appliedCouponCode !== ticket.couponCode) {
+      try {
+        const { couponService } = await import('../coupon/coupon.service');
+        const res = await couponService.validateAndApplyCoupon({
+          code: appliedCouponCode.trim(),
+          targetType: 'SALON_SERVICE',
+          orderAmount: ticket.totalPrice,
+          salonId: ticket.salonId,
+          userId: ticket.customerPhone ? ticket.customerPhone.trim() : undefined,
+        });
+        if (res.valid && res.coupon) {
+          couponCode = res.coupon.code;
+          couponDiscount = res.discountAmount;
+          couponId = res.coupon.id;
+        }
+      } catch (err) {
+        console.warn('[QueueEngine:finishService] Failed to validate checkout coupon:', err);
+      }
+    } else if (appliedCouponDiscount !== undefined && appliedCouponDiscount > 0) {
+      couponDiscount = appliedCouponDiscount;
+    }
+
     const updated = await repository.updateTicketStatus(ticketId, 'COMPLETED', {
       completedTime: new Date().toISOString(),
       paymentStatus,
       paymentAmount: amount,
+      couponCode,
+      couponDiscount,
+      couponId,
     });
 
     if (!updated) return null;
+
+    // Record redemption if coupon was applied
+    if (couponId) {
+      try {
+        const { couponRepo } = await import('../db/repositories/coupon.repo');
+        await couponRepo.recordRedemption({
+          couponId,
+          targetType: 'SALON_SERVICE',
+          targetOrderId: ticket.id,
+          userId: ticket.customerId || ticket.customerPhone,
+          discountApplied: couponDiscount,
+        });
+      } catch (err) {
+        console.warn('[QueueEngine:finishService] Failed to record coupon redemption:', err);
+      }
+    }
+
+    // Burn loyalty milestone voucher if applied to this ticket
+    if (couponCode) {
+      try {
+        const { loyaltyRepo } = await import('../db/repositories/loyalty.repo');
+        await loyaltyRepo.redeemVoucher(couponCode, ticket.salonId, ticket.id);
+      } catch (voucherErr: any) {
+        console.warn('[QueueEngine:finishService] Loyalty voucher redeem check:', voucherErr?.message);
+      }
+    }
+
+    // Award digital loyalty stamp and check milestone completion
+    if (ticket.customerPhone) {
+      try {
+        const { loyaltyService } = await import('../loyalty/loyalty.service');
+        await loyaltyService.awardStamp({
+          salonId: ticket.salonId,
+          customerPhone: ticket.customerPhone,
+          customerName: ticket.customerName,
+          ticketId: ticket.id,
+          finalPrice: amount,
+        });
+      } catch (loyaltyErr: any) {
+        console.warn('[QueueEngine:finishService] Loyalty stamp award warning:', loyaltyErr?.message);
+      }
+    }
 
     const activeTickets = await this.recalculateQueue(ticket.salonId);
 
@@ -414,9 +529,17 @@ export const queueEngine = {
   },
 
   // 8. Cancel ticket (Customer left / no-show / desk manual removal)
-  async cancelTicket(ticketId: string, reason?: string): Promise<QueueTicket | null> {
+  async cancelTicket(ticketId: string, reason?: string, isStaffOrOwner: boolean = false): Promise<QueueTicket | null> {
     const ticket = await repository.getTicketById(ticketId);
     if (!ticket) return null;
+
+    if (ticket.status === 'CANCELLED' || ticket.status === 'COMPLETED' || ticket.status === 'NO_SHOW') {
+      return ticket;
+    }
+
+    if (!isStaffOrOwner && (ticket.status === 'IN_CHAIR' || ticket.status === 'IN_SERVICE')) {
+      throw new Error('Cannot cancel ticket: Service is currently in progress in the chair. Please settle checkout with your barber.');
+    }
 
     const updated = await repository.updateTicketStatus(ticketId, 'CANCELLED', {
       completedTime: new Date().toISOString(),
@@ -703,12 +826,46 @@ export const queueEngine = {
     const totalPrice = baseService.basePrice + selectedAddOns.reduce((sum, a) => sum + a.price, 0);
     const totalDurationMinutes = baseDuration + selectedAddOns.reduce((sum, a) => sum + a.durationMinutes, 0);
 
+    // Dynamic Coupon Recalculation on Service Mutation (Add or Remove Services)
+    let couponDiscount = ticket.couponDiscount || 0;
+    let couponDiscountType = ticket.couponDiscountType;
+    let couponDiscountValue = ticket.couponDiscountValue;
+    let couponMaxDiscount = ticket.couponMaxDiscount;
+
+    if (ticket.couponCode) {
+      try {
+        const { couponService } = await import('../coupon/coupon.service');
+        const recheck = await couponService.validateAndApplyCoupon({
+          code: ticket.couponCode,
+          targetType: 'SALON_SERVICE',
+          orderAmount: totalPrice,
+          salonId: ticket.salonId,
+          userId: ticket.customerPhone ? ticket.customerPhone.trim() : undefined,
+        });
+        if (recheck.valid && recheck.coupon) {
+          couponDiscount = recheck.discountAmount;
+          couponDiscountType = recheck.coupon.discountType;
+          couponDiscountValue = recheck.coupon.discountValue;
+          couponMaxDiscount = recheck.coupon.maxDiscountAmount ?? null;
+        } else {
+          // If the new bill falls below minOrderAmount or is no longer valid, zero the discount
+          couponDiscount = 0;
+        }
+      } catch (err) {
+        console.warn('[QueueEngine:updateTicketServices] Coupon recalculation error:', err);
+      }
+    }
+
     const updated = await repository.updateTicketServices(ticketId, {
       serviceId: baseService.id,
       serviceName: baseService.name,
       selectedAddOns,
       totalPrice,
       totalDurationMinutes,
+      couponDiscount,
+      couponDiscountType,
+      couponDiscountValue,
+      couponMaxDiscount,
     });
 
     if (!updated) {

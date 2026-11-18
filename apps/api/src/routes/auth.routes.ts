@@ -6,8 +6,47 @@ import { queueEngine } from '../engine/queue-engine';
 import { websocketHub } from '../websocket/hub';
 import { rateLimiter } from '../security/rate-limiter';
 import { securityRepo } from '../db/repositories/security.repo';
+import { uniquenessService } from '../security/uniqueness.service';
 
 export const authRoutes = new Elysia({ prefix: '/api/auth' })
+  // 0. Real-Time Username Availability & Collision Check
+  .get('/check-username', async ({ query, set }) => {
+    const rawUsername = (query.username || '').trim();
+    if (!rawUsername) {
+      set.status = 400;
+      return {
+        available: false,
+        username: '',
+        reason: 'Username parameter is required.',
+        suggestions: [],
+      };
+    }
+    const result = await uniquenessService.checkUsername(rawUsername);
+    return {
+      success: true,
+      ...result,
+      username: result.value,
+    };
+  })
+  // 0b. Real-Time Email Uniqueness Check (Tier-1 Primary Login Credential)
+  .get('/check-email', async ({ query, set }) => {
+    const rawEmail = (query.email || '').trim();
+    if (!rawEmail) {
+      set.status = 400;
+      return {
+        available: false,
+        email: '',
+        reason: 'Email parameter is required.',
+        suggestions: [],
+      };
+    }
+    const result = await uniquenessService.checkEmail(rawEmail);
+    return {
+      success: true,
+      ...result,
+      email: result.value,
+    };
+  })
   // 1. User Login (Super Admin, Owner, Staff via Username, Phone, or Email)
   .post('/login', async ({ body, headers, set, cookie: { engine_session } }) => {
     const b = body as { identifier?: string; username?: string; password: string };
@@ -351,6 +390,31 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
     const targetSalonId = salon ? salon.id : params.salonId;
     const staffUsers = await authService.listStaffUsersBySalon(targetSalonId);
     return { staffUsers };
+  })
+
+  // 9a. Get Single Staff Member Account
+  .get('/staff/member/:userId', async ({ params, set }) => {
+    const user = await authService.getUserById(params.userId);
+    if (!user) {
+      set.status = 404;
+      return { success: false, message: 'Staff user not found' };
+    }
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        fullName: user.fullName,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        staffId: user.staffId,
+        salonId: user.salonId,
+        status: user.status,
+        createdAt: user.createdAt,
+        hasPin: Boolean(user.pinHash),
+      },
+    };
   })
 
   // 9b. Update Staff Member Account (Owner Panel)

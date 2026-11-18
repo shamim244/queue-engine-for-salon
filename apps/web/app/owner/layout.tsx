@@ -25,6 +25,7 @@ import {
   CalendarCheck,
   TicketPercent,
   Gift,
+  Building2,
   Radio,
   ChevronRight,
   Menu,
@@ -47,13 +48,10 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, salon, setSelectedSalon, logout, demoLogin } = useAuth();
 
-  // If on owner login page, bypass layout shell and AuthGuard to avoid redirect conflict
-  if (pathname?.includes("/login")) {
-    return <>{children}</>;
-  }
-
   const [salonsList, setSalonsList] = useState<Salon[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const isLoginPage = pathname?.includes("/login");
 
   // Close mobile drawer on route change
   useEffect(() => {
@@ -62,6 +60,7 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
 
   // Handle Escape key to close mobile drawer
   useEffect(() => {
+    if (isLoginPage) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setIsMobileMenuOpen(false);
     };
@@ -75,10 +74,11 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
       window.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
     };
-  }, [isMobileMenuOpen]);
+  }, [isMobileMenuOpen, isLoginPage]);
 
   // Fetch available salons for the multi-branch dropdown
   useEffect(() => {
+    if (isLoginPage) return;
     api.salons.getAll().then((data) => {
       setSalonsList(data || []);
       const paramSlug = searchParams.get("salon");
@@ -89,7 +89,12 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
         setSelectedSalon(data[0]);
       }
     });
-  }, [searchParams, salon, setSelectedSalon]);
+  }, [searchParams, salon, setSelectedSalon, isLoginPage]);
+
+  // If on owner login page, bypass layout shell and AuthGuard to avoid redirect conflict
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
 
   const currentSlug = salon?.slug || "ramesh-barber";
 
@@ -109,7 +114,8 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
       items: [
         { label: "Storefront & Landing", href: `/owner/storefront?salon=${currentSlug}`, icon: Store },
         { label: "Coupon Codes", href: `/owner/coupons?salon=${currentSlug}`, icon: TicketPercent },
-        { label: "Refer & Loyalty", href: `/owner/referrals?salon=${currentSlug}`, icon: Gift },
+        { label: "Owner Referrals", href: `/owner/referrals?salon=${currentSlug}`, icon: Building2 },
+        { label: "Client Loyalty", href: `/owner/loyalty?salon=${currentSlug}`, icon: Gift },
       ],
     },
     {

@@ -40,6 +40,7 @@ interface UniversalPaymentModalProps {
   amount: number;
   organizationId: string;
   salonId?: string;
+  initialCouponCode?: string;
   onSuccess: (subscription: OrganizationSubscription) => void;
 }
 
@@ -84,6 +85,7 @@ export function UniversalPaymentModal({
   amount,
   organizationId,
   salonId,
+  initialCouponCode,
   onSuccess,
 }: UniversalPaymentModalProps) {
   const [activeTab, setActiveTab] = useState<PaymentProvider>("UPI_QR");
@@ -162,8 +164,9 @@ export function UniversalPaymentModal({
     };
   }, [isOpen, organizationId]);
 
-  const handleApplyCoupon = async () => {
-    const cleanCode = couponCodeInput.trim().toUpperCase();
+  const handleApplyCoupon = async (codeToApply?: string | React.MouseEvent) => {
+    const raw = typeof codeToApply === "string" ? codeToApply : couponCodeInput;
+    const cleanCode = raw.trim().toUpperCase();
     if (!cleanCode) return;
     setApplyingCoupon(true);
     setCouponFeedback(null);
@@ -173,11 +176,13 @@ export function UniversalPaymentModal({
         targetType: "SUBSCRIPTION",
         orderAmount: amount,
         organizationId,
+        salonId,
       });
 
       if (res.valid && res.coupon) {
         setAppliedCoupon(res.coupon);
         setCouponDiscount(res.discountAmount);
+        setCouponCodeInput(cleanCode);
         setCouponFeedback({
           success: true,
           message: `Coupon "${cleanCode}" applied! Saved ${formatCurrency(res.discountAmount)}.`,
@@ -197,6 +202,14 @@ export function UniversalPaymentModal({
       setApplyingCoupon(false);
     }
   };
+
+  // Auto-apply initial coupon code if provided (e.g. partner referral)
+  useEffect(() => {
+    if (isOpen && initialCouponCode && !appliedCoupon) {
+      setCouponCodeInput(initialCouponCode);
+      handleApplyCoupon(initialCouponCode);
+    }
+  }, [isOpen, initialCouponCode]);
 
   const handleRemoveCoupon = () => {
     setAppliedCoupon(null);
@@ -253,6 +266,10 @@ export function UniversalPaymentModal({
       setLoadingOrder(true);
       setErrorMessage(null);
       try {
+        const cycleMonths = cycle === "3m" ? 3 : cycle === "6m" ? 6 : cycle === "1y" ? 12 : 1;
+        const fullPrice = (plan.price1m || 0) * cycleMonths;
+        const cycleDiscountAmount = Math.max(0, fullPrice - amount);
+
         const res = await api.payments.createOrder({
           targetType: "SUBSCRIPTION",
           targetId: plan.id,
@@ -265,9 +282,13 @@ export function UniversalPaymentModal({
             planSlug: plan.slug,
             cycle,
             basePrice: amount,
+            originalAmount: fullPrice > 0 ? fullPrice : amount,
+            subscriptionDiscount: cycleDiscountAmount,
+            friendDiscount: couponDiscount,
             couponId: appliedCoupon?.id || null,
             couponDiscount,
             couponCode: appliedCoupon?.code || null,
+            partnerCode: initialCouponCode || appliedCoupon?.code || null,
             walletDeducted: walletDeduction,
           },
         });

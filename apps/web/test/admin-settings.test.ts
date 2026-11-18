@@ -253,6 +253,46 @@ describe("Admin Settings Suite & Security Center", () => {
         api.admin.runCompressionBenchmark = originalBenchmark;
       }
     });
+
+    it("should fetch and update dynamic security settings via api.admin", async () => {
+      const mockSec = {
+        success: true,
+        settings: {
+          pinMaxAttempts: 5,
+          pinWindowSeconds: 900,
+          loginMaxAttempts: 10,
+          loginWindowSeconds: 900,
+          checkinMaxAttempts: 10,
+          checkinWindowSeconds: 300,
+          allowedCustomOrigins: ["https://portal.nexgentech.site"],
+          defaultCountryCode: "+91",
+          allowedCountryCodes: ["+91", "+1", "+44"],
+        },
+      };
+
+      const origGetSec = api.admin.getSecuritySettings;
+      const origUpdSec = api.admin.updateSecuritySettings;
+
+      api.admin.getSecuritySettings = mock(async () => mockSec as any);
+      api.admin.updateSecuritySettings = mock(async (payload: any) => ({
+        success: true,
+        settings: { ...mockSec.settings, ...payload },
+      })) as any;
+
+      try {
+        const fetched = await api.admin.getSecuritySettings();
+        expect(fetched.success).toBe(true);
+        expect(fetched.settings.pinMaxAttempts).toBe(5);
+        expect(fetched.settings.defaultCountryCode).toBe("+91");
+
+        const updated = await api.admin.updateSecuritySettings({ pinMaxAttempts: 3 });
+        expect(updated.success).toBe(true);
+        expect(updated.settings.pinMaxAttempts).toBe(3);
+      } finally {
+        api.admin.getSecuritySettings = origGetSec;
+        api.admin.updateSecuritySettings = origUpdSec;
+      }
+    });
   });
 
   describe("Server-Side Rendering of Settings Pages", () => {
@@ -321,6 +361,15 @@ describe("Admin Settings Suite & Security Center", () => {
       expect(html).toContain("Action");
       expect(html).toContain("Actor");
       expect(html).toContain("Category");
+
+      // Dynamic Rate Limiting & Cloudflare Controls
+      expect(html).toContain("Dynamic Rate Limiting &amp; Abuse Prevention");
+      expect(html).toContain("Login Brute-Force Guard");
+      expect(html).toContain("Mirror PIN Switch Guard");
+      expect(html).toContain("Public Queue Check-in Guard");
+      expect(html).toContain("CORS Allowed Origins &amp; Cloudflare Tunnel Subdomains");
+      expect(html).toContain("Cloudflare cf-connecting-ip Active");
+      expect(html).toContain("Regional Country Codes &amp; Mobile Policy");
     });
 
     it("should render CompressionCenter component with cascading fallback order", () => {

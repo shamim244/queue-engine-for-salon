@@ -1,6 +1,6 @@
 export type SalonOperatingMode = string;
 
-export type SubscriptionTier = 'STARTER' | 'PRO' | 'ENTERPRISE';
+export type SubscriptionTier = 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE';
 
 export type UserRole = 'SUPER_ADMIN' | 'SALON_OWNER' | 'BRANCH_MANAGER' | 'STAFF' | 'CUSTOMER';
 
@@ -35,6 +35,7 @@ export type PaymentTargetType = 'SUBSCRIPTION' | 'QUEUE_TICKET' | 'WALLET_TOPUP'
 export type PaymentOrderStatus =
   | 'PENDING'
   | 'PENDING_APPROVAL'
+  | 'PROCESSING'
   | 'COMPLETED'
   | 'FAILED'
   | 'EXPIRED'
@@ -142,6 +143,7 @@ export interface Coupon {
   maxUses?: number | null;
   usedCount: number;
   maxUsesPerUser: number;
+  isFirstTimeOnly?: boolean;
   validFrom: Date | string;
   validUntil?: Date | string | null;
   status: CouponStatus;
@@ -170,6 +172,7 @@ export interface CreateCouponPayload {
   minOrderAmount?: number;
   maxUses?: number | null;
   maxUsesPerUser?: number;
+  isFirstTimeOnly?: boolean;
   validFrom?: Date | string;
   validUntil?: Date | string | null;
   status?: CouponStatus;
@@ -215,16 +218,69 @@ export interface ReferralAttribution {
   referralType: ReferralType;
   referrerCode: string;
   referrerOrgId?: string | null;
+  referrerOrgName?: string | null;
+  referrerOrgSlug?: string | null;
   referrerPhone?: string | null;
   referredOrgId?: string | null;
+  referredOrgName?: string | null;
+  referredOrgSlug?: string | null;
   referredPhone?: string | null;
   salonId?: string | null;
   rewardAmount: number;
+  originalAmount?: number;
+  subscriptionDiscount?: number;
+  friendDiscount?: number;
+  netEligibleAmount?: number;
+  rewardPercentage?: number;
+  friendDiscountPercentage?: number;
+  calculationBasis?: 'NET_PAID' | 'ORIGINAL_PRICE';
   status: ReferralStatus;
   conversionReferenceId?: string | null;
   convertedAt?: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+export interface LoyaltyCard {
+  id: string;
+  salonId: string;
+  customerPhone: string;
+  customerName?: string | null;
+  currentStamps: number;
+  totalLifetimeStamps: number;
+  completedMilestones: number;
+  lastStampAwardedAt?: Date | string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export type LoyaltyVoucherStatus = 'ACTIVE' | 'REDEEMED' | 'EXPIRED' | 'CANCELLED';
+
+export interface LoyaltyVoucher {
+  id: string;
+  voucherCode: string;
+  salonId: string;
+  customerPhone: string;
+  rewardServiceId: string;
+  rewardServiceName: string;
+  rewardServicePrice: number;
+  status: LoyaltyVoucherStatus;
+  unlockedAt: Date | string;
+  expiresAt?: Date | string | null;
+  redeemedAt?: Date | string | null;
+  redeemedTicketId?: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface CustomerGroomingProfile {
+  id: string;
+  name: string;
+  phone: string;
+  groomingSpecs?: string | null;
+  preferredBarberId?: string | null;
+  preferredBarberName?: string | null;
+  notes?: string | null;
 }
 
 export interface SubscriptionPlan {
@@ -394,6 +450,15 @@ export interface Salon {
   wifiPassword?: string;
   enableLoungeWifi?: boolean;
   enableScreenWakeLock?: boolean;
+  loyaltyEnabled?: boolean;
+  loyaltyStampGoal?: number;
+  loyaltyRewardServiceId?: string | null;
+  loyaltyRewardServiceName?: string | null;
+  loyaltyCooldownHours?: number;
+  loyaltyVoucherValidityDays?: number;
+  loyaltyReferrerBonus?: number;
+  loyaltyRefereeDiscount?: number;
+  loyaltyRewardDescription?: string;
   appointmentPolicy?: AppointmentBookingPolicy;
   services: ServiceDefinition[];
   stylists: Stylist[];
@@ -429,6 +494,12 @@ export interface QueueTicket {
   visitCount?: number;
   lastVisitedAt?: string | null;
   lastServiceName?: string | null;
+  couponCode?: string | null;
+  couponDiscount?: number;
+  couponId?: string | null;
+  couponDiscountType?: CouponDiscountType | null;
+  couponDiscountValue?: number | null;
+  couponMaxDiscount?: number | null;
 }
 
 export interface QueueEventPayload {
@@ -475,6 +546,13 @@ export interface PlatformSettings {
     provider: string;
     senderPhone: string;
   };
+  b2bReferral?: {
+    commissionPercent: number;
+    refereeDiscountPercent: number;
+    rewardCalculationBasis?: 'NET_PAID' | 'ORIGINAL_PRICE';
+    maxUsesPerReferee?: number;
+    enabled: boolean;
+  };
   pwa?: {
     autoInstallPrompt: boolean;
   };
@@ -508,6 +586,8 @@ export interface OnboardSalonPayload {
   organizationName?: string;
   organizationSlug?: string;
   tier?: SubscriptionTier;
+  planId?: string;
+  billingCycle?: string;
   partnerCode?: string;
   ownerUser?: {
     username: string;
@@ -551,7 +631,8 @@ export type AppointmentStatus =
   | 'COMPLETED'
   | 'CANCELLED'
   | 'NO_SHOW'
-  | 'RESCHEDULED';
+  | 'RESCHEDULED'
+  | 'EXPIRED';
 
 export type EscrowStatus = 'HELD' | 'RELEASED_TO_OWNER' | 'REFUNDED_TO_CUSTOMER' | 'PARTIAL_SPLIT';
 
@@ -577,6 +658,8 @@ export interface Appointment {
   escrowStatus: EscrowStatus;
   status: AppointmentStatus;
   rescheduledFromId?: string | null;
+  payoutId?: string | null;
+  settledAt?: Date | string | null;
   createdAt?: Date | string;
   updatedAt?: Date | string;
 }

@@ -58,6 +58,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isGrowthRoute =
     pathname?.startsWith("/admin/coupons") ||
     pathname?.startsWith("/admin/referrals") ||
+    pathname?.startsWith("/admin/partners") ||
     pathname?.startsWith("/admin/loyalty");
 
   const isCommsRoute = pathname?.startsWith("/admin/communications");
@@ -71,6 +72,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     finance: true,
     paymentsNested: true,
     growth: isGrowthRoute,
+    partnersNested: pathname?.startsWith("/admin/partners"),
     comms: isCommsRoute,
     system: isSystemRoute,
   });
@@ -79,13 +81,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Keep finance and payments open if navigating inside them
+  // Keep finance, payments, and partner navigation open if navigating inside them
   useEffect(() => {
     if (isFinanceRoute) {
       setExpandedSections((prev) => ({ ...prev, finance: true, paymentsNested: true }));
     }
     if (isGrowthRoute) {
-      setExpandedSections((prev) => ({ ...prev, growth: true }));
+      setExpandedSections((prev) => ({
+        ...prev,
+        growth: true,
+        ...(pathname?.startsWith("/admin/partners") ? { partnersNested: true } : {}),
+      }));
     }
     if (isCommsRoute) {
       setExpandedSections((prev) => ({ ...prev, comms: true }));
@@ -113,15 +119,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => clearInterval(interval);
   }, []);
 
-  // If on admin login page, bypass layout shell and AuthGuard
-  if (pathname?.includes("/login")) {
-    return <>{children}</>;
-  }
-
   // Close mobile drawer on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
+
+  // If on admin login page, bypass layout shell and AuthGuard
+  if (pathname?.includes("/login")) {
+    return <>{children}</>;
+  }
 
   const handleLogout = async () => {
     try {
@@ -145,8 +151,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (pathname?.startsWith("/admin/plans")) return "Subscription Plans Studio & Dynamic Calibrator";
     if (pathname?.startsWith("/admin/subscriptions")) return "Tenant Salon Subscriptions & Quota Gates";
     if (pathname?.startsWith("/admin/wallets")) return "Salon Wallets & Double-Entry Passbook";
-    if (pathname?.startsWith("/admin/coupons")) return "Promotional Coupon & Discount Engine";
-    if (pathname?.startsWith("/admin/referrals")) return "Referral & Commission Program";
+    if (pathname === "/admin/coupons") return "Promotional Coupon & Discount Engine";
+    if (pathname === "/admin/referrals") return "Referral & Commission Program";
+    if (pathname === "/admin/partners/new") return "Onboard New Partner (Instant Activation)";
+    if (pathname === "/admin/partners") return "Partner Directory & Governance";
+    if (pathname?.startsWith("/admin/partners/marketing")) return "Partner Marketing Kit CMS";
+    if (pathname?.startsWith("/admin/partners/attributions")) return "Partner Salon Attributions & Milestones";
+    if (pathname?.startsWith("/admin/partners/payouts")) return "Partner Withdrawals & Payout Desk";
+    if (pathname?.startsWith("/admin/partners/settings")) return "Partner Program Settings & Commission Rules";
+    if (pathname?.startsWith("/admin/partners")) return "Partner & Affiliate Command Suite";
     if (pathname?.startsWith("/admin/loyalty")) return "Digital Loyalty Stamp Cards & Tier Rewards";
     if (pathname?.startsWith("/admin/communications")) return "Communications Hub (WhatsApp & SMS)";
     if (pathname?.startsWith("/admin/settings")) return "Platform Configuration & Engine Settings";
@@ -407,33 +420,115 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
 
             {expandedSections.growth && (
-              <div className="pl-6 space-y-0.5 border-l border-slate-800 ml-4 py-0.5 animate-in fade-in duration-150">
-                {[
-                  { label: "Coupon Codes", href: "/admin/coupons", icon: Tag },
-                  { label: "Referrals & Commission", href: "/admin/referrals", icon: Share2 },
-                  { label: "Loyalty Stamp Cards", href: "/admin/loyalty", icon: Award },
-                ].map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={onItemClick}
-                      className={`flex items-center justify-between px-3 py-1.5 rounded-lg font-medium transition-all ${
-                        isActive
-                          ? "bg-blue-600 text-white font-semibold shadow-sm"
-                          : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+              <div className="pl-6 space-y-1 border-l border-slate-800 ml-4 py-0.5 animate-in fade-in duration-150">
+                {/* 1. Nested Partner Program Hub */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => toggleSection("partnersNested")}
+                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      pathname?.startsWith("/admin/partners")
+                        ? "text-blue-400 bg-blue-500/10 font-semibold"
+                        : "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Users className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                      <span className="truncate">Partner Program</span>
+                    </div>
+                    <ChevronDown
+                      className={`h-3 w-3 text-slate-400 transition-transform duration-200 ${
+                        expandedSections.partnersNested ? "rotate-180" : ""
                       }`}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <Icon className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">{item.label}</span>
-                      </div>
-                      {isActive && <ChevronRight className="h-3 w-3 shrink-0 opacity-80" />}
-                    </Link>
-                  );
-                })}
+                    />
+                  </button>
+
+                  {expandedSections.partnersNested && (
+                    <div className="pl-4 space-y-0.5 border-l border-slate-800/80 ml-3 py-0.5 animate-in fade-in duration-150">
+                      {[
+                        { label: "Partner Directory", href: "/admin/partners", icon: Users, exact: true },
+                        { label: "Marketing Kit CMS", href: "/admin/partners/marketing", icon: Sparkles },
+                        { label: "Salon Attributions", href: "/admin/partners/attributions", icon: Building2 },
+                        { label: "Withdrawals & Payouts", href: "/admin/partners/payouts", icon: Wallet },
+                        { label: "Program Settings & Rules", href: "/admin/partners/settings", icon: Sliders },
+                      ].map((subItem) => {
+                        const SubIcon = subItem.icon;
+                        const isSubActive = subItem.exact
+                          ? pathname === subItem.href
+                          : pathname?.startsWith(subItem.href);
+                        return (
+                          <Link
+                            key={subItem.href}
+                            href={subItem.href}
+                            onClick={onItemClick}
+                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+                              isSubActive
+                                ? "bg-blue-600 text-white font-bold shadow-sm"
+                                : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <SubIcon className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{subItem.label}</span>
+                            </div>
+                            {isSubActive && <ChevronRight className="h-2.5 w-2.5 opacity-80" />}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Coupon Codes */}
+                <Link
+                  href="/admin/coupons"
+                  onClick={onItemClick}
+                  className={`flex items-center justify-between px-3 py-1.5 rounded-lg font-medium transition-all ${
+                    pathname === "/admin/coupons"
+                      ? "bg-blue-600 text-white font-semibold shadow-sm"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Tag className="h-3.5 w-3.5 text-pink-400 shrink-0" />
+                    <span className="truncate">Coupon Codes</span>
+                  </div>
+                  {pathname === "/admin/coupons" && <ChevronRight className="h-3 w-3 shrink-0 opacity-80" />}
+                </Link>
+
+                {/* 3. Referrals & Commission */}
+                <Link
+                  href="/admin/referrals"
+                  onClick={onItemClick}
+                  className={`flex items-center justify-between px-3 py-1.5 rounded-lg font-medium transition-all ${
+                    pathname === "/admin/referrals"
+                      ? "bg-blue-600 text-white font-semibold shadow-sm"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Share2 className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                    <span className="truncate">Referrals & Commission</span>
+                  </div>
+                  {pathname === "/admin/referrals" && <ChevronRight className="h-3 w-3 shrink-0 opacity-80" />}
+                </Link>
+
+                {/* 4. Loyalty Stamp Cards */}
+                <Link
+                  href="/admin/loyalty"
+                  onClick={onItemClick}
+                  className={`flex items-center justify-between px-3 py-1.5 rounded-lg font-medium transition-all ${
+                    pathname === "/admin/loyalty"
+                      ? "bg-blue-600 text-white font-semibold shadow-sm"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Award className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                    <span className="truncate">Loyalty Stamp Cards</span>
+                  </div>
+                  {pathname === "/admin/loyalty" && <ChevronRight className="h-3 w-3 shrink-0 opacity-80" />}
+                </Link>
               </div>
             )}
           </div>

@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import type { AuthUser, Stylist } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,12 +14,14 @@ import {
   Lock,
   Trash2,
   ShieldAlert,
+  SlidersHorizontal,
 } from "lucide-react";
 
 interface StaffRosterCardProps {
   user: AuthUser;
   matchedStylist?: Stylist;
   isOnLeaveToday?: boolean;
+  salonSlug?: string;
   onEdit: (user: AuthUser) => void;
   onPin: (user: AuthUser) => void;
   onResetPassword: (user: AuthUser) => void;
@@ -31,6 +34,7 @@ export function StaffRosterCard({
   user,
   matchedStylist,
   isOnLeaveToday,
+  salonSlug,
   onEdit,
   onPin,
   onResetPassword,
@@ -136,7 +140,16 @@ export function StaffRosterCard({
           </div>
         </div>
 
-        {/* Action Buttons Grid with 44px minimum touch targets on mobile */}
+        {/* Dedicated Modify & Manage Page Primary CTA */}
+        <Link
+          href={`/owner/staff/${user.id}?salon=${salonSlug || "ramesh-barber"}`}
+          className="w-full inline-flex items-center justify-center rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs gap-2 min-h-[44px] transition-all shadow-md active:scale-95"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          <span>Modify & Manage Account</span>
+        </Link>
+
+        {/* Quick Action Modal Shortcuts */}
         <div className="grid grid-cols-2 gap-2 pt-1">
           <Button
             variant="outline"

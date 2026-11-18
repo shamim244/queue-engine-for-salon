@@ -8,4 +8,5 @@ export { ResetPasswordModal } from "./reset-password-modal";
 export { KillSwitchModal } from "./kill-switch-modal";
 export { DeleteStaffModal } from "./delete-staff-modal";
 export { StaffAbsenceRecoveryModal } from "./staff-absence-recovery-modal";
+export { UpgradePlanPromptModal } from "./upgrade-prompt-modal";
 

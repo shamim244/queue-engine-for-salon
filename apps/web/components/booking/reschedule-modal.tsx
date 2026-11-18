@@ -40,13 +40,20 @@ export function RescheduleModal({
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    const formatLocalDate = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
+
     const dates: Array<{ dateStr: string; label: string; dayName: string }> = [];
     const today = new Date();
 
     for (let i = 0; i < 7; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
-      const dateStr = d.toISOString().slice(0, 10);
+      const dateStr = formatLocalDate(d);
       const dayName = i === 0 ? "Today" : i === 1 ? "Tomorrow" : d.toLocaleDateString("en-US", { weekday: "short" });
       const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
       dates.push({ dateStr, label, dayName });

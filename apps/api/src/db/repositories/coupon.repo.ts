@@ -7,6 +7,7 @@ import type {
   CreateCouponPayload,
 } from '../../engine/types';
 import { memoryStore, toMySqlDatetime } from './store';
+import { uniquenessService } from '../../security/uniqueness.service';
 
 function mapRowToCoupon(r: any): Coupon {
   return {
@@ -25,6 +26,7 @@ function mapRowToCoupon(r: any): Coupon {
     maxUses: r.max_uses !== null && r.max_uses !== undefined ? Number(r.max_uses) : null,
     usedCount: Number(r.used_count ?? 0),
     maxUsesPerUser: Number(r.max_uses_per_user ?? 1),
+    isFirstTimeOnly: Boolean(r.is_first_time_only),
     validFrom: r.valid_from,
     validUntil: r.valid_until || null,
     status: r.status,
@@ -49,7 +51,12 @@ export const couponRepo = {
   async createCoupon(payload: CreateCouponPayload): Promise<Coupon> {
     const code = payload.code.trim().toUpperCase();
 
-    // Check code uniqueness
+    // Check code uniqueness across all ecosystem namespaces
+    const uniqueness = await uniquenessService.checkReferralCode(code);
+    if (!uniqueness.available) {
+      throw new Error(uniqueness.reason || `Coupon with code "${code}" cannot be used due to collision.`);
+    }
+
     const existing = await this.getCouponByCode(code);
     if (existing) {
       throw new Error(`Coupon with code "${code}" already exists.`);
@@ -71,6 +78,7 @@ export const couponRepo = {
       maxUses: payload.maxUses ?? null,
       usedCount: 0,
       maxUsesPerUser: payload.maxUsesPerUser ?? 1,
+      isFirstTimeOnly: Boolean(payload.isFirstTimeOnly),
       validFrom: payload.validFrom ? new Date(payload.validFrom) : now,
       validUntil: payload.validUntil ? new Date(payload.validUntil) : null,
       status: payload.status || 'ACTIVE',
@@ -87,8 +95,8 @@ export const couponRepo = {
           `INSERT INTO coupons (
             id, code, target_type, organization_id, salon_id,
             discount_type, discount_value, max_discount_amount, min_order_amount,
-            max_uses, used_count, max_uses_per_user, valid_from, valid_until, status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            max_uses, used_count, max_uses_per_user, is_first_time_only, valid_from, valid_until, status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             coupon.id,
             coupon.code,
@@ -102,6 +110,7 @@ export const couponRepo = {
             coupon.maxUses,
             coupon.usedCount,
             coupon.maxUsesPerUser,
+            coupon.isFirstTimeOnly ? 1 : 0,
             toMySqlDatetime(coupon.validFrom),
             toMySqlDatetime(coupon.validUntil),
             coupon.status,
@@ -238,7 +247,7 @@ export const couponRepo = {
         await db.query(
           `UPDATE coupons SET
             status = ?, discount_type = ?, discount_value = ?, max_discount_amount = ?,
-            min_order_amount = ?, max_uses = ?, max_uses_per_user = ?,
+            min_order_amount = ?, max_uses = ?, max_uses_per_user = ?, is_first_time_only = ?,
             valid_from = ?, valid_until = ?, updated_at = NOW()
            WHERE id = ?`,
           [
@@ -249,6 +258,7 @@ export const couponRepo = {
             updated.minOrderAmount,
             updated.maxUses,
             updated.maxUsesPerUser,
+            updated.isFirstTimeOnly ? 1 : 0,
             toMySqlDatetime(updated.validFrom),
             toMySqlDatetime(updated.validUntil),
             id,
@@ -285,6 +295,46 @@ export const couponRepo = {
     userId?: string | null;
     discountApplied: number;
   }): Promise<CouponRedemption> {
+    const id = `red_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const now = new Date();
+
+    // Handle Partner / B2B Referral Coupon redemptions
+    if (redemption.couponId.startsWith('partner_') || redemption.couponId.startsWith('b2b_')) {
+      const record: CouponRedemption = {
+        id,
+        couponId: redemption.couponId,
+        targetType: redemption.targetType,
+        targetOrderId: redemption.targetOrderId,
+        userId: redemption.userId || null,
+        discountApplied: redemption.discountApplied,
+        redeemedAt: now,
+      };
+
+      memoryStore.couponRedemptions.set(id, record);
+
+      if (isMySqlConnected) {
+        try {
+          const db = getDb();
+          await db.query(
+            `INSERT INTO coupon_redemptions (id, coupon_id, target_type, target_order_id, user_id, discount_applied)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              record.id,
+              record.couponId,
+              record.targetType,
+              record.targetOrderId,
+              record.userId,
+              record.discountApplied,
+            ]
+          );
+        } catch (err: any) {
+          console.warn(`[couponRepo.recordRedemption] Partner/B2B redemption log note: ${err.message}`);
+        }
+      }
+
+      return record;
+    }
+
     const coupon = memoryStore.coupons.get(redemption.couponId);
     if (!coupon) {
       throw new Error(`Coupon not found: ${redemption.couponId}`);
@@ -311,9 +361,6 @@ export const couponRepo = {
 
     // Atomically reserve use count synchronously before any await
     coupon.usedCount += 1;
-
-    const id = `red_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const now = new Date();
 
     const record: CouponRedemption = {
       id,
@@ -376,6 +423,73 @@ export const couponRepo = {
     for (const r of memoryStore.couponRedemptions.values()) {
       if (r.couponId === couponId && r.userId === userId) {
         count++;
+      }
+    }
+    return count;
+  },
+
+  async getCustomerCompletedVisitsCount(salonId: string, phone: string): Promise<number> {
+    if (!salonId || !phone) return 0;
+    const cleanDigits = phone.replace(/[^0-9]/g, '');
+    const last10 = cleanDigits.slice(-10);
+    if (!last10) return 0;
+
+    let count = 0;
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        // 1. Check completed queue tickets
+        const [ticketRows] = await db.query<any[]>(
+          `SELECT COUNT(*) as cnt FROM queue_tickets
+           WHERE salon_id = ?
+             AND (customer_phone LIKE ? OR customer_phone = ?)
+             AND status IN ('COMPLETED', 'IN_CHAIR')`,
+          [salonId, `%${last10}`, phone]
+        );
+        if (ticketRows && ticketRows[0]) {
+          count += Number(ticketRows[0].cnt || 0);
+        }
+
+        // 2. Check completed appointments
+        const [appRows] = await db.query<any[]>(
+          `SELECT COUNT(*) as cnt FROM appointments
+           WHERE salon_id = ?
+             AND (customer_phone LIKE ? OR customer_phone = ?)
+             AND status = 'COMPLETED'`,
+          [salonId, `%${last10}`, phone]
+        );
+        if (appRows && appRows[0]) {
+          count += Number(appRows[0].cnt || 0);
+        }
+        return count;
+      } catch (err: any) {
+        console.warn(`[couponRepo.getCustomerCompletedVisitsCount] MySQL error: ${err.message}`);
+      }
+    }
+
+    // In-memory fallback
+    if (memoryStore.tickets) {
+      for (const t of memoryStore.tickets.values()) {
+        if (
+          t.salonId === salonId &&
+          t.customerPhone &&
+          t.customerPhone.replace(/[^0-9]/g, '').endsWith(last10) &&
+          (t.status === 'COMPLETED' || t.status === 'IN_CHAIR')
+        ) {
+          count++;
+        }
+      }
+    }
+    if (memoryStore.appointments) {
+      for (const a of memoryStore.appointments.values()) {
+        if (
+          a.salonId === salonId &&
+          a.customerPhone &&
+          a.customerPhone.replace(/[^0-9]/g, '').endsWith(last10) &&
+          a.status === 'COMPLETED'
+        ) {
+          count++;
+        }
       }
     }
     return count;

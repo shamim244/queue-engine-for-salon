@@ -58,3 +58,14 @@ This document establishes permanent architectural rules and memory for the `queu
 - **Touch Targets & Thumb Reach:** All primary action buttons (Join Queue, Select Service, Pin Entry) must feature generous touch targets ($\ge 44\text{px}$–$48\text{px}$) and stay comfortable for one-handed thumb interaction.
 - **Font Legibility & Layout:** Crisp, legible typography without squinting, zero horizontal overflow/cutoffs, and fluid auto-scaling. Desktop layouts adapt gracefully as a secondary viewport.
 
+---
+
+## 8. Continuous Security Enforcement & Defensive Architecture
+- **Active Skill Integration:** The `security-audit` skill (`.agents/skills/security-audit/SKILL.md`) is permanently active and must be consulted across every feature implementation, API modification, and architectural plan.
+- **Trust Boundaries & Authentication:**
+  - **Multi-Tenant Data Isolation:** Zero data leakage across tenants, salons, partners, or unauthenticated clients across REST APIs and WebSocket broadcasts.
+  - **Credential Security:** Bcrypt hashing (cost $\ge 10$), constant-time password comparison, zero plaintext passwords in persistent storage, and automatic sanitization of `passwordHash` on all output payloads (expose `hasPassword: boolean` only).
+  - **Input Sanitization & Abuse Prevention:** Enforce strict parameter validation via Elysia `t.Object` schemas, sanitize string inputs (anti-XSS and SQL-injection prevention), and clamp numerical calculations.
+- **Financial & Double-Entry Integrity:**
+  - Wallet balances, withdrawal limits, and commission calculations must be guarded by anti-fraud qualifications, atomic balance checks, and idempotent database transactions.
+

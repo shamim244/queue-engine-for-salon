@@ -43,16 +43,21 @@ describe("Dedicated Portals: getLoginRedirectForPath", () => {
     expect(getLoginRedirectForPath("/admin/tenants")).toBe("/hq/login?redirect=%2Fadmin%2Ftenants");
   });
 
-  it("routes /owner routes to /partner/login", () => {
-    expect(getLoginRedirectForPath("/owner")).toBe("/partner/login?redirect=%2Fowner");
-    expect(getLoginRedirectForPath("/owner/services")).toBe("/partner/login?redirect=%2Fowner%2Fservices");
+  it("routes /owner routes to /salon/login", () => {
+    expect(getLoginRedirectForPath("/owner")).toBe("/salon/login?redirect=%2Fowner");
+    expect(getLoginRedirectForPath("/owner/services")).toBe("/salon/login?redirect=%2Fowner%2Fservices");
   });
 
-  it("routes /staff and chair station routes to /partner/login?tab=staff", () => {
-    expect(getLoginRedirectForPath("/staff")).toBe("/partner/login?tab=staff&redirect=%2Fstaff");
+  it("routes /staff and chair station routes to /salon/login?tab=staff", () => {
+    expect(getLoginRedirectForPath("/staff")).toBe("/salon/login?tab=staff&redirect=%2Fstaff");
     expect(getLoginRedirectForPath("/s/ramesh/station")).toBe(
-      "/partner/login?tab=staff&redirect=%2Fs%2Framesh%2Fstation"
+      "/salon/login?tab=staff&redirect=%2Fs%2Framesh%2Fstation"
     );
+  });
+
+  it("routes /partner routes to /partner/login", () => {
+    expect(getLoginRedirectForPath("/partner")).toBe("/partner/login?redirect=%2Fpartner");
+    expect(getLoginRedirectForPath("/partner/wallet")).toBe("/partner/login?redirect=%2Fpartner%2Fwallet");
   });
 
   it("routes customer routes (/me, /s/queue) to /login", () => {
@@ -81,7 +86,7 @@ describe("Dedicated Portals: SSR Markup Verification", () => {
     expect(html).not.toContain("SuperAdmin Preset");
   });
 
-  it("renders PartnerLoginPage with Owner and Staff tabs and Salon Onboarding CTA", () => {
+  it("renders PartnerLoginPage dedicated to Field Partner & Affiliate Sign In", () => {
     const html = renderToString(
       React.createElement(
         AuthContext.Provider,
@@ -90,12 +95,11 @@ describe("Dedicated Portals: SSR Markup Verification", () => {
       )
     );
 
-    expect(html).toContain("Salon Partner Sign In");
-    expect(html).toContain("Salon Owner");
-    expect(html).toContain("Staff / Barber");
-    expect(html).toContain("Register New Salon");
-    expect(html).toContain("/register?role=owner");
-    expect(html).toContain("Consumer Portal");
+    expect(html).toContain("Field Partner &amp; Affiliate Sign In");
+    expect(html).toContain("Partner Mobile Number");
+    expect(html).toContain("Apply as Field Partner");
+    expect(html).toContain("/salon/login");
+    expect(html).toContain("Salon Owner or Barber?");
   });
 
   it("renders ConsumerLoginPage with Customer Sign In and New Customer tabs", () => {

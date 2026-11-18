@@ -136,3 +136,22 @@ export function parseAndValidateMobile(
     nationalNumber,
   };
 }
+
+export const phoneValidator = {
+  validatePhone(input: string | null | undefined, preferredCountryCode: string = '+91') {
+    const res = parseAndValidateMobile(input, preferredCountryCode);
+    return {
+      valid: res.isValid,
+      e164: res.normalizedPhone,
+      countryCode: res.countryCode,
+      nationalNumber: res.nationalNumber,
+      error: res.error,
+    };
+  },
+  is10DigitNumber(input: string | null | undefined): boolean {
+    if (!input) return false;
+    const clean = input.replace(/\D/g, '');
+    return clean.length === 10;
+  },
+};
+

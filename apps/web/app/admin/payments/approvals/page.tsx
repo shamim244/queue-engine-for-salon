@@ -282,10 +282,15 @@ export default function ManualApprovalsPage() {
                         <span className="text-xs text-slate-400 font-mono">({order.organizationId || "N/A"})</span>
                       </div>
 
-                      <div className="flex items-center gap-3 text-xs text-slate-400">
+                      <div className="flex items-center gap-3 text-xs text-slate-400 flex-wrap">
                         <span>Target: <strong className="text-slate-300">{order.metadata?.planName || order.targetType}</strong></span>
-                        {order.metadata?.cycle && (
-                          <span>Cycle: <strong className="text-blue-400 uppercase">{order.metadata.cycle}</strong></span>
+                        {(order.metadata?.billingCycle || order.metadata?.cycle) && (
+                          <span>Cycle: <strong className="text-blue-400 uppercase">{order.metadata?.billingCycle || order.metadata?.cycle}</strong></span>
+                        )}
+                        {order.metadata?.partnerCode && (
+                          <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/30 text-[10px] font-semibold">
+                            🤝 Partner: {order.metadata.partnerCode}
+                          </Badge>
                         )}
                         <span>Order Ref: <span className="font-mono text-slate-400">{order.id}</span></span>
                       </div>

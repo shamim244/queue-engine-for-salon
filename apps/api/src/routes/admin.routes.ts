@@ -5,6 +5,8 @@ import { authService } from '../auth/auth-service';
 import { jobQueue } from '../worker/job-queue';
 import { executeMidnightQueueReset } from '../worker/handlers/reset.handler';
 import { compressionManager } from '../engine/compression-manager';
+import { phoneValidator } from '../security/phone-validator';
+import { resolvePartner } from './partner.routes';
 
 export const adminRoutes = new Elysia({ prefix: '/api/admin' })
   // 1. System Telemetry & Health Statistics
@@ -76,6 +78,15 @@ export const adminRoutes = new Elysia({ prefix: '/api/admin' })
             senderPhone: t.Optional(t.String()),
           })
         ),
+        b2bReferral: t.Optional(
+          t.Object({
+            commissionPercent: t.Optional(t.Number()),
+            refereeDiscountPercent: t.Optional(t.Number()),
+            rewardCalculationBasis: t.Optional(t.Union([t.Literal('NET_PAID'), t.Literal('ORIGINAL_PRICE')])),
+            maxUsesPerReferee: t.Optional(t.Number()),
+            enabled: t.Optional(t.Boolean()),
+          })
+        ),
         settings: t.Optional(t.Any()),
       }),
     }
@@ -134,9 +145,66 @@ export const adminRoutes = new Elysia({ prefix: '/api/admin' })
   // 6. Tenant Onboarding (Atomic salon, organization, stylists, services & owner account)
   .post(
     '/onboard',
-    async ({ body, set }) => {
+    async ({ body, headers, set }) => {
       try {
+        // Fallback: If partnerCode was not provided in body, check authenticated partner session
+        let resolvedPartner = null;
+        if (!body.partnerCode || !body.partnerCode.trim()) {
+          resolvedPartner = await resolvePartner(headers as any);
+          if (resolvedPartner?.referralCode) {
+            body.partnerCode = resolvedPartner.referralCode.trim().toUpperCase();
+          }
+        }
+
+        const phoneCheck = phoneValidator.validatePhone(body.phone, body.countryCode || '+91');
+        if (!phoneCheck.valid || !phoneValidator.is10DigitNumber(phoneCheck.nationalNumber)) {
+          set.status = 400;
+          return {
+            success: false,
+            message: 'Invalid salon phone. Must be a valid 10-digit mobile number.',
+          };
+        }
+        body.phone = phoneCheck.e164;
+
+        if (body.ownerUser?.phone) {
+          const ownerPhoneCheck = phoneValidator.validatePhone(body.ownerUser.phone, body.countryCode || '+91');
+          if (!ownerPhoneCheck.valid || !phoneValidator.is10DigitNumber(ownerPhoneCheck.nationalNumber)) {
+            set.status = 400;
+            return {
+              success: false,
+              message: 'Invalid owner phone. Must be a valid 10-digit mobile number.',
+            };
+          }
+          body.ownerUser.phone = ownerPhoneCheck.e164;
+        }
+
+        if (Array.isArray(body.stylists)) {
+          for (const st of body.stylists) {
+            if (st.phone) {
+              const stPhoneCheck = phoneValidator.validatePhone(st.phone, body.countryCode || '+91');
+              if (stPhoneCheck.valid) {
+                st.phone = stPhoneCheck.e164;
+              }
+            }
+          }
+        }
+
         const result = await repository.onboardSalon(body as any);
+
+        // If onboarded via active partner session or headers, update attribution source to ASSISTED_ONBOARDING
+        if (result?.salon?.id && (headers?.['x-partner-id'] || (headers?.['authorization'] || '').includes('part_sess_') || resolvedPartner)) {
+          try {
+            const { partnerRepo } = await import('../db/repositories/partner.repo');
+            const attr = await partnerRepo.getAttributionBySalonId(result.salon.id);
+            if (attr && attr.source !== 'ASSISTED_ONBOARDING') {
+              attr.source = 'ASSISTED_ONBOARDING';
+              await partnerRepo.updateAttribution(attr);
+            }
+          } catch {
+            // non-fatal attribution enhancement
+          }
+        }
+
         return result;
       } catch (err: any) {
         set.status = 400;
@@ -154,10 +222,14 @@ export const adminRoutes = new Elysia({ prefix: '/api/admin' })
         currency: t.Optional(t.String()),
         countryCode: t.Optional(t.String()),
         upiPaymentId: t.Optional(t.String()),
+        partnerCode: t.Optional(t.String()),
         organizationName: t.Optional(t.String()),
         organizationSlug: t.Optional(t.String()),
+        planId: t.Optional(t.String()),
+        billingCycle: t.Optional(t.String()),
         tier: t.Optional(
           t.Union([
+            t.Literal('FREE'),
             t.Literal('STARTER'),
             t.Literal('PRO'),
             t.Literal('ENTERPRISE'),

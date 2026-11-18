@@ -8,11 +8,22 @@ function mapRowToAttribution(r: any): ReferralAttribution {
     referralType: r.referral_type,
     referrerCode: r.referrer_code,
     referrerOrgId: r.referrer_org_id || null,
+    referrerOrgName: r.referrer_org_name || null,
+    referrerOrgSlug: r.referrer_org_slug || null,
     referrerPhone: r.referrer_phone || null,
     referredOrgId: r.referred_org_id || null,
+    referredOrgName: r.referred_org_name || null,
+    referredOrgSlug: r.referred_org_slug || null,
     referredPhone: r.referred_phone || null,
     salonId: r.salon_id || null,
-    rewardAmount: Number(r.reward_amount),
+    rewardAmount: Number(r.reward_amount || 0),
+    originalAmount: Number(r.original_amount || 0),
+    subscriptionDiscount: Number(r.subscription_discount || 0),
+    friendDiscount: Number(r.friend_discount || 0),
+    netEligibleAmount: Number(r.net_eligible_amount || 0),
+    rewardPercentage: Number(r.reward_percentage || 0),
+    friendDiscountPercentage: Number(r.friend_discount_percentage || 0),
+    calculationBasis: (r.calculation_basis as 'NET_PAID' | 'ORIGINAL_PRICE') || 'NET_PAID',
     status: r.status,
     conversionReferenceId: r.conversion_reference_id || null,
     convertedAt: r.converted_at || null,
@@ -37,6 +48,7 @@ export interface ReferralStatsResult {
   convertedCount: number;
   pendingCount: number;
   totalEarned: number;
+  totalFriendDiscounts: number;
   recentAttributions: ReferralAttribution[];
 }
 
@@ -125,6 +137,78 @@ export const referralRepo = {
     return null;
   },
 
+  async getConvertedReferralCountForOrg(referredOrgId: string): Promise<number> {
+    const cleanId = referredOrgId.trim();
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        const [rows] = await db.query<any[]>(
+          `SELECT COUNT(*) as cnt FROM referral_attributions 
+           WHERE referral_type = 'B2B_OWNER' AND referred_org_id = ? AND status = 'CONVERTED'`,
+          [cleanId]
+        );
+        if (rows && rows.length > 0) return Number(rows[0].cnt || 0);
+      } catch (err: any) {
+        console.warn(`[referralRepo.getConvertedReferralCountForOrg] MySQL error: ${err.message}`);
+      }
+    }
+
+    let count = 0;
+    for (const attr of memoryStore.referralAttributions.values()) {
+      if (
+        attr.referralType === 'B2B_OWNER' &&
+        attr.referredOrgId === cleanId &&
+        attr.status === 'CONVERTED'
+      ) {
+        count++;
+      }
+    }
+    return count;
+  },
+
+  async hasPriorPaidSubscription(orgId: string): Promise<boolean> {
+    const cleanId = orgId.trim();
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        const [subRows] = await db.query<any[]>(
+          `SELECT id FROM organization_subscriptions 
+           WHERE organization_id = ? AND (net_amount_paid > 0 OR base_price > 0)
+           LIMIT 1`,
+          [cleanId]
+        );
+        if (subRows && subRows.length > 0) return true;
+
+        const [orderRows] = await db.query<any[]>(
+          `SELECT id FROM payment_orders 
+           WHERE organization_id = ? AND target_type = 'SUBSCRIPTION' AND status = 'COMPLETED' AND amount > 0
+           LIMIT 1`,
+          [cleanId]
+        );
+        if (orderRows && orderRows.length > 0) return true;
+      } catch (err: any) {
+        console.warn(`[referralRepo.hasPriorPaidSubscription] MySQL error: ${err.message}`);
+      }
+    }
+
+    for (const sub of memoryStore.organizationSubscriptions.values()) {
+      if (sub.organizationId === cleanId && (sub.netAmountPaid > 0 || sub.basePrice > 0)) {
+        return true;
+      }
+    }
+    for (const ord of memoryStore.paymentOrders.values()) {
+      if (
+        ord.organizationId === cleanId &&
+        ord.targetType === 'SUBSCRIPTION' &&
+        ord.status === 'COMPLETED' &&
+        ord.amount > 0
+      ) {
+        return true;
+      }
+    }
+    return false;
+  },
+
   async getPendingAttributionForConsumer(
     referredPhone: string,
     salonId: string
@@ -165,22 +249,65 @@ export const referralRepo = {
 
   async markConverted(
     attributionId: string,
-    conversionReferenceId: string
+    conversionReferenceId: string,
+    rewardAmount?: number | null,
+    breakdown?: {
+      originalAmount?: number;
+      subscriptionDiscount?: number;
+      friendDiscount?: number;
+      netEligibleAmount?: number;
+      rewardPercentage?: number;
+      friendDiscountPercentage?: number;
+      calculationBasis?: 'NET_PAID' | 'ORIGINAL_PRICE';
+    }
   ): Promise<ReferralAttribution | null> {
     const now = new Date();
 
     if (isMySqlConnected) {
       try {
         const db = getDb();
-        await db.query(
+        const [result]: any = await db.query(
           `UPDATE referral_attributions 
-           SET status = 'CONVERTED', conversion_reference_id = ?, converted_at = ?, updated_at = ?
-           WHERE id = ?`,
-          [conversionReferenceId, toMySqlDatetime(now), toMySqlDatetime(now), attributionId]
+           SET status = 'CONVERTED', 
+               conversion_reference_id = ?, 
+               reward_amount = COALESCE(?, reward_amount), 
+               original_amount = COALESCE(?, original_amount),
+               subscription_discount = COALESCE(?, subscription_discount),
+               friend_discount = COALESCE(?, friend_discount),
+               net_eligible_amount = COALESCE(?, net_eligible_amount),
+               reward_percentage = COALESCE(?, reward_percentage),
+               friend_discount_percentage = COALESCE(?, friend_discount_percentage),
+               calculation_basis = COALESCE(?, calculation_basis),
+               converted_at = ?, 
+               updated_at = ?
+           WHERE id = ? AND status = 'PENDING'`,
+          [
+            conversionReferenceId,
+            rewardAmount ?? null,
+            breakdown?.originalAmount ?? null,
+            breakdown?.subscriptionDiscount ?? null,
+            breakdown?.friendDiscount ?? null,
+            breakdown?.netEligibleAmount ?? null,
+            breakdown?.rewardPercentage ?? null,
+            breakdown?.friendDiscountPercentage ?? null,
+            breakdown?.calculationBasis ?? null,
+            toMySqlDatetime(now),
+            toMySqlDatetime(now),
+            attributionId,
+          ]
         );
 
+        if (result && result.affectedRows === 0) {
+          return null;
+        }
+
         const [rows] = await db.query<any[]>(
-          'SELECT * FROM referral_attributions WHERE id = ? LIMIT 1',
+          `SELECT ra.*, o.name AS referred_org_name, o.slug AS referred_org_slug,
+                  ro.name AS referrer_org_name, ro.slug AS referrer_org_slug
+           FROM referral_attributions ra
+           LEFT JOIN organizations o ON ra.referred_org_id = o.id
+           LEFT JOIN organizations ro ON ra.referrer_org_id = ro.id
+           WHERE ra.id = ? LIMIT 1`,
           [attributionId]
         );
         if (rows && rows.length > 0) {
@@ -194,17 +321,52 @@ export const referralRepo = {
     }
 
     const existing = memoryStore.referralAttributions.get(attributionId);
-    if (!existing) return null;
+    if (!existing || existing.status !== 'PENDING') return null;
 
     const updated: ReferralAttribution = {
       ...existing,
       status: 'CONVERTED',
+      rewardAmount: rewardAmount !== undefined && rewardAmount !== null ? rewardAmount : existing.rewardAmount,
+      originalAmount: breakdown?.originalAmount ?? existing.originalAmount ?? 0,
+      subscriptionDiscount: breakdown?.subscriptionDiscount ?? existing.subscriptionDiscount ?? 0,
+      friendDiscount: breakdown?.friendDiscount ?? existing.friendDiscount ?? 0,
+      netEligibleAmount: breakdown?.netEligibleAmount ?? existing.netEligibleAmount ?? 0,
+      rewardPercentage: breakdown?.rewardPercentage ?? existing.rewardPercentage ?? 0,
+      friendDiscountPercentage: breakdown?.friendDiscountPercentage ?? existing.friendDiscountPercentage ?? 0,
+      calculationBasis: breakdown?.calculationBasis ?? existing.calculationBasis ?? 'NET_PAID',
       conversionReferenceId,
       convertedAt: now,
       updatedAt: now,
     };
     memoryStore.referralAttributions.set(updated.id, updated);
     return updated;
+  },
+
+  async rollbackToPending(attributionId: string): Promise<boolean> {
+    const now = new Date();
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        await db.query(
+          `UPDATE referral_attributions 
+           SET status = 'PENDING', conversion_reference_id = NULL, converted_at = NULL, updated_at = ?
+           WHERE id = ?`,
+          [toMySqlDatetime(now), attributionId]
+        );
+      } catch (err: any) {
+        console.warn(`[referralRepo.rollbackToPending] MySQL error: ${err.message}`);
+      }
+    }
+
+    const existing = memoryStore.referralAttributions.get(attributionId);
+    if (existing) {
+      existing.status = 'PENDING';
+      existing.conversionReferenceId = null;
+      existing.convertedAt = null;
+      existing.updatedAt = now;
+      return true;
+    }
+    return false;
   },
 
   async getReferralStats(params: {
@@ -217,23 +379,30 @@ export const referralRepo = {
     if (isMySqlConnected) {
       try {
         const db = getDb();
-        let query = 'SELECT * FROM referral_attributions WHERE 1=1';
+        let query = `
+          SELECT ra.*, o.name AS referred_org_name, o.slug AS referred_org_slug,
+                 ro.name AS referrer_org_name, ro.slug AS referrer_org_slug
+          FROM referral_attributions ra
+          LEFT JOIN organizations o ON ra.referred_org_id = o.id
+          LEFT JOIN organizations ro ON ra.referrer_org_id = ro.id
+          WHERE 1=1
+        `;
         const queryParams: any[] = [];
 
         if (referrerOrgId) {
-          query += ' AND referrer_org_id = ?';
+          query += ' AND ra.referrer_org_id = ?';
           queryParams.push(referrerOrgId);
         }
         if (referrerPhone) {
-          query += ' AND referrer_phone = ?';
+          query += ' AND ra.referrer_phone = ?';
           queryParams.push(referrerPhone);
         }
         if (salonId) {
-          query += ' AND salon_id = ?';
+          query += ' AND ra.salon_id = ?';
           queryParams.push(salonId);
         }
 
-        query += ' ORDER BY created_at DESC';
+        query += ' ORDER BY ra.created_at DESC';
 
         const [rows] = await db.query<any[]>(query, queryParams);
         const all = (rows || []).map(mapRowToAttribution);
@@ -241,11 +410,13 @@ export const referralRepo = {
         let convertedCount = 0;
         let pendingCount = 0;
         let totalEarned = 0;
+        let totalFriendDiscounts = 0;
 
         for (const item of all) {
           if (item.status === 'CONVERTED') {
             convertedCount++;
             totalEarned += item.rewardAmount;
+            totalFriendDiscounts += (item.friendDiscount || 0);
           } else if (item.status === 'PENDING') {
             pendingCount++;
           }
@@ -256,6 +427,7 @@ export const referralRepo = {
           convertedCount,
           pendingCount,
           totalEarned,
+          totalFriendDiscounts,
           recentAttributions: all.slice(0, 50),
         };
       } catch (err: any) {
@@ -269,7 +441,22 @@ export const referralRepo = {
       if (referrerOrgId && attr.referrerOrgId !== referrerOrgId) continue;
       if (referrerPhone && attr.referrerPhone !== referrerPhone) continue;
       if (salonId && attr.salonId !== salonId) continue;
-      all.push(attr);
+      const enriched = { ...attr };
+      if (attr.referredOrgId) {
+        const org = memoryStore.organizations?.get(attr.referredOrgId);
+        if (org) {
+          enriched.referredOrgName = org.name;
+          enriched.referredOrgSlug = org.slug;
+        }
+      }
+      if (attr.referrerOrgId) {
+        const rorg = memoryStore.organizations?.get(attr.referrerOrgId);
+        if (rorg) {
+          enriched.referrerOrgName = rorg.name;
+          enriched.referrerOrgSlug = rorg.slug;
+        }
+      }
+      all.push(enriched);
     }
 
     all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -277,11 +464,13 @@ export const referralRepo = {
     let convertedCount = 0;
     let pendingCount = 0;
     let totalEarned = 0;
+    let totalFriendDiscounts = 0;
 
     for (const item of all) {
       if (item.status === 'CONVERTED') {
         convertedCount++;
         totalEarned += item.rewardAmount;
+        totalFriendDiscounts += (item.friendDiscount || 0);
       } else if (item.status === 'PENDING') {
         pendingCount++;
       }
@@ -292,6 +481,7 @@ export const referralRepo = {
       convertedCount,
       pendingCount,
       totalEarned,
+      totalFriendDiscounts,
       recentAttributions: all.slice(0, 50),
     };
   },

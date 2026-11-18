@@ -50,6 +50,18 @@ export async function runDailySettlement(
   for (const salon of salons) {
     if (!salon) continue;
 
+    // ADR 005 C6: Look up existing payouts for (salon, targetDate) to ensure idempotency
+    const existingPayouts = await repository.getPayoutRecords({ salonId: salon.id });
+    const existingRecord = existingPayouts.find(
+      (p) => p.periodStart === targetDate && (p.status === 'SETTLED' || p.status === 'PROCESSING' || p.status === 'PENDING')
+    );
+    if (existingRecord) {
+      if (!payoutRecords.some((r) => r.id === existingRecord.id)) {
+        payoutRecords.push(existingRecord);
+      }
+      continue;
+    }
+
     // Fetch all completed/no-show appointments for this date where funds are released to owner
     const allAppointments = await repository.getAppointments({
       salonId: salon.id,
@@ -57,10 +69,10 @@ export async function runDailySettlement(
     });
 
     const eligibleAppointments = allAppointments.filter((a) => {
-      // Completed services or forfeited customer no-shows
+      // Completed services or forfeited customer no-shows that have not yet been assigned a payout
       const isFinished = a.status === 'COMPLETED' || a.status === 'NO_SHOW';
       const isReleased = a.escrowStatus === 'RELEASED_TO_OWNER';
-      return isFinished && isReleased && a.advanceAmount > 0;
+      return isFinished && isReleased && a.advanceAmount > 0 && !a.payoutId;
     });
 
     if (eligibleAppointments.length === 0) {
@@ -96,6 +108,14 @@ export async function runDailySettlement(
 
     const saved = await repository.createPayoutRecord(record);
     payoutRecords.push(saved);
+
+    // ADR 005 C6: Atomically link appointments to this payout so they cannot be double-settled
+    for (const appt of eligibleAppointments) {
+      await repository.updateAppointment(appt.id, {
+        payoutId: saved.id,
+        settledAt: saved.settledAt || new Date().toISOString(),
+      });
+    }
   }
 
   return payoutRecords;

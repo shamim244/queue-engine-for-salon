@@ -287,6 +287,12 @@ export const analyticsRepo = {
     if (updates.gateway) {
       memoryStore.settings.gateway = { ...memoryStore.settings.gateway, ...updates.gateway };
     }
+    if (updates.b2bReferral) {
+      memoryStore.settings.b2bReferral = {
+        ...(memoryStore.settings.b2bReferral || { commissionPercent: 30, refereeDiscountPercent: 20, enabled: true }),
+        ...updates.b2bReferral,
+      };
+    }
     this.addAuditLog(
       'SETTINGS_UPDATED',
       actor,

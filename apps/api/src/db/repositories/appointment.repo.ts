@@ -172,6 +172,8 @@ export const appointmentRepo = {
             escrowStatus: r.escrow_status,
             status: r.status,
             rescheduledFromId: r.rescheduled_from_id,
+            payoutId: r.payout_id || null,
+            settledAt: toIsoStringSafe(r.settled_at) || null,
             createdAt: toIsoStringSafe(r.created_at) || undefined,
             updatedAt: toIsoStringSafe(r.updated_at) || undefined,
           };
@@ -193,6 +195,84 @@ export const appointmentRepo = {
     status?: AppointmentStatus | AppointmentStatus[];
     phone?: string;
   }): Promise<Appointment[]> {
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        const conditions: string[] = [];
+        const params: any[] = [];
+
+        if (filter?.salonId) {
+          conditions.push('salon_id = ?');
+          params.push(filter.salonId);
+        }
+        if (filter?.scheduledDate) {
+          conditions.push('scheduled_date = ?');
+          params.push(filter.scheduledDate);
+        }
+        if (filter?.stylistId !== undefined) {
+          if (filter.stylistId === null) {
+            conditions.push('stylist_id IS NULL');
+          } else {
+            conditions.push('stylist_id = ?');
+            params.push(filter.stylistId);
+          }
+        }
+        if (filter?.phone) {
+          const clean = filter.phone.replace(/\D/g, '').slice(-10);
+          conditions.push('RIGHT(customer_phone, 10) = ?');
+          params.push(clean);
+        }
+        if (filter?.status) {
+          const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
+          conditions.push(`status IN (${statuses.map(() => '?').join(',')})`);
+          params.push(...statuses);
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const [rows]: any = await db.query(
+          `SELECT * FROM appointments ${whereClause} ORDER BY scheduled_date ASC, slot_start_time ASC`,
+          params
+        );
+
+        if (rows && rows.length > 0) {
+          return rows.map((r: any) => {
+            const appt: Appointment = {
+              id: r.id,
+              salonId: r.salon_id,
+              stylistId: r.stylist_id,
+              customerName: r.customer_name,
+              customerPhone: r.customer_phone,
+              serviceId: r.service_id,
+              serviceName: r.service_name,
+              scheduledDate:
+                typeof r.scheduled_date === 'string'
+                  ? r.scheduled_date.slice(0, 10)
+                  : new Date(r.scheduled_date).toISOString().slice(0, 10),
+              slotStartTime: r.slot_start_time,
+              slotEndTime: r.slot_end_time,
+              durationMinutes: r.duration_minutes,
+              advanceAmount: Number(r.advance_amount),
+              totalPrice: Number(r.total_price),
+              paymentMethod: r.payment_method,
+              gatewayOrderId: r.gateway_order_id,
+              gatewayPaymentId: r.gateway_payment_id,
+              escrowStatus: r.escrow_status,
+              status: r.status,
+              rescheduledFromId: r.rescheduled_from_id,
+              payoutId: r.payout_id || null,
+              settledAt: toIsoStringSafe(r.settled_at) || null,
+              createdAt: toIsoStringSafe(r.created_at) || undefined,
+              updatedAt: toIsoStringSafe(r.updated_at) || undefined,
+            };
+            memoryStore.appointments.set(appt.id, appt);
+            return appt;
+          });
+        }
+      } catch (err) {
+        console.warn('[appointmentRepo] MySQL getAppointments error, falling back to memory:', err);
+      }
+    }
+
     let list = Array.from(memoryStore.appointments.values());
 
     if (filter?.salonId) {
@@ -205,7 +285,11 @@ export const appointmentRepo = {
       list = list.filter((a) => a.stylistId === filter.stylistId);
     }
     if (filter?.phone) {
-      list = list.filter((a) => a.customerPhone === filter.phone);
+      const target = filter.phone.replace(/\D/g, '').slice(-10);
+      list = list.filter((a) => {
+        const p = a.customerPhone.replace(/\D/g, '').slice(-10);
+        return p === target;
+      });
     }
     if (filter?.status) {
       const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
@@ -250,6 +334,8 @@ export const appointmentRepo = {
             escrow_status = COALESCE(?, escrow_status),
             status = COALESCE(?, status),
             rescheduled_from_id = COALESCE(?, rescheduled_from_id),
+            payout_id = COALESCE(?, payout_id),
+            settled_at = COALESCE(?, settled_at),
             updated_at = NOW()
           WHERE id = ?`,
           [
@@ -264,6 +350,8 @@ export const appointmentRepo = {
             updates.escrowStatus || null,
             updates.status || null,
             updates.rescheduledFromId || null,
+            updates.payoutId || null,
+            toMySqlDatetime(updates.settledAt),
             id,
           ]
         );

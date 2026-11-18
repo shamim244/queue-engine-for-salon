@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
-import type { Ticket, Salon } from "@/lib/api";
+import { api, type Ticket, type Salon } from "@/lib/api";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { generateUpiUri, formatCurrency } from "@/lib/utils";
 import QRCode from "qrcode";
-import { Smartphone, Banknote, CheckCircle2, Heart, ArrowRight, AlertCircle } from "lucide-react";
+import { Smartphone, Banknote, CheckCircle2, Heart, ArrowRight, AlertCircle, TicketPercent } from "lucide-react";
 
 interface StationCheckoutModalProps {
   isOpen: boolean;
@@ -17,7 +17,12 @@ interface StationCheckoutModalProps {
   processingAction: boolean;
   onClose: () => void;
   onBillChange: (val: number) => void;
-  onFinishCheckout: (paymentStatus: "CASH_PAID" | "ONLINE_PAID", finalAmount?: number) => void;
+  onFinishCheckout: (
+    paymentStatus: "CASH_PAID" | "ONLINE_PAID",
+    finalAmount?: number,
+    couponCode?: string,
+    couponDiscount?: number
+  ) => void;
 }
 
 function formatElapsed(seconds: number): string {
@@ -45,10 +50,94 @@ export function StationCheckoutModal({
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
   const [generatingQr, setGeneratingQr] = useState(false);
 
-  // Effective Total with Tip
+  // Client Coupon State
+  const [couponCodeInput, setCouponCodeInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    id: string;
+    code: string;
+    discountType: string;
+    discountValue: number;
+    maxDiscountAmount?: number | null;
+    minOrderAmount?: number;
+  } | null>(null);
+  const [couponDiscount, setCouponDiscount] = useState<number>(0);
+  const [couponFeedback, setCouponFeedback] = useState<{ message: string; success: boolean } | null>(null);
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
+
+  // Initialize or reset coupon when modal opens / closes
+  useEffect(() => {
+    if (isOpen && currentlyServing?.couponCode) {
+      setCouponCodeInput(currentlyServing.couponCode);
+      const discountType = currentlyServing.couponDiscountType || (currentlyServing.couponDiscount ? "FLAT" : "PERCENT");
+      const discountValue = currentlyServing.couponDiscountValue ?? (currentlyServing.couponDiscount || 0);
+      const maxDiscount = currentlyServing.couponMaxDiscount ?? null;
+
+      const couponObj = {
+        id: currentlyServing.couponId || "pre-applied",
+        code: currentlyServing.couponCode,
+        discountType,
+        discountValue,
+        maxDiscountAmount: maxDiscount,
+      };
+      setAppliedCoupon(couponObj);
+
+      let initDiscount = currentlyServing.couponDiscount || 0;
+      if (editableBill > 0) {
+        if (discountType === "PERCENT") {
+          initDiscount = (editableBill * discountValue) / 100;
+          if (maxDiscount) initDiscount = Math.min(initDiscount, maxDiscount);
+        } else {
+          initDiscount = discountValue;
+        }
+        initDiscount = Math.min(Math.round(initDiscount * 100) / 100, editableBill);
+      }
+      setCouponDiscount(initDiscount);
+      setCouponFeedback({
+        message: `Voucher "${currentlyServing.couponCode}" active: ₹${initDiscount} saved on current bill`,
+        success: true,
+      });
+    } else if (!isOpen) {
+      setCouponCodeInput("");
+      setAppliedCoupon(null);
+      setCouponDiscount(0);
+      setCouponFeedback(null);
+    }
+  }, [isOpen, currentlyServing?.id, currentlyServing?.couponCode]);
+
+  // DYNAMIC COUPON RECALCULATION: Automatically updates discount whenever editableBill or services change
+  useEffect(() => {
+    if (isOpen && appliedCoupon && editableBill >= 0) {
+      if (appliedCoupon.minOrderAmount && editableBill < appliedCoupon.minOrderAmount) {
+        setCouponDiscount(0);
+        setCouponFeedback({
+          message: `Min bill of ₹${appliedCoupon.minOrderAmount} required for coupon ${appliedCoupon.code}`,
+          success: false,
+        });
+        return;
+      }
+
+      let discount = 0;
+      if (appliedCoupon.discountType === "PERCENT") {
+        discount = (editableBill * appliedCoupon.discountValue) / 100;
+        if (appliedCoupon.maxDiscountAmount) {
+          discount = Math.min(discount, appliedCoupon.maxDiscountAmount);
+        }
+      } else {
+        discount = appliedCoupon.discountValue;
+      }
+      const capped = Math.min(Math.round(discount * 100) / 100, editableBill);
+      setCouponDiscount(capped);
+      setCouponFeedback({
+        message: `Voucher "${appliedCoupon.code}" applied: ₹${capped} saved (${appliedCoupon.discountType === "PERCENT" ? `${appliedCoupon.discountValue}% off` : "flat off"})`,
+        success: true,
+      });
+    }
+  }, [isOpen, editableBill, appliedCoupon]);
+
+  // Effective Total with Tip & Coupon Discount
   const effectiveTotal = useMemo(() => {
-    return Math.max(0, (editableBill || 0) + tipAmount);
-  }, [editableBill, tipAmount]);
+    return Math.max(0, (editableBill || 0) + tipAmount - couponDiscount);
+  }, [editableBill, tipAmount, couponDiscount]);
 
   // Sync tendered amount when bill or tip changes
   useEffect(() => {
@@ -197,6 +286,102 @@ export function StationCheckoutModal({
             </div>
           </div>
 
+          {/* Promotional Coupon Code Input for Chair / Counter Checkout */}
+          <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <TicketPercent className="h-4 w-4 text-amber-400" />
+                <span>Client Coupon / Voucher Code</span>
+              </span>
+              {appliedCoupon && (
+                <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px]">
+                  ✓ {appliedCoupon.code} (-₹{couponDiscount})
+                </Badge>
+              )}
+            </div>
+
+            {appliedCoupon ? (
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs">
+                <span className="text-emerald-300 font-semibold">
+                  🎉 Discount of ₹{couponDiscount} applied
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppliedCoupon(null);
+                    setCouponDiscount(0);
+                    setCouponFeedback(null);
+                  }}
+                  className="text-rose-400 hover:text-rose-300 text-xs font-bold px-2 py-1"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter coupon (e.g. DIWALI25)"
+                  value={couponCodeInput}
+                  onChange={(e) => {
+                    setCouponCodeInput(e.target.value.toUpperCase());
+                    setCouponFeedback(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                    }
+                  }}
+                  className="font-mono text-xs uppercase h-10 bg-slate-900 border-slate-700"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={applyingCoupon || !couponCodeInput.trim() || editableBill <= 0}
+                  onClick={async () => {
+                    if (!salon?.id) return;
+                    setApplyingCoupon(true);
+                    setCouponFeedback(null);
+                    try {
+                      const res = await api.coupons.apply({
+                        code: couponCodeInput.trim().toUpperCase(),
+                        targetType: "SALON_SERVICE",
+                        orderAmount: editableBill,
+                        salonId: salon.id,
+                      });
+                      if (res.valid && res.coupon) {
+                        setAppliedCoupon(res.coupon);
+                        setCouponDiscount(res.discountAmount);
+                        setCouponFeedback({
+                          message: `Coupon ${res.coupon.code} applied! Saved ₹${res.discountAmount}`,
+                          success: true,
+                        });
+                      } else {
+                        setCouponFeedback({
+                          message: res.message || "Invalid coupon code for this salon.",
+                          success: false,
+                        });
+                      }
+                    } catch (err: any) {
+                      setCouponFeedback({
+                        message: err.message || "Failed to validate coupon.",
+                        success: false,
+                      });
+                    } finally {
+                      setApplyingCoupon(false);
+                    }
+                  }}
+                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold h-10 px-3 text-xs"
+                >
+                  {applyingCoupon ? "..." : "Apply"}
+                </Button>
+              </div>
+            )}
+
+            {couponFeedback && !appliedCoupon && (
+              <p className="text-[11px] text-rose-400 font-medium">{couponFeedback.message}</p>
+            )}
+          </div>
+
           {/* Payment Method Selector Tabs */}
           <div className="grid grid-cols-2 gap-2.5">
             <button
@@ -321,7 +506,7 @@ export function StationCheckoutModal({
 
               <Button
                 size="lg"
-                onClick={() => onFinishCheckout("CASH_PAID", effectiveTotal)}
+                onClick={() => onFinishCheckout("CASH_PAID", effectiveTotal, appliedCoupon?.code, couponDiscount)}
                 disabled={processingAction || isShortage}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-base h-14 rounded-2xl gap-2 shadow-xl shadow-emerald-600/25 active:scale-98"
               >
@@ -374,7 +559,7 @@ export function StationCheckoutModal({
 
               <Button
                 size="lg"
-                onClick={() => onFinishCheckout("ONLINE_PAID", effectiveTotal)}
+                onClick={() => onFinishCheckout("ONLINE_PAID", effectiveTotal, appliedCoupon?.code, couponDiscount)}
                 disabled={processingAction}
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black text-base h-14 rounded-2xl gap-2 shadow-xl shadow-blue-600/30 active:scale-98"
               >

@@ -4,6 +4,7 @@ import type { AuthUser, Stylist } from "@/lib/api";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput, DEFAULT_COUNTRIES } from "@/components/ui/phone-input";
 import { Edit2 } from "lucide-react";
 
 interface EditStaffModalProps {
@@ -26,16 +27,37 @@ export function EditStaffModal({
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneCountryCode, setPhoneCountryCode] = useState("+91");
   const [pin, setPin] = useState("");
   const [pace, setPace] = useState(25);
   const [status, setStatus] = useState<"ACTIVE" | "SUSPENDED">("ACTIVE");
   const [savingEdit, setSavingEdit] = useState(false);
 
+  const parsePhoneInput = (raw: string) => {
+    if (!raw) return { code: "+91", national: "" };
+    let code = "+91";
+    let digits = raw.replace(/\D/g, "");
+    if (raw.startsWith("+")) {
+      for (const c of DEFAULT_COUNTRIES) {
+        if (raw.startsWith(c.code)) {
+          code = c.code;
+          digits = raw.slice(c.code.length).replace(/\D/g, "");
+          break;
+        }
+      }
+    } else if (digits.length === 12 && digits.startsWith("91")) {
+      digits = digits.slice(2);
+    }
+    return { code, national: digits.slice(0, 10) };
+  };
+
   useEffect(() => {
     if (user && isOpen) {
       setFullName(user.fullName || "");
       setEmail(user.email || "");
-      setPhone(user.phone || "");
+      const parsed = parsePhoneInput(user.phone || "");
+      setPhone(parsed.national);
+      setPhoneCountryCode(parsed.code);
       setPin(user.pin || "");
       setStatus(user.status === "SUSPENDED" ? "SUSPENDED" : "ACTIVE");
       setPace(matchedStylist?.avgDurationMinutes || 25);
@@ -50,12 +72,22 @@ export function EditStaffModal({
       return;
     }
 
+    let formattedPhone: string | undefined = undefined;
+    if (phone && phone.trim()) {
+      const cleanDigits = phone.trim().replace(/\D/g, "");
+      if (cleanDigits.length !== 10) {
+        showToast("Mobile phone number must be exactly 10 digits", "error");
+        return;
+      }
+      formattedPhone = `${phoneCountryCode}${cleanDigits}`;
+    }
+
     setSavingEdit(true);
     try {
       await api.auth.updateStaff(user.id, {
         fullName: fullName.trim() || undefined,
         email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
+        phone: formattedPhone,
         pin: pin.trim() || undefined,
         avgDurationMinutes: Number(pace) || 25,
         status,
@@ -115,11 +147,14 @@ export function EditStaffModal({
               <label className="text-xs font-semibold text-slate-300 block mb-1.5">
                 Phone Number
               </label>
-              <Input
+              <PhoneInput
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+91 98765 00000"
-                className="min-h-[44px]"
+                onChange={setPhone}
+                countryCode={phoneCountryCode}
+                onCountryCodeChange={setPhoneCountryCode}
+                placeholder="9876543210"
+                showDigitCounter={true}
+                disabled={savingEdit}
               />
             </div>
           </div>

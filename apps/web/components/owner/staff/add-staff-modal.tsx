@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput, DEFAULT_COUNTRIES } from "@/components/ui/phone-input";
 import { UserPlus, Sparkles, Eye, EyeOff } from "lucide-react";
 
 export interface InitialStaffData {
@@ -38,19 +39,42 @@ export function AddStaffModal({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneCountryCode, setPhoneCountryCode] = useState("+91");
   const [pin, setPin] = useState("");
   const [pace, setPace] = useState(25);
   const [staffId, setStaffId] = useState<string | undefined>(undefined);
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+
+  const parsePhoneInput = (raw: string) => {
+    if (!raw) return { code: "+91", national: "" };
+    let code = "+91";
+    let digits = raw.replace(/\D/g, "");
+    if (raw.startsWith("+")) {
+      for (const c of DEFAULT_COUNTRIES) {
+        if (raw.startsWith(c.code)) {
+          code = c.code;
+          digits = raw.slice(c.code.length).replace(/\D/g, "");
+          break;
+        }
+      }
+    } else if (digits.length === 12 && digits.startsWith("91")) {
+      digits = digits.slice(2);
+    }
+    return { code, national: digits.slice(0, 10) };
+  };
 
   useEffect(() => {
     if (isOpen) {
+      setInlineError(null);
       if (initialData) {
         setStaffId(initialData.staffId);
         setFullName(initialData.fullName || "");
         setUsername(initialData.username || "");
-        setPhone(initialData.phone || "");
+        const parsed = parsePhoneInput(initialData.phone || "");
+        setPhone(parsed.national);
+        setPhoneCountryCode(parsed.code);
         setPace(initialData.pace || 25);
         setPin(initialData.pin || "");
         setPassword("password123");
@@ -61,6 +85,7 @@ export function AddStaffModal({
         setUsername("");
         setPassword("");
         setPhone("");
+        setPhoneCountryCode("+91");
         setPin("");
         setPace(25);
       }
@@ -113,7 +138,19 @@ export function AddStaffModal({
       return;
     }
 
+    let formattedPhone: string | undefined = undefined;
+    if (phone && phone.trim()) {
+      const cleanDigits = phone.trim().replace(/\D/g, "");
+      if (cleanDigits.length !== 10) {
+        setInlineError("Mobile phone number must be exactly 10 digits");
+        showToast("Mobile phone number must be exactly 10 digits", "error");
+        return;
+      }
+      formattedPhone = `${phoneCountryCode}${cleanDigits}`;
+    }
+
     setCreating(true);
+    setInlineError(null);
     try {
       await api.auth.createStaff({
         salonId,
@@ -122,7 +159,7 @@ export function AddStaffModal({
         username: username.trim(),
         password,
         email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
+        phone: formattedPhone,
         pin: pin.trim() || undefined,
         avgDurationMinutes: Number(pace) || 25,
       });
@@ -130,7 +167,9 @@ export function AddStaffModal({
       onSuccess(fullName.trim());
       onClose();
     } catch (err: any) {
-      showToast("Failed to create staff member: " + (err.message || "Unknown error"), "error");
+      const msg = err.message || "Failed to create staff member";
+      setInlineError(msg);
+      showToast("Failed to create staff member: " + msg, "error");
     } finally {
       setCreating(false);
     }
@@ -149,6 +188,13 @@ export function AddStaffModal({
             Creates an authentic staff account with password, phone, speed calibration, and an optional 4-digit mirror PIN.
           </DialogDescription>
         </DialogHeader>
+
+        {inlineError && (
+          <div className="p-3 my-2 rounded-xl border border-rose-500/50 bg-rose-950/60 text-rose-200 text-xs flex items-center gap-2">
+            <span className="font-bold text-rose-400">⚠️ Error:</span>
+            <span>{inlineError}</span>
+          </div>
+        )}
 
         <div className="space-y-4 my-4 max-h-[65vh] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -239,11 +285,14 @@ export function AddStaffModal({
               <label className="text-xs font-semibold text-slate-300 block mb-1.5">
                 Phone Number
               </label>
-              <Input
-                placeholder="+91 98765 00000"
+              <PhoneInput
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="min-h-[44px]"
+                onChange={setPhone}
+                countryCode={phoneCountryCode}
+                onCountryCodeChange={setPhoneCountryCode}
+                placeholder="9876543210"
+                showDigitCounter={true}
+                disabled={creating}
               />
             </div>
 

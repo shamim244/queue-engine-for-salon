@@ -3,10 +3,12 @@ import type { Salon } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { ServiceIcon } from "@/components/ui/service-icon";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
 import type { QueueLoadMetrics } from "./queue-helpers";
-import { Zap, Scissors, CheckCircle2, Clock } from "lucide-react";
+import { Zap, Scissors, CheckCircle2, Clock, TicketPercent, AlertCircle } from "lucide-react";
 
 interface QueueWalkinFormProps {
   salon: Salon | null;
@@ -21,6 +23,21 @@ interface QueueWalkinFormProps {
   queueLoadMetrics: QueueLoadMetrics;
   submitting: boolean;
   onSubmit: (e: React.FormEvent) => void;
+  couponCodeInput?: string;
+  setCouponCodeInput?: (v: string) => void;
+  appliedCoupon?: {
+    id: string;
+    code: string;
+    discountType: string;
+    discountValue: number;
+    maxDiscountAmount?: number | null;
+    minOrderAmount?: number;
+  } | null;
+  couponDiscount?: number;
+  validatingCoupon?: boolean;
+  couponError?: string | null;
+  onApplyCoupon?: () => void;
+  onRemoveCoupon?: () => void;
 }
 
 export function QueueWalkinForm({
@@ -36,7 +53,18 @@ export function QueueWalkinForm({
   queueLoadMetrics,
   submitting,
   onSubmit,
+  couponCodeInput = "",
+  setCouponCodeInput,
+  appliedCoupon,
+  couponDiscount = 0,
+  validatingCoupon = false,
+  couponError,
+  onApplyCoupon,
+  onRemoveCoupon,
 }: QueueWalkinFormProps) {
+  const selectedService = salon?.services?.find((s) => s.id === selectedServiceId) || salon?.services?.[0];
+  const finalPrice = Math.max(0, (selectedService?.basePrice || 0) - (appliedCoupon ? couponDiscount : 0));
+
   return (
     <Card className="border-slate-800 bg-slate-900/70 shadow-2xl">
       <CardHeader className="pb-3 border-b border-slate-800">
@@ -65,6 +93,7 @@ export function QueueWalkinForm({
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               className="h-12 bg-slate-950/80 border-slate-700 text-white rounded-xl text-base px-3.5 focus:border-amber-400"
+              maxLength={80}
             />
           </div>
 
@@ -73,12 +102,11 @@ export function QueueWalkinForm({
             <label className="text-xs font-bold text-slate-300 block">
               Mobile Phone Number <span className="text-slate-500 font-normal">(optional - for SMS call-up)</span>
             </label>
-            <Input
-              type="tel"
-              placeholder="e.g. 98765 43210 (or leave blank for walk-in)"
+            <PhoneInput
               value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
-              className="h-12 bg-slate-950/80 border-slate-700 text-white rounded-xl text-base px-3.5 focus:border-amber-400"
+              onChange={setCustomerPhone}
+              placeholder="9876543210"
+              showDigitCounter={true}
             />
           </div>
 
@@ -100,7 +128,9 @@ export function QueueWalkinForm({
                   }`}
                 >
                   <div className="flex items-center gap-2.5 truncate">
-                    <span className="text-xl">{srv.icon || "✂️"}</span>
+                    <div className="h-7 w-7 rounded-lg bg-slate-900 border border-slate-700/80 flex items-center justify-center p-0.5 shrink-0">
+                      <ServiceIcon icon={srv.icon} size={20} />
+                    </div>
                     <div className="truncate">
                       <p className="text-xs sm:text-sm font-bold truncate">{srv.name}</p>
                       <p className="text-[11px] text-slate-400">~{srv.estimatedDurationMinutes} mins</p>
@@ -305,6 +335,83 @@ export function QueueWalkinForm({
             </div>
           )}
 
+          {/* 4. Optional Client Coupon / Voucher Code */}
+          <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/70 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <TicketPercent className="h-4 w-4 text-amber-400" />
+                <span>Have a Salon Coupon Code?</span>
+              </label>
+              {appliedCoupon && (
+                <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                  ✓ {appliedCoupon.code} (-₹{couponDiscount})
+                </Badge>
+              )}
+            </div>
+
+            {appliedCoupon ? (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <div>
+                    <span className="text-emerald-300 font-bold block">
+                      🎉 ₹{couponDiscount} discount applied!
+                    </span>
+                    <span className="text-emerald-400/80 text-[11px]">
+                      Locked into your queue pass · automatically credited at station checkout.
+                    </span>
+                  </div>
+                </div>
+                {onRemoveCoupon && (
+                  <button
+                    type="button"
+                    onClick={onRemoveCoupon}
+                    className="text-rose-400 hover:text-rose-300 text-xs font-bold px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 shrink-0"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter coupon (e.g. WELCOME20)"
+                    value={couponCodeInput}
+                    onChange={(e) => setCouponCodeInput && setCouponCodeInput(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (onApplyCoupon) onApplyCoupon();
+                      }
+                    }}
+                    className="font-mono text-xs uppercase h-11 bg-slate-900 border-slate-700 text-white rounded-xl"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={validatingCoupon || !couponCodeInput.trim() || !selectedService}
+                    onClick={onApplyCoupon}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 h-11 rounded-xl shrink-0 active:scale-95 transition-transform"
+                  >
+                    {validatingCoupon ? "Checking..." : "Apply"}
+                  </Button>
+                </div>
+                {couponError && (
+                  <p className="text-[11px] text-rose-400 flex items-center gap-1.5 font-medium pt-0.5">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>{couponError}</span>
+                  </p>
+                )}
+                {!customerPhone.trim() && couponCodeInput.trim() && !couponError && (
+                  <p className="text-[10px] text-amber-400/90 flex items-center gap-1 font-medium pt-0.5">
+                    <span>📱 Note: Enter your 10-digit mobile number above to claim coupon discounts.</span>
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Submit Action */}
           <Button
             type="submit"
@@ -312,7 +419,13 @@ export function QueueWalkinForm({
             className="w-full min-h-[52px] bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm sm:text-base rounded-2xl shadow-xl shadow-amber-500/25 gap-2 active:scale-98 transition-transform"
           >
             <Zap className="h-5 w-5 fill-slate-950" />
-            <span>{submitting ? "Securing Your Spot..." : "Join Live Queue Now"}</span>
+            <span>
+              {submitting
+                ? "Securing Your Spot..."
+                : appliedCoupon && couponDiscount > 0
+                ? `Join Live Queue Now • ₹${finalPrice} (₹${couponDiscount} OFF with ${appliedCoupon.code})`
+                : "Join Live Queue Now"}
+            </span>
           </Button>
         </form>
       </CardContent>

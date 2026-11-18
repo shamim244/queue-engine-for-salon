@@ -24,10 +24,12 @@ import { referralRoutes } from './src/routes/referral.routes';
 import { appointmentRoutes } from './src/routes/appointments';
 import { partnerRoutes, adminPartnerRoutes } from './src/routes/partner.routes';
 import { securityRoutes } from './src/routes/security.routes';
+import { loyaltyRoutes } from './src/routes/loyalty.routes';
 import { compressionManager } from './src/engine/compression-manager';
 import { isAllowedOrigin } from './src/security/cors-validator';
 import { applySecurityHeaders } from './src/security/headers';
 import { memoryStore } from './src/db/repositories/store';
+import { cacheService } from './src/cache/cache.service';
 
 console.log(`\n======================================================`);
 console.log(`🚀 ENGINE QUE SYSTEM FOR SALONS (BUN RUNTIME)`);
@@ -56,6 +58,12 @@ export { isAllowedOrigin };
 const app = new Elysia()
   .onRequest(({ set }) => {
     applySecurityHeaders(set);
+    const cacheStatus = cacheService.getStatus();
+    if (set.headers && typeof (set.headers as any).set === 'function') {
+      (set.headers as any).set('X-Cache-Engine', cacheStatus.activeMode);
+    } else if (set.headers) {
+      (set.headers as any)['X-Cache-Engine'] = cacheStatus.activeMode;
+    }
   })
   .use(
     cors({
@@ -109,6 +117,11 @@ const app = new Elysia()
     timestamp: Date.now(),
     uptime: process.uptime(),
   }))
+  .get('/api/system/cache', () => ({
+    success: true,
+    ...cacheService.getStatus(),
+    timestamp: new Date().toISOString(),
+  }))
   .use(swagger({
     path: '/swagger',
     documentation: {
@@ -136,6 +149,7 @@ const app = new Elysia()
   .use(partnerRoutes)
   .use(adminPartnerRoutes)
   .use(securityRoutes)
+  .use(loyaltyRoutes)
 
   // Subdirectory Shortcuts (/s/:slug)
   .get('/s/:slug', ({ params, redirect }) => redirect(`/customer.html?salon=${params.slug}`))

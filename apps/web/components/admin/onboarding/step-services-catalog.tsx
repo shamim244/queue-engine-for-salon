@@ -3,6 +3,7 @@ import { Scissors, Plus, Trash2, Store, Sparkles, ChevronLeft } from "lucide-rea
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ServiceIcon } from "@/components/ui/service-icon";
 import {
   getSingleStationPreset,
   getMultiStationPreset,
@@ -105,8 +106,8 @@ export function StepServicesCatalog({
               className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
             >
               <div className="flex items-center gap-3 w-full md:w-auto">
-                <div className="h-8 w-8 rounded-lg bg-indigo-600/20 text-indigo-400 font-bold flex items-center justify-center text-xs shrink-0 border border-indigo-500/30">
-                  {srv.icon || "✂️"}
+                <div className="h-8 w-8 rounded-lg bg-indigo-600/20 text-indigo-400 font-bold flex items-center justify-center text-xs shrink-0 border border-indigo-500/30 p-1">
+                  <ServiceIcon icon={srv.icon} size={18} />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 w-full">
                   {/* Name */}

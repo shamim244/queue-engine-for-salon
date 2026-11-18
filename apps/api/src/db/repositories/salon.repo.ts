@@ -1,6 +1,7 @@
 import { isMySqlConnected, getDb } from '../mysql';
 import type { Salon, Organization, OnboardSalonPayload } from '../../engine/types';
 import { memoryStore, salonCache, CACHE_TTL_MS, invalidateSalonCache } from './store';
+import { cacheService } from '../../cache/cache.service';
 import { organizationRepo } from './organization.repo';
 
 export const salonRepo = {
@@ -11,76 +12,94 @@ export const salonRepo = {
   },
 
   async getSalonBySlug(slug: string, options?: { skipCache?: boolean }): Promise<Salon | null> {
-    if (!options?.skipCache) {
-      const cached = salonCache.get(slug);
-      if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
-        return JSON.parse(JSON.stringify(cached.salon));
-      }
-    }
+    const cacheKey = `salon:catalog:${slug}`;
+    return cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        let salon: Salon | null = null;
+        if (isMySqlConnected) {
+          const db = getDb();
+          const [rows]: any = await db.query('SELECT * FROM salons WHERE slug = ? OR id = ? LIMIT 1', [slug, slug]);
+          if (rows.length === 0) return null;
+          const salonRow = rows[0];
 
-    let salon: Salon | null = null;
-    if (isMySqlConnected) {
-      const db = getDb();
-      const [rows]: any = await db.query('SELECT * FROM salons WHERE slug = ? OR id = ? LIMIT 1', [slug, slug]);
-      if (rows.length === 0) return null;
-      const salonRow = rows[0];
+          const [stylistRows]: any = await db.query('SELECT * FROM stylists WHERE salon_id = ? AND is_active = TRUE', [salonRow.id]);
+          const [serviceRows]: any = await db.query('SELECT * FROM services WHERE salon_id = ?', [salonRow.id]);
 
-      const [stylistRows]: any = await db.query('SELECT * FROM stylists WHERE salon_id = ? AND is_active = TRUE', [salonRow.id]);
-      const [serviceRows]: any = await db.query('SELECT * FROM services WHERE salon_id = ?', [salonRow.id]);
+          salon = {
+            id: salonRow.id,
+            organizationId: salonRow.organization_id || null,
+            name: salonRow.name,
+            slug: salonRow.slug,
+            phone: salonRow.phone,
+            operatingMode: salonRow.operating_mode,
+            countryCode: salonRow.country_code,
+            currency: salonRow.currency,
+            address: salonRow.address,
+            upiPaymentId: salonRow.upi_payment_id,
+            tagline: salonRow.tagline || undefined,
+            about: salonRow.about || undefined,
+            email: salonRow.email || undefined,
+            whatsappPhone: salonRow.whatsapp_phone || undefined,
+            googleMapsUrl: salonRow.google_maps_url || undefined,
+            instagramHandle: salonRow.instagram_handle || undefined,
+            operatingHours: salonRow.operating_hours || undefined,
+            amenities: typeof salonRow.amenities === 'string' ? JSON.parse(salonRow.amenities) : (salonRow.amenities || undefined),
+            announcement: salonRow.announcement || undefined,
+            announcementActive: Boolean(salonRow.announcement_active),
+            wifiSsid: salonRow.wifi_ssid || undefined,
+            wifiPassword: salonRow.wifi_password || undefined,
+            enableLoungeWifi: salonRow.enable_lounge_wifi !== undefined && salonRow.enable_lounge_wifi !== null ? Boolean(salonRow.enable_lounge_wifi) : true,
+            enableScreenWakeLock: salonRow.enable_screen_wake_lock !== undefined && salonRow.enable_screen_wake_lock !== null ? Boolean(salonRow.enable_screen_wake_lock) : true,
+            loyaltyEnabled: salonRow.loyalty_enabled !== undefined && salonRow.loyalty_enabled !== null ? Boolean(salonRow.loyalty_enabled) : true,
+            loyaltyStampGoal: salonRow.loyalty_stamp_goal ? Number(salonRow.loyalty_stamp_goal) : 6,
+            loyaltyRewardServiceId: salonRow.loyalty_reward_service_id || undefined,
+            loyaltyRewardServiceName: salonRow.loyalty_reward_service_name || undefined,
+            loyaltyCooldownHours: salonRow.loyalty_cooldown_hours ? Number(salonRow.loyalty_cooldown_hours) : 4,
+            loyaltyVoucherValidityDays: salonRow.loyalty_voucher_validity_days ? Number(salonRow.loyalty_voucher_validity_days) : 90,
+            loyaltyReferrerBonus: salonRow.loyalty_referrer_bonus !== undefined && salonRow.loyalty_referrer_bonus !== null ? Number(salonRow.loyalty_referrer_bonus) : 50,
+            loyaltyRefereeDiscount: salonRow.loyalty_referee_discount !== undefined && salonRow.loyalty_referee_discount !== null ? Number(salonRow.loyalty_referee_discount) : 50,
+            loyaltyRewardDescription: salonRow.loyalty_reward_description || 'Free Haircut or Beard Grooming',
+            createdAt: salonRow.created_at,
+            stylists: stylistRows.map((r: any) => ({
+              id: r.id,
+              salonId: r.salon_id,
+              name: r.name,
+              phone: r.phone,
+              isActive: Boolean(r.is_active),
+              historicalAvgDurationMinutes: r.historical_avg_duration_minutes,
+              customAvgDurationMinutes: r.custom_avg_duration_minutes || null,
+            })),
+            services: serviceRows.map((r: any) => ({
+              id: r.id,
+              salonId: r.salon_id,
+              name: r.name,
+              basePrice: Number(r.base_price),
+              estimatedDurationMinutes: Number(r.estimated_duration_minutes),
+              pricingType: r.pricing_type || 'FIXED',
+              isAddOn: Boolean(r.is_add_on),
+              icon: r.icon,
+            })),
+          };
+        } else {
+          salon = memoryStore.salons.get(slug) || null;
+        }
 
-      salon = {
-        id: salonRow.id,
-        organizationId: salonRow.organization_id || null,
-        name: salonRow.name,
-        slug: salonRow.slug,
-        phone: salonRow.phone,
-        operatingMode: salonRow.operating_mode,
-        countryCode: salonRow.country_code,
-        currency: salonRow.currency,
-        address: salonRow.address,
-        upiPaymentId: salonRow.upi_payment_id,
-        tagline: salonRow.tagline || undefined,
-        about: salonRow.about || undefined,
-        email: salonRow.email || undefined,
-        whatsappPhone: salonRow.whatsapp_phone || undefined,
-        googleMapsUrl: salonRow.google_maps_url || undefined,
-        instagramHandle: salonRow.instagram_handle || undefined,
-        operatingHours: salonRow.operating_hours || undefined,
-        amenities: typeof salonRow.amenities === 'string' ? JSON.parse(salonRow.amenities) : (salonRow.amenities || undefined),
-        announcement: salonRow.announcement || undefined,
-        announcementActive: Boolean(salonRow.announcement_active),
-        createdAt: salonRow.created_at,
-        stylists: stylistRows.map((r: any) => ({
-          id: r.id,
-          salonId: r.salon_id,
-          name: r.name,
-          phone: r.phone,
-          isActive: Boolean(r.is_active),
-          historicalAvgDurationMinutes: r.historical_avg_duration_minutes,
-          customAvgDurationMinutes: r.custom_avg_duration_minutes || null,
-        })),
-        services: serviceRows.map((r: any) => ({
-          id: r.id,
-          salonId: r.salon_id,
-          name: r.name,
-          basePrice: Number(r.base_price),
-          estimatedDurationMinutes: Number(r.estimated_duration_minutes),
-          pricingType: r.pricing_type || 'FIXED',
-          isAddOn: Boolean(r.is_add_on),
-          icon: r.icon,
-        })),
-      };
-    } else {
-      salon = memoryStore.salons.get(slug) || null;
-    }
-
-    if (salon) {
-      const cloned = JSON.parse(JSON.stringify(salon));
-      salonCache.set(salon.slug, { salon: cloned, cachedAt: Date.now() });
-      salonCache.set(salon.id, { salon: cloned, cachedAt: Date.now() });
-      return JSON.parse(JSON.stringify(salon));
-    }
-    return null;
+        if (salon) {
+          const cloned = JSON.parse(JSON.stringify(salon));
+          salonCache.set(salon.slug, { salon: cloned, cachedAt: Date.now() });
+          salonCache.set(salon.id, { salon: cloned, cachedAt: Date.now() });
+          // Also prime cross-key lookup (both ID and slug) in centralized cache
+          if (salon.id !== salon.slug) {
+            cacheService.set(`salon:catalog:${salon.id}`, cloned, 60).catch(() => {});
+          }
+          return cloned;
+        }
+        return null;
+      },
+      60,
+      { skipCache: options?.skipCache }
+    );
   },
 
   async getAllSalons(): Promise<Salon[]> {
@@ -259,6 +278,15 @@ export const salonRepo = {
     wifiPassword?: string;
     enableLoungeWifi?: boolean;
     enableScreenWakeLock?: boolean;
+    loyaltyEnabled?: boolean;
+    loyaltyStampGoal?: number;
+    loyaltyRewardServiceId?: string;
+    loyaltyRewardServiceName?: string;
+    loyaltyCooldownHours?: number;
+    loyaltyVoucherValidityDays?: number;
+    loyaltyReferrerBonus?: number;
+    loyaltyRefereeDiscount?: number;
+    loyaltyRewardDescription?: string;
   }): Promise<Salon | null> {
     const all = await this.getAllSalons();
     const salon = all.find((s) => s.id === salonId || s.slug === salonId);
@@ -285,6 +313,15 @@ export const salonRepo = {
     if (updates.wifiPassword !== undefined) salon.wifiPassword = updates.wifiPassword ? updates.wifiPassword.trim() : undefined;
     if (updates.enableLoungeWifi !== undefined) salon.enableLoungeWifi = Boolean(updates.enableLoungeWifi);
     if (updates.enableScreenWakeLock !== undefined) salon.enableScreenWakeLock = Boolean(updates.enableScreenWakeLock);
+    if (updates.loyaltyEnabled !== undefined) salon.loyaltyEnabled = Boolean(updates.loyaltyEnabled);
+    if (updates.loyaltyStampGoal !== undefined) salon.loyaltyStampGoal = Number(updates.loyaltyStampGoal);
+    if (updates.loyaltyRewardServiceId !== undefined) salon.loyaltyRewardServiceId = updates.loyaltyRewardServiceId ? updates.loyaltyRewardServiceId.trim() : undefined;
+    if (updates.loyaltyRewardServiceName !== undefined) salon.loyaltyRewardServiceName = updates.loyaltyRewardServiceName ? updates.loyaltyRewardServiceName.trim() : undefined;
+    if (updates.loyaltyCooldownHours !== undefined) salon.loyaltyCooldownHours = Number(updates.loyaltyCooldownHours);
+    if (updates.loyaltyVoucherValidityDays !== undefined) salon.loyaltyVoucherValidityDays = Number(updates.loyaltyVoucherValidityDays);
+    if (updates.loyaltyReferrerBonus !== undefined) salon.loyaltyReferrerBonus = Number(updates.loyaltyReferrerBonus);
+    if (updates.loyaltyRefereeDiscount !== undefined) salon.loyaltyRefereeDiscount = Number(updates.loyaltyRefereeDiscount);
+    if (updates.loyaltyRewardDescription !== undefined) salon.loyaltyRewardDescription = updates.loyaltyRewardDescription.trim();
 
     memoryStore.salons.set(salon.id, salon);
     memoryStore.salons.set(salon.slug, salon);
@@ -295,7 +332,10 @@ export const salonRepo = {
         `UPDATE salons 
          SET name = ?, phone = ?, address = ?, upi_payment_id = ?, operating_mode = ?,
              tagline = ?, about = ?, email = ?, whatsapp_phone = ?, google_maps_url = ?,
-             instagram_handle = ?, operating_hours = ?, amenities = ?, announcement = ?, announcement_active = ?
+             instagram_handle = ?, operating_hours = ?, amenities = ?, announcement = ?, announcement_active = ?,
+             wifi_ssid = ?, wifi_password = ?, enable_lounge_wifi = ?, enable_screen_wake_lock = ?,
+             loyalty_enabled = ?, loyalty_stamp_goal = ?, loyalty_referrer_bonus = ?, loyalty_referee_discount = ?, loyalty_reward_description = ?,
+             loyalty_reward_service_id = ?, loyalty_reward_service_name = ?, loyalty_cooldown_hours = ?, loyalty_voucher_validity_days = ?
          WHERE id = ?`,
         [
           salon.name,
@@ -313,6 +353,19 @@ export const salonRepo = {
           salon.amenities ? JSON.stringify(salon.amenities) : null,
           salon.announcement || null,
           salon.announcementActive ? 1 : 0,
+          salon.wifiSsid || null,
+          salon.wifiPassword || null,
+          salon.enableLoungeWifi ? 1 : 0,
+          salon.enableScreenWakeLock ? 1 : 0,
+          salon.loyaltyEnabled !== undefined ? (salon.loyaltyEnabled ? 1 : 0) : 1,
+          salon.loyaltyStampGoal || 6,
+          salon.loyaltyReferrerBonus || 50,
+          salon.loyaltyRefereeDiscount || 50,
+          salon.loyaltyRewardDescription || 'Free Haircut or Beard Grooming',
+          salon.loyaltyRewardServiceId || null,
+          salon.loyaltyRewardServiceName || null,
+          salon.loyaltyCooldownHours || 4,
+          salon.loyaltyVoucherValidityDays || 90,
           salon.id,
         ]
       );
@@ -357,22 +410,61 @@ export const salonRepo = {
     let org: Organization | null = null;
     if (payload.organizationName) {
       const orgSlug = payload.organizationSlug || payload.organizationName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      org = await organizationRepo.getOrganizationBySlug(orgSlug);
-      if (!org) {
+      const existingOrg = await organizationRepo.getOrganizationBySlug(orgSlug);
+      if (!existingOrg) {
         org = await organizationRepo.createOrganization({
           name: payload.organizationName,
           slug: orgSlug,
-          tier: payload.tier || 'STARTER',
+          tier: payload.tier || 'FREE',
+          planId: payload.planId || null,
         });
+      } else {
+        // Multi-tenant isolation: Ensure independent new salons receive their own unique organization
+        // so they do not collide with or exhaust branch quotas of unrelated tenants
+        const safeOrgSlug = `${orgSlug}-${payload.slug || Math.random().toString(36).substring(2, 6)}`;
+        org = await organizationRepo.createOrganization({
+          name: payload.organizationName,
+          slug: safeOrgSlug,
+          tier: payload.tier || 'FREE',
+          planId: payload.planId || null,
+        });
+      }
+
+      // If onboarded on a Free tier plan (zero payment required), fulfill active subscription immediately
+      if (org && org.tier === 'FREE' && org.planId) {
+        try {
+          const { paymentRepo } = await import('./payment.repo');
+          const existingSub = await paymentRepo.getActiveSubscriptionByOrgId(org.id);
+          if (!existingSub) {
+            const now = new Date();
+            const cycle = (payload.billingCycle || '1m') as any;
+            const daysToAdd = cycle === '1y' ? 365 : cycle === '6m' ? 180 : cycle === '3m' ? 90 : 30;
+            const expiresAt = new Date(now.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+            await paymentRepo.createSubscription({
+              id: 'sub-' + Math.random().toString(36).substring(2, 9),
+              organizationId: org.id,
+              planId: org.planId,
+              cycle: cycle,
+              status: 'ACTIVE',
+              startsAt: now,
+              expiresAt,
+              autoRenew: true,
+              createdAt: now,
+              updatedAt: now,
+            });
+          }
+        } catch (subErr) {
+          console.warn('[onboardSalon] Failed to create initial free subscription record:', subErr);
+        }
       }
     }
 
-    // 2. Slug check & auto-generation
+    // 2. Slug check: Ensure unique salon handle
     let finalSlug = payload.slug;
     if (finalSlug) {
       const existing = await this.getSalonBySlug(finalSlug);
       if (existing) {
-        finalSlug = `${finalSlug}-${Math.random().toString(36).substring(2, 6)}`;
+        throw new Error(`Salon URL handle '/s/${finalSlug}' is already taken. Please choose a different URL handle.`);
       }
     }
 
@@ -391,25 +483,86 @@ export const salonRepo = {
       services: payload.services,
     });
 
+    // 3.1 Partner Attribution Hook
+    if (payload.partnerCode) {
+      const { partnerRepo } = await import('./partner.repo');
+      const partner = await partnerRepo.getPartnerByCode(payload.partnerCode);
+      if (partner && partner.status === 'ACTIVE') {
+        await partnerRepo.createAttribution({
+          partnerId: partner.id,
+          salonId: salon.id,
+          source: 'PROMO_CODE',
+          qualificationStatus: 'UNQUALIFIED',
+        });
+
+        if (!partner.isCommissionPaused && partner.bountyAmount > 0 && (partner.commissionModel === 'FLAT_BOUNTY' || partner.commissionModel === 'HYBRID')) {
+          await partnerRepo.addLedgerEntry({
+            partnerId: partner.id,
+            salonId: salon.id,
+            transactionType: 'BOUNTY_CREDIT',
+            commissionAmount: partner.bountyAmount,
+            balanceType: 'PENDING_LOCK',
+            description: 'Activation Bounty',
+          });
+        }
+
+        await partnerRepo.createNotification({
+          partnerId: partner.id,
+          title: 'New Salon Onboarded!',
+          message: `${salon.name} has registered using your partner code.`,
+          type: 'SALON_JOINED',
+        });
+      } else {
+        // Attribute to Salon Owner B2B referral
+        try {
+          const { referralService } = await import('../../wallet/referral.service');
+          const referrerOrgId = await referralService.resolveReferrerOrg(payload.partnerCode);
+          if (referrerOrgId && salon.organizationId && referrerOrgId !== salon.organizationId) {
+            await referralService.attributeReferral({
+              referralType: 'B2B_OWNER',
+              referrerCode: payload.partnerCode.trim().toUpperCase(),
+              referredOrgId: salon.organizationId,
+              salonId: salon.id,
+            });
+          }
+        } catch (refErr: any) {
+          console.warn('[onboardSalon] Failed to record B2B referral attribution:', refErr?.message);
+        }
+      }
+    }
+
     // 4. Create Owner User if credentials provided
     let ownerUser: any = null;
     if (payload.ownerUser && payload.ownerUser.username && payload.ownerUser.password) {
       const { authService } = await import('../../auth/auth-service');
       const cleanUsername = payload.ownerUser.username.trim().toLowerCase();
       const existingUser = await authService.getUserByUsername(cleanUsername);
-      if (!existingUser) {
-        ownerUser = await authService.createUser({
-          username: cleanUsername,
-          password: payload.ownerUser.password,
-          role: 'SALON_OWNER',
-          salonId: salon.id,
-          organizationId: salon.organizationId,
-          phone: payload.ownerUser.phone || salon.phone,
-          email: payload.ownerUser.email,
-        });
-      } else {
-        ownerUser = existingUser;
+      if (existingUser) {
+        throw new Error(`Owner login username '@${cleanUsername}' is already taken. Please choose a different username.`);
       }
+
+      const cleanEmail = payload.ownerUser.email ? payload.ownerUser.email.trim().toLowerCase() : '';
+      if (!cleanEmail) {
+        throw new Error('Owner email address is mandatory for primary account login and authentication.');
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        throw new Error('Please enter a valid owner email address format.');
+      }
+      const existingEmail = await authService.getUserByEmail(cleanEmail);
+      if (existingEmail) {
+        throw new Error(`Owner email address '${cleanEmail}' is already registered to another account.`);
+      }
+
+      ownerUser = await authService.createUser({
+        username: cleanUsername,
+        password: payload.ownerUser.password,
+        role: 'SALON_OWNER',
+        salonId: salon.id,
+        organizationId: salon.organizationId,
+        phone: payload.ownerUser.phone || salon.phone,
+        email: cleanEmail,
+      });
     }
 
     // 5. Log audit event

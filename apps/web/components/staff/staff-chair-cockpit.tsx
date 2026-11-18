@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { LiveServiceTimer } from "@/components/live-service-timer";
 import { formatCurrency, maskPhone } from "@/lib/utils";
 import { triggerHaptic } from "@/lib/haptics";
+import { ServiceIcon } from "@/components/ui/service-icon";
 import {
   Armchair,
   CheckCircle2,
@@ -134,7 +135,7 @@ export function StaffChairCockpit({
                         : "bg-slate-900 border border-slate-800 text-slate-300 hover:border-slate-700"
                     }`}
                   >
-                    <span>{srv.icon || "✂️"}</span>
+                    <ServiceIcon icon={srv.icon} size={16} />
                     <span>{srv.name}</span>
                     <span className="opacity-75">({srv.estimatedDurationMinutes}m)</span>
                   </button>

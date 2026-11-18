@@ -38,10 +38,13 @@ export function getLoginRedirectForPath(pathname: string | null | undefined): st
     return `/hq/login?redirect=${encoded}`;
   }
   if (clean.startsWith("/owner")) {
-    return `/partner/login?redirect=${encoded}`;
+    return `/salon/login?redirect=${encoded}`;
   }
   if (clean.startsWith("/staff") || clean.includes("/station")) {
-    return `/partner/login?tab=staff&redirect=${encoded}`;
+    return `/salon/login?tab=staff&redirect=${encoded}`;
+  }
+  if (clean.startsWith("/partner")) {
+    return `/partner/login?redirect=${encoded}`;
   }
   return `/login?redirect=${encoded}`;
 }

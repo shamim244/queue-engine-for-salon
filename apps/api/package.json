@@ -11,7 +11,8 @@
     "test": "bun test"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/ioredis": "^5.0.0"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -23,6 +24,7 @@
     "@mongodb-js/zstd": "^7.0.0",
     "elysia": "^1.4.30",
     "fzstd": "^0.1.1",
+    "ioredis": "^6.0.0",
     "mysql2": "^3.24.4",
     "zstd-codec": "^0.1.5"
   }

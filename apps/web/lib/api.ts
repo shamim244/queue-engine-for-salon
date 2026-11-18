@@ -108,6 +108,11 @@ export interface Salon {
   wifiPassword?: string;
   enableLoungeWifi?: boolean;
   enableScreenWakeLock?: boolean;
+  loyaltyEnabled?: boolean;
+  loyaltyStampGoal?: number;
+  loyaltyReferrerBonus?: number;
+  loyaltyRefereeDiscount?: number;
+  loyaltyRewardDescription?: string;
   stylists: Stylist[];
   services: Service[];
   createdAt?: string;
@@ -279,6 +284,7 @@ export interface Coupon {
   maxUses?: number | null;
   usedCount: number;
   maxUsesPerUser: number;
+  isFirstTimeOnly?: boolean;
   validFrom: string;
   validUntil?: string | null;
   status: CouponStatus;
@@ -320,6 +326,7 @@ export interface CreateCouponPayload {
   minOrderAmount?: number;
   maxUses?: number | null;
   maxUsesPerUser?: number;
+  isFirstTimeOnly?: boolean;
   validFrom?: string;
   validUntil?: string | null;
   status?: CouponStatus;
@@ -354,15 +361,32 @@ export interface WalletBalanceResult {
 export interface ReferralStatsResult {
   success: boolean;
   code: string;
+  commissionPercent?: number;
+  friendDiscountPercent?: number;
+  rewardCalculationBasis?: "NET_PAID" | "ORIGINAL_PRICE";
   totalReferred: number;
   convertedCount: number;
   pendingCount: number;
   totalEarned: number;
+  totalFriendDiscounts: number;
   recentAttributions: Array<{
     id: string;
     referralType: string;
     referrerCode: string;
+    referrerOrgId?: string | null;
+    referrerOrgName?: string | null;
+    referrerOrgSlug?: string | null;
+    referredOrgId?: string | null;
+    referredOrgName?: string | null;
+    referredOrgSlug?: string | null;
     rewardAmount: number;
+    originalAmount?: number;
+    subscriptionDiscount?: number;
+    friendDiscount?: number;
+    netEligibleAmount?: number;
+    rewardPercentage?: number;
+    friendDiscountPercentage?: number;
+    calculationBasis?: "NET_PAID" | "ORIGINAL_PRICE";
     status: string;
     createdAt: string;
   }>;
@@ -372,7 +396,7 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
-  tier: "STARTER" | "PRO" | "ENTERPRISE";
+  tier: "FREE" | "STARTER" | "PRO" | "ENTERPRISE" | "SOLO";
   planId?: string | null;
   maxBranches: number;
   maxStylistsPerBranch: number;
@@ -424,6 +448,12 @@ export interface Ticket {
   visitCount?: number;
   lastVisitedAt?: string | null;
   lastServiceName?: string | null;
+  couponCode?: string | null;
+  couponDiscount?: number;
+  couponId?: string | null;
+  couponDiscountType?: "PERCENT" | "FLAT" | null;
+  couponDiscountValue?: number | null;
+  couponMaxDiscount?: number | null;
 }
 
 export interface AuthUser {
@@ -480,6 +510,13 @@ export interface PlatformSettings {
     provider: string;
     senderPhone: string;
   };
+  b2bReferral?: {
+    commissionPercent: number;
+    refereeDiscountPercent: number;
+    rewardCalculationBasis?: "NET_PAID" | "ORIGINAL_PRICE";
+    maxUsesPerReferee?: number;
+    enabled: boolean;
+  };
   pwa?: {
     autoInstallPrompt: boolean;
   };
@@ -521,7 +558,9 @@ export interface OnboardSalonPayload {
   upiPaymentId?: string;
   organizationName?: string;
   organizationSlug?: string;
-  tier?: "STARTER" | "PRO" | "ENTERPRISE";
+  tier?: "FREE" | "STARTER" | "PRO" | "ENTERPRISE" | "SOLO";
+  planId?: string;
+  billingCycle?: string;
   ownerUser?: {
     username: string;
     password: string;
@@ -541,12 +580,15 @@ export interface OnboardSalonPayload {
     isAddOn?: boolean;
     icon?: string;
   }>;
+  partnerCode?: string;
 }
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
   const local = localStorage.getItem("engine_token") || localStorage.getItem("engine_session");
   if (local) return local;
+  const partnerToken = localStorage.getItem("engine_partner_token");
+  if (partnerToken) return partnerToken;
   const match = document.cookie.match(/(?:^|;\s*)(?:engine_session|engine_token|auth_token)=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : null;
 }
@@ -584,6 +626,16 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
 
   if (token && !headers["Authorization"]) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  if (typeof window !== "undefined" && !headers["x-partner-id"]) {
+    try {
+      const rawPartner = localStorage.getItem("engine_partner_data");
+      if (rawPartner) {
+        const p = JSON.parse(rawPartner);
+        if (p?.id) headers["x-partner-id"] = p.id;
+      }
+    } catch {}
   }
 
   const response = await fetch(url, {
@@ -676,8 +728,39 @@ export async function runCompressionBenchmark(payload?: string): Promise<any> {
   });
 }
 
+export interface SecuritySettings {
+  id?: string;
+  pinMaxAttempts: number;
+  pinWindowSeconds: number;
+  loginMaxAttempts: number;
+  loginWindowSeconds: number;
+  checkinMaxAttempts: number;
+  checkinWindowSeconds: number;
+  allowedCustomOrigins: string[];
+  defaultCountryCode: string;
+  allowedCountryCodes: string[];
+  updatedAt?: string;
+}
+
 export const api = {
   auth: {
+    checkUsername: (username: string) =>
+      request<{
+        success: boolean;
+        available: boolean;
+        username: string;
+        reason?: string;
+        suggestions: string[];
+      }>(`/api/auth/check-username?username=${encodeURIComponent(username)}`),
+
+    checkEmail: (email: string) =>
+      request<{
+        success: boolean;
+        available: boolean;
+        email: string;
+        reason?: string;
+      }>(`/api/auth/check-email?email=${encodeURIComponent(email)}`),
+
     login: (identifier: string, password: string) =>
       request<AuthSessionResponse>("/api/auth/login", {
         method: "POST",
@@ -761,6 +844,11 @@ export const api = {
     listStaff: (salonId: string) =>
       request<{ staffUsers: any[] }>(`/api/auth/staff/${salonId}`),
 
+    getStaffMember: (userId: string) =>
+      request<{ success: boolean; user: AuthUser & { hasPin?: boolean } }>(
+        `/api/auth/staff/member/${userId}`
+      ),
+
     revokeAll: (userId: string) =>
       request<{ success: boolean; message: string }>("/api/auth/staff/revoke-all", {
         method: "POST",
@@ -815,11 +903,29 @@ export const api = {
   },
 
   salons: {
+    checkSlug: (slug: string) =>
+      request<{
+        success: boolean;
+        available: boolean;
+        slug: string;
+        reason?: string;
+        suggestions: string[];
+      }>(`/api/salons/check-slug?slug=${encodeURIComponent(slug)}`),
 
     getAll: () => request<Salon[]>("/api/salons"),
 
     get: (slugOrId: string) =>
       request<{ salon: Salon; activeQueueCount: number }>(`/api/salons/${slugOrId}`),
+
+    getQuota: (slugOrId: string) =>
+      request<{
+        success: boolean;
+        allowed: boolean;
+        current: number;
+        max: number;
+        tier: string;
+        planId?: string | null;
+      }>(`/api/salons/${slugOrId}/quota`),
 
     register: (data: any) =>
       request<{ success: boolean; salon: Salon; links: Record<string, string> }>(
@@ -887,6 +993,11 @@ export const api = {
   wifiPassword?: string;
   enableLoungeWifi?: boolean;
   enableScreenWakeLock?: boolean;
+  loyaltyEnabled?: boolean;
+  loyaltyStampGoal?: number;
+  loyaltyReferrerBonus?: number;
+  loyaltyRefereeDiscount?: number;
+  loyaltyRewardDescription?: string;
         currency?: string;
       }
     ) =>
@@ -928,6 +1039,23 @@ export const api = {
     deleteService: (salonId: string, serviceId: string) =>
       request<{ success: boolean }>(`/api/salons/${salonId}/services/${serviceId}`, {
         method: "DELETE",
+      }),
+
+    updateService: (
+      salonId: string,
+      serviceId: string,
+      data: {
+        name?: string;
+        basePrice?: number;
+        estimatedDurationMinutes?: number;
+        pricingType?: "FIXED" | "STARTING_AT" | "FLEXIBLE_CHAIR";
+        isAddOn?: boolean;
+        icon?: string;
+      }
+    ) =>
+      request<{ success: boolean }>(`/api/salons/${salonId}/services/${serviceId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
       }),
 
     getMetrics: (salonId: string) =>
@@ -995,6 +1123,7 @@ export const api = {
       serviceId: string;
       addOnIds?: string[];
       stylistId?: string | null;
+      couponCode?: string;
     }) =>
       request<{ success: boolean; ticket: Ticket }>("/api/queue/checkin", {
         method: "POST",
@@ -1073,11 +1202,13 @@ export const api = {
     finish: (
       ticketId: string,
       paymentStatus: "CASH_PAID" | "ONLINE_PAID",
-      paymentAmount?: number
+      paymentAmount?: number,
+      couponCode?: string,
+      couponDiscount?: number
     ) =>
       request<{ success: boolean; ticket: Ticket }>("/api/queue/finish", {
         method: "POST",
-        body: JSON.stringify({ ticketId, paymentStatus, paymentAmount }),
+        body: JSON.stringify({ ticketId, paymentStatus, paymentAmount, couponCode, couponDiscount }),
       }),
 
     softBump: (ticketId: string) =>
@@ -1243,6 +1374,13 @@ export const api = {
           body: JSON.stringify({ phone, message }),
         }
       ),
+    getSecuritySettings: () =>
+      request<{ success: boolean; settings: SecuritySettings }>("/api/admin/security/settings"),
+    updateSecuritySettings: (payload: Partial<SecuritySettings>) =>
+      request<{ success: boolean; settings: SecuritySettings }>("/api/admin/security/settings", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }),
 
     users: {
       list: (params?: { role?: string; salonId?: string; search?: string }) => {
@@ -1402,9 +1540,35 @@ export const api = {
       request<{ success: boolean; subscription: OrganizationSubscription | null }>(
         `/api/payments/subscriptions/${orgId}`
       ),
+
+    getOrders: (params?: { organizationId?: string; salonId?: string; status?: string; limit?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.organizationId) q.set("organizationId", params.organizationId);
+      if (params?.salonId) q.set("salonId", params.salonId);
+      if (params?.status) q.set("status", params.status);
+      if (params?.limit) q.set("limit", String(params.limit));
+      const qs = q.toString();
+      return request<{ success: boolean; orders: PaymentOrder[] }>(`/api/payments/orders${qs ? `?${qs}` : ""}`);
+    },
   },
 
   coupons: {
+    getAutoReferral: (params?: { salonId?: string; organizationId?: string; cookieCode?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.salonId) q.set("salonId", params.salonId);
+      if (params?.organizationId) q.set("organizationId", params.organizationId);
+      if (params?.cookieCode) q.set("cookieCode", params.cookieCode);
+      const qs = q.toString();
+      return request<{
+        success: boolean;
+        hasReferralDiscount: boolean;
+        partnerCode?: string | null;
+        partnerName?: string | null;
+        discountPercent: number;
+        message?: string;
+      }>(`/api/coupons/auto-referral${qs ? `?${qs}` : ""}`);
+    },
+
     apply: (payload: ApplyCouponInput) =>
       request<{
         success: boolean;
@@ -1520,6 +1684,186 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+
+    getClientLoyalty: (salonId: string) =>
+      request<{
+        success: boolean;
+        salonId: string;
+        salonName: string;
+        loyaltySettings: {
+          enabled: boolean;
+          stampGoal: number;
+          referrerBonus: number;
+          refereeDiscount: number;
+          rewardDescription: string;
+        };
+        customerAdvocates: Array<{
+          name: string;
+          phone: string;
+          referredCount: number;
+          totalEarned: number;
+          completedVisits: number;
+        }>;
+        stats: {
+          totalCompletedVisits: number;
+          totalLoyalClients: number;
+          totalReferrals: number;
+          totalRewardsDisbursed: number;
+        };
+      }>(`/api/referrals/client-loyalty?salonId=${encodeURIComponent(salonId)}`),
+  },
+
+  loyalty: {
+    getCustomerCards: (phone: string) =>
+      request<{
+        success: boolean;
+        phone: string;
+        totalSalonsVisited: number;
+        cards: Array<{
+          id: string;
+          salonId: string;
+          salonName: string;
+          salonSlug: string;
+          currentStamps: number;
+          stampGoal: number;
+          totalLifetimeStamps: number;
+          completedMilestones: number;
+          rewardServiceName: string;
+          rewardServicePrice: number;
+          progressPercent: number;
+          activeVouchers: Array<{
+            id: string;
+            voucherCode: string;
+            salonId: string;
+            rewardServiceId: string;
+            rewardServiceName: string;
+            rewardServicePrice: number;
+            status: string;
+            unlockedAt: string;
+            expiresAt?: string | null;
+          }>;
+        }>;
+        activeVouchers: Array<{
+          id: string;
+          voucherCode: string;
+          salonId: string;
+          rewardServiceId: string;
+          rewardServiceName: string;
+          rewardServicePrice: number;
+          status: string;
+          unlockedAt: string;
+          expiresAt?: string | null;
+        }>;
+      }>(`/api/loyalty/customer-cards?phone=${encodeURIComponent(phone)}`),
+
+    getCard: (salonId: string, phone: string) =>
+      request<{
+        success: boolean;
+        card: {
+          salonId: string;
+          customerPhone: string;
+          currentStamps: number;
+          totalLifetimeStamps: number;
+          completedMilestones: number;
+        };
+        stampGoal: number;
+        rewardServiceName: string;
+        rewardServicePrice: number;
+        activeVouchers: Array<any>;
+      }>(`/api/loyalty/card?salonId=${encodeURIComponent(salonId)}&phone=${encodeURIComponent(phone)}`),
+
+    redeem: (data: { voucherCode: string; salonId: string; ticketId: string }) =>
+      request<{ success: boolean; voucher: any; message: string }>("/api/loyalty/redeem", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    getSalonSettings: (salonId: string) =>
+      request<{
+        success: boolean;
+        salon: {
+          id: string;
+          name: string;
+          slug: string;
+          loyaltyEnabled: boolean;
+          loyaltyStampGoal: number;
+          loyaltyRewardServiceId?: string | null;
+          loyaltyRewardServiceName?: string | null;
+          loyaltyCooldownHours: number;
+          loyaltyVoucherValidityDays: number;
+          loyaltyReferrerBonus: number;
+          loyaltyRefereeDiscount: number;
+          loyaltyRewardDescription: string;
+        };
+        availableServices: Array<{
+          id: string;
+          name: string;
+          basePrice: number;
+          estimatedDurationMinutes: number;
+          isAddOn: boolean;
+        }>;
+        stats: {
+          totalCards: number;
+          totalStamps: number;
+          activeVouchers: number;
+          redeemedVouchers: number;
+        };
+      }>(`/api/loyalty/salon-settings?salonId=${encodeURIComponent(salonId)}`),
+
+    updateSalonSettings: (data: {
+      salonId: string;
+      enabled?: boolean;
+      stampGoal?: number;
+      rewardServiceId?: string;
+      rewardServiceName?: string;
+      cooldownHours?: number;
+      voucherValidityDays?: number;
+      referrerBonus?: number;
+      refereeDiscount?: number;
+      rewardDescription?: string;
+    }) =>
+      request<{ success: boolean; salon: any; message: string }>("/api/loyalty/salon-settings", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    getAdminStats: () =>
+      request<{
+        success: boolean;
+        stats: {
+          totalCards: number;
+          totalStamps: number;
+          activeVouchers: number;
+          redeemedVouchers: number;
+        };
+      }>("/api/loyalty/admin/stats"),
+  },
+
+  customer: {
+    getProfile: (phone: string) =>
+      request<{
+        success: boolean;
+        profile: {
+          phone: string;
+          name: string;
+          groomingSpecs?: string | null;
+          preferredBarberId?: string | null;
+          preferredBarberName?: string | null;
+          notes?: string | null;
+        };
+      }>(`/api/loyalty/customer/profile?phone=${encodeURIComponent(phone)}`),
+
+    updateProfile: (data: {
+      phone: string;
+      groomingSpecs?: string;
+      preferredBarberId?: string;
+      preferredBarberName?: string;
+      notes?: string;
+    }) =>
+      request<{ success: boolean; profile: any; message: string }>("/api/loyalty/customer/profile", {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
   },
 
   appointments: {
@@ -1577,6 +1921,17 @@ export const api = {
       );
     },
 
+    getByCustomer: (phone: string) =>
+      request<{
+        success: boolean;
+        count: number;
+        appointments: (Appointment & {
+          salonName: string;
+          salonSlug: string;
+          salonAddress?: string;
+        })[];
+      }>(`/api/v1/customer/appointments?phone=${encodeURIComponent(phone)}`),
+
     getById: (id: string) =>
       request<{ success: boolean; appointment: Appointment; salon: Salon }>(
         `/api/v1/appointments/${id}`
@@ -1591,8 +1946,9 @@ export const api = {
       slotTime: string;
       customerName: string;
       customerPhone: string;
-      advanceType?: "MINIMUM" | "TOKEN" | "FULL" | "FREE" | "CUSTOM" | "PAY_AT_SALON";
+      advanceType?: "PARTIAL" | "MINIMUM" | "TOKEN" | "FULL" | "FREE" | "CUSTOM" | "PAY_AT_SALON";
       customAdvanceAmount?: number;
+      couponCode?: string;
     }) =>
       request<{
         success: boolean;

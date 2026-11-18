@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { ServiceWorkerRegister } from "@/components/sw-register";
@@ -31,8 +32,9 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         {process.env.NODE_ENV !== "production" && (
-          <script
+          <Script
             id="dev-sw-cleanup"
+            strategy="beforeInteractive"
             dangerouslySetInnerHTML={{
               __html: `if(typeof window!=='undefined'&&'serviceWorker'in navigator){navigator.serviceWorker.getRegistrations().then(function(r){for(var s of r){s.unregister();}});if('caches'in window){caches.keys().then(function(k){for(var n of k){caches.delete(n);}});}}`,
             }}

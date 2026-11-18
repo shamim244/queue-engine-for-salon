@@ -132,9 +132,27 @@ export function QueuePocketTicket({
                 +{myTicket.selectedAddOns.map((a: any) => a.name).join(", ")}
               </span>
             )}
-            <span className="text-xs font-bold text-emerald-400 block mt-0.5 font-mono">
-              ₹{myTicket.totalPrice || 0}
-            </span>
+            <div className="flex items-center justify-end gap-1.5 mt-0.5">
+              {myTicket.couponDiscount && myTicket.couponDiscount > 0 ? (
+                <>
+                  <span className="text-xs text-slate-500 line-through font-mono">
+                    ₹{myTicket.totalPrice || 0}
+                  </span>
+                  <span className="text-xs font-bold text-emerald-400 font-mono">
+                    ₹{Math.max(0, (myTicket.totalPrice || 0) - myTicket.couponDiscount)}
+                  </span>
+                </>
+              ) : (
+                <span className="text-xs font-bold text-emerald-400 font-mono">
+                  ₹{myTicket.totalPrice || 0}
+                </span>
+              )}
+            </div>
+            {myTicket.couponCode && (
+              <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded inline-block mt-1">
+                🎟️ {myTicket.couponCode} (-₹{myTicket.couponDiscount || 0})
+              </span>
+            )}
           </div>
         </div>
 
@@ -359,18 +377,32 @@ export function QueuePocketTicket({
           </>
         )}
 
-        {/* Cancel Button */}
-        <div className="flex justify-end pt-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onOpenCancel}
-            className="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/50 min-h-[44px] px-4 rounded-xl"
-          >
-            <Trash2 className="h-4 w-4 mr-1.5" />
-            <span>Cancel Ticket</span>
-          </Button>
-        </div>
+        {/* Action / Status Footer: Once seated in the chair, cancel is disabled to protect active service & calculations */}
+        {isInChair ? (
+          <div className="flex items-center gap-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-medium mt-2">
+            <div className="h-8 w-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
+              <Scissors className="h-4 w-4 animate-pulse text-amber-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="font-bold text-white block text-xs">Active Service in Progress</span>
+              <span className="text-slate-300 text-[11px] block leading-tight">
+                {myTicket.stylistName ? `Seated with ${myTicket.stylistName}. ` : ""}Checkout &amp; billing will be finalized at the styling chair.
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-end pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onOpenCancel}
+              className="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/50 min-h-[44px] px-4 rounded-xl"
+            >
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              <span>Cancel Ticket</span>
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

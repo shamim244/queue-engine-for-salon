@@ -230,6 +230,32 @@ export const paymentRoutes = new Elysia({ prefix: '/api/payments' })
     }
   )
 
+  // 7c. Get Orders by Organization or Salon
+  .get(
+    '/orders',
+    async ({ query }) => {
+      const orders = await paymentRepo.getAllOrders({
+        status: query.status,
+        provider: query.provider,
+        organizationId: query.organizationId,
+        limit: query.limit ? Number(query.limit) : 50,
+      });
+      return {
+        success: true,
+        orders,
+      };
+    },
+    {
+      query: t.Object({
+        organizationId: t.Optional(t.String()),
+        salonId: t.Optional(t.String()),
+        status: t.Optional(t.String()),
+        provider: t.Optional(t.String()),
+        limit: t.Optional(t.String()),
+      }),
+    }
+  )
+
   // 8. Admin: Approve Pending Order
   .post(
     '/admin/approve',

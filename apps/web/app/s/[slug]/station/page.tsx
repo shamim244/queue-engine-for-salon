@@ -721,16 +721,24 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
 
   const handleFinishCheckout = async (
     paymentStatus: "CASH_PAID" | "ONLINE_PAID",
-    finalAmount?: number
+    finalAmount?: number,
+    couponCode?: string,
+    couponDiscount?: number
   ) => {
     if (!currentlyServing) return;
     setProcessingAction(true);
     const amountToCharge = finalAmount !== undefined ? finalAmount : editableBill;
     try {
-      await api.queue.finish(currentlyServing.id, paymentStatus, amountToCharge);
+      await api.queue.finish(
+        currentlyServing.id,
+        paymentStatus,
+        amountToCharge,
+        couponCode || currentlyServing.couponCode || undefined,
+        couponDiscount !== undefined ? couponDiscount : currentlyServing.couponDiscount
+      );
       triggerHaptic("complete");
       showToast(
-        `Completed Ticket #${currentlyServing.ticketNumber} (₹${amountToCharge} ${paymentStatus === "CASH_PAID" ? "Cash" : "UPI"})!`,
+        `Completed Ticket #${currentlyServing.ticketNumber} (₹${amountToCharge} ${paymentStatus === "CASH_PAID" ? "Cash" : "UPI"}${couponCode || currentlyServing.couponCode ? ` · Coupon ${couponCode || currentlyServing.couponCode}` : ""})!`,
         "success"
       );
       setCurrentlyServing(null);

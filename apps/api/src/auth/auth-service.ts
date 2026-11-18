@@ -2,6 +2,7 @@ import { isMySqlConnected, getDb } from '../db/mysql';
 import { repository } from '../db/repository';
 import type { User, UserRole, UserStatus, Customer, Session, Organization, Salon, Stylist } from '../engine/types';
 import { generateSecureId } from '../security/id-generator';
+import { parseAndValidateMobile } from '../security/phone-validator';
 
 // In-Memory user & session storage fallback
 const memoryUsers = new Map<string, User>();
@@ -60,6 +61,27 @@ export const authService = {
     const existing = await this.getUserByUsername(cleanUsername);
     if (existing) {
       throw new Error(`Username '${cleanUsername}' is already taken.`);
+    }
+
+    if (params.email && params.email.trim()) {
+      const cleanEmail = params.email.trim().toLowerCase();
+      const existingEmail = await this.getUserByEmail(cleanEmail);
+      if (existingEmail) {
+        throw new Error(`Email address '${cleanEmail}' is already registered to another account.`);
+      }
+    }
+
+    if (params.phone && params.phone.trim()) {
+      const phoneValidation = parseAndValidateMobile(params.phone.trim());
+      if (!phoneValidation.isValid) {
+        throw new Error(phoneValidation.error || 'Invalid mobile phone number format.');
+      }
+      const cleanPhone = phoneValidation.normalizedPhone;
+      const existingPhones = await this.getUsersByPhone(cleanPhone);
+      if (existingPhones && existingPhones.length > 0) {
+        throw new Error(`Mobile phone number '${params.phone.trim()}' is already registered to another user account.`);
+      }
+      params.phone = cleanPhone;
     }
 
     const id = generateSecureId('usr-', 8);
@@ -149,6 +171,42 @@ export const authService = {
       return this.mapUserRow(rows[0]);
     }
     return memoryUsers.get(clean) || null;
+  },
+
+  async getUserByEmail(email: string): Promise<User | null> {
+    const clean = email.trim().toLowerCase();
+    if (!clean) return null;
+    if (isMySqlConnected) {
+      const db = getDb();
+      const [rows]: any = await db.query('SELECT * FROM users WHERE LOWER(email) = ? LIMIT 1', [clean]);
+      if (rows.length === 0) return null;
+      return this.mapUserRow(rows[0]);
+    }
+    return (
+      memoryUsers.get(`email:${clean}`) ||
+      Array.from(memoryUsers.values()).find((u) => u.email?.toLowerCase() === clean) ||
+      null
+    );
+  },
+
+  async getUsersByPhone(phone: string): Promise<User[]> {
+    const cleanPhone = phone.trim().replace(/[^0-9+]/g, '');
+    if (!cleanPhone) return [];
+    const national10 = cleanPhone.replace(/\D/g, '').slice(-10);
+    if (isMySqlConnected) {
+      const db = getDb();
+      const [rows]: any = await db.query(
+        'SELECT * FROM users WHERE phone = ? OR phone = ? OR phone LIKE ?',
+        [cleanPhone, national10, `%${national10}`]
+      );
+      return rows.map((r: any) => this.mapUserRow(r));
+    }
+    return Array.from(memoryUsers.values()).filter(
+      (u) =>
+        u.phone === cleanPhone ||
+        u.phone?.replace(/[^0-9+]/g, '') === cleanPhone ||
+        (national10.length === 10 && u.phone?.replace(/\D/g, '').endsWith(national10))
+    );
   },
 
   async getUserById(id: string): Promise<User | null> {
@@ -276,27 +334,63 @@ export const authService = {
   },
 
   // 6. User Authentication with Session Issuance
+  // Enforces 3-Tier Credential Hierarchy:
+  // Tier 1: Email + Password (Primary & strictly unique)
+  // Tier 2: Username + Password (Secondary & strictly unique)
+  // Tier 3: Mobile Phone + Password (Multi-account disambiguation)
   async authenticateUser(
     identifier: string,
     password: string,
     metadata?: { ip?: string; userAgent?: string }
   ): Promise<AuthenticatedUser | null> {
-    const user = await this.getUserByIdentifier(identifier);
-    if (!user || user.status !== 'ACTIVE') return null;
+    const clean = (identifier || '').trim();
+    if (!clean || !password) return null;
 
-    const isValid = await this.verifyPassword(password, user.passwordHash);
-    if (!isValid) return null;
+    let candidateUser: User | null = null;
+
+    // 1. If identifier contains '@', look up strictly by email (Tier 1)
+    if (clean.includes('@')) {
+      candidateUser = await this.getUserByEmail(clean);
+      if (!candidateUser || candidateUser.status !== 'ACTIVE') return null;
+      const isValid = await this.verifyPassword(password, candidateUser.passwordHash);
+      if (!isValid) return null;
+    } else {
+      // 2. Try username lookup first (Tier 2)
+      const byUsername = await this.getUserByUsername(clean);
+      if (byUsername && byUsername.status === 'ACTIVE') {
+        const isValid = await this.verifyPassword(password, byUsername.passwordHash);
+        if (isValid) {
+          candidateUser = byUsername;
+        }
+      }
+
+      // 3. If not resolved by username, test phone resolution across all matching users (Tier 3)
+      if (!candidateUser) {
+        const phoneCandidates = await this.getUsersByPhone(clean);
+        for (const candidate of phoneCandidates) {
+          if (candidate.status === 'ACTIVE') {
+            const isValid = await this.verifyPassword(password, candidate.passwordHash);
+            if (isValid) {
+              candidateUser = candidate;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (!candidateUser) return null;
 
     // Update last login
     const now = new Date().toISOString();
-    user.lastLoginAt = now;
+    candidateUser.lastLoginAt = now;
     if (isMySqlConnected) {
       const db = getDb();
-      await db.query('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id]);
+      await db.query('UPDATE users SET last_login_at = NOW() WHERE id = ?', [candidateUser.id]);
     }
 
-    const session = await this.createSession(user.id, metadata);
-    return await this.buildAuthContext(user, session);
+    const session = await this.createSession(candidateUser.id, metadata);
+    return await this.buildAuthContext(candidateUser, session);
   },
 
   // 7. 4-Digit PIN Authentication (Shared Mirror Tablet Switcher)
@@ -452,7 +546,23 @@ export const authService = {
 
     if (updates.fullName !== undefined) user.fullName = updates.fullName;
     if (updates.email !== undefined) user.email = updates.email;
-    if (updates.phone !== undefined) user.phone = updates.phone;
+    if (updates.phone !== undefined) {
+      if (updates.phone && updates.phone.trim()) {
+        const phoneValidation = parseAndValidateMobile(updates.phone.trim());
+        if (!phoneValidation.isValid) {
+          throw new Error(phoneValidation.error || 'Invalid mobile phone number format.');
+        }
+        const cleanPhone = phoneValidation.normalizedPhone;
+        const existingPhones = await this.getUsersByPhone(cleanPhone);
+        const duplicate = existingPhones.find((u) => u.id !== id);
+        if (duplicate) {
+          throw new Error(`Mobile phone number '${updates.phone.trim()}' is already registered to another user account.`);
+        }
+        user.phone = cleanPhone;
+      } else {
+        user.phone = null;
+      }
+    }
     if (updates.role !== undefined) user.role = updates.role;
     if (updates.status !== undefined) user.status = updates.status;
     if (updates.salonId !== undefined) user.salonId = updates.salonId;
@@ -547,29 +657,33 @@ export const authService = {
     }
 
     // 2. Salon Owner (Primary Salon Operations)
-    const ownerUser = await this.getUserByUsername('owner');
-    if (!ownerUser) {
-      await this.createUser({
-        username: 'owner',
-        password: 'Owner@123',
-        email: 'owner@rameshbarber.com',
-        phone: '9876543210',
-        role: 'SALON_OWNER',
-        organizationId: 'org-ramesh',
-        salonId: 'salon-rural-01',
-      });
-      console.log('[Auth] Seeded Salon Owner: owner / Owner@123');
-    } else if (!ownerUser.organizationId || !ownerUser.salonId) {
-      ownerUser.organizationId = 'org-ramesh';
-      ownerUser.salonId = 'salon-rural-01';
-      memoryUsers.set(ownerUser.username, ownerUser);
-      memoryUsers.set(ownerUser.id, ownerUser);
-      if (isMySqlConnected) {
-        await getDb().query(
-          'UPDATE users SET organization_id = ?, salon_id = ? WHERE id = ?',
-          ['org-ramesh', 'salon-rural-01', ownerUser.id]
-        );
+    try {
+      const ownerUser = await this.getUserByUsername('owner');
+      if (!ownerUser) {
+        await this.createUser({
+          username: 'owner',
+          password: 'Owner@123',
+          email: 'owner@rameshbarber.com',
+          phone: '9876543210',
+          role: 'SALON_OWNER',
+          organizationId: 'org-ramesh',
+          salonId: 'salon-rural-01',
+        });
+        console.log('[Auth] Seeded Salon Owner: owner / Owner@123');
+      } else if (!ownerUser.organizationId || !ownerUser.salonId) {
+        ownerUser.organizationId = 'org-ramesh';
+        ownerUser.salonId = 'salon-rural-01';
+        memoryUsers.set(ownerUser.username, ownerUser);
+        memoryUsers.set(ownerUser.id, ownerUser);
+        if (isMySqlConnected) {
+          await getDb().query(
+            'UPDATE users SET organization_id = ?, salon_id = ? WHERE id = ?',
+            ['org-ramesh', 'salon-rural-01', ownerUser.id]
+          );
+        }
       }
+    } catch (err: any) {
+      console.warn('[Auth] Note on owner seed:', err?.message);
     }
 
     // 3. Primary Staff / Stylist (Ramesh Kumar, Station Tablet PIN: 1234)
@@ -579,7 +693,7 @@ export const authService = {
         username: 'ramesh',
         password: 'Ramesh@123',
         fullName: 'Ramesh Kumar',
-        phone: '9876543210',
+        phone: '9876543212',
         email: 'ramesh@rameshbarber.com',
         role: 'STAFF',
         pin: '1234',

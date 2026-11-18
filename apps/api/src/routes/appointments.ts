@@ -1,9 +1,11 @@
 import { Elysia, t } from 'elysia';
 import { repository } from '../db/repository';
+import { paymentRepo } from '../db/repositories/payment.repo';
 import { queueEngine } from '../engine/queue-engine';
 import { websocketHub } from '../websocket/hub';
 import { notificationService } from '../notifications/whatsapp';
 import { runDailySettlement } from '../worker/payout-worker';
+import { validateAppointmentTransition } from '../engine/state-machine';
 import type { Appointment, AppointmentStatus, PayoutStatus } from '../engine/types';
 
 function addMinutesToTime(timeStr: string, minutes: number): string {
@@ -167,6 +169,37 @@ export const appointmentRoutes = new Elysia()
     };
   })
 
+  // 1c. Get Customer Appointments by Phone (for /me Portal and Mobile Booking Passes)
+  .get('/api/v1/customer/appointments', async ({ query, set }) => {
+    const phone = query.phone as string | undefined;
+    if (!phone) {
+      set.status = 400;
+      return { success: false, error: 'Customer phone number is required' };
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '').slice(-10) || phone.trim();
+    const appointments = await repository.getAppointments({ phone: cleanPhone });
+
+    // Enrich with salon metadata (name, slug, address)
+    const enriched = await Promise.all(
+      appointments.map(async (appt) => {
+        const salon = await repository.getSalonById(appt.salonId);
+        return {
+          ...appt,
+          salonName: salon?.name || 'Salon',
+          salonSlug: salon?.slug || '',
+          salonAddress: salon?.address || '',
+        };
+      })
+    );
+
+    return {
+      success: true,
+      count: enriched.length,
+      appointments: enriched,
+    };
+  })
+
   // 2. Initiate Prepaid Booking
   .post('/api/v1/appointments/initiate', async ({ body, set }) => {
     try {
@@ -199,7 +232,31 @@ export const appointmentRoutes = new Elysia()
         .map((id: string) => salon.services.find((s) => s.id === id))
         .filter((s: any): s is NonNullable<typeof s> => !!s);
 
-      const totalPrice = service.basePrice + selectedAddOns.reduce((sum: number, a: any) => sum + a.basePrice, 0);
+      const rawTotalPrice = service.basePrice + selectedAddOns.reduce((sum: number, a: any) => sum + a.basePrice, 0);
+
+      // Handle coupon discount if provided
+      let totalPrice = rawTotalPrice;
+      let couponDiscountAmount = 0;
+      let appliedCoupon: any = null;
+
+      if ((body as any).couponCode && String((body as any).couponCode).trim()) {
+        const { couponService } = await import('../coupon/coupon.service');
+        const couponRes = await couponService.validateAndApplyCoupon({
+          code: String((body as any).couponCode).trim(),
+          targetType: 'SALON_SERVICE',
+          orderAmount: rawTotalPrice,
+          salonId: salon.id,
+        });
+
+        if (!couponRes.valid) {
+          set.status = 400;
+          return { success: false, error: couponRes.message || 'Invalid coupon code.' };
+        }
+
+        couponDiscountAmount = couponRes.discountAmount;
+        totalPrice = Math.max(0, rawTotalPrice - couponDiscountAmount);
+        appliedCoupon = couponRes.coupon;
+      }
       const durationMinutes =
         service.estimatedDurationMinutes +
         selectedAddOns.reduce((sum: number, a: any) => sum + a.estimatedDurationMinutes, 0);
@@ -265,16 +322,24 @@ export const appointmentRoutes = new Elysia()
       if (advanceType === 'FULL') {
         // Customer chose to pay 100% in full upfront
         advanceAmount = totalPrice + (policy.convenienceFee || 0);
-      } else if (advanceType === 'CUSTOM' && typeof body.customAdvanceAmount === 'number') {
+      } else if (
+        (advanceType === 'PARTIAL' || advanceType === 'CUSTOM') &&
+        typeof body.customAdvanceAmount === 'number'
+      ) {
         if (body.customAdvanceAmount < minRequiredAdvance) {
           set.status = 400;
           return {
             success: false,
-            error: `Advance payment cannot be less than the minimum required deposit of ₹${minRequiredAdvance}.`,
+            error: `Partial advance payment (₹${body.customAdvanceAmount}) cannot be less than the minimum required deposit of ₹${minRequiredAdvance}.`,
           };
         }
         const clamped = Math.min(totalPrice, body.customAdvanceAmount);
         advanceAmount = clamped + (policy.convenienceFee || 0);
+        if (advanceAmount === 0) {
+          paymentMethod = 'PAY_AT_SALON';
+          initialStatus = 'CONFIRMED';
+          escrowStatus = 'RELEASED_TO_OWNER';
+        }
       } else if (minRequiredAdvance === 0 && (advanceType === 'FREE' || advanceType === 'PAY_AT_SALON' || !advanceType)) {
         // Free policy: customer chooses to pay in person at salon chair
         advanceAmount = 0;
@@ -291,6 +356,7 @@ export const appointmentRoutes = new Elysia()
         }
       }
 
+      const now = new Date().toISOString();
       const apptId = 'appt-' + Math.random().toString(36).substring(2, 9);
       const razorpayOrderId = 'order_' + Math.random().toString(36).substring(2, 10);
       const upiQrString = `upi://pay?pa=salonpayments@icici&pn=SalonQueue&am=${advanceAmount}&tr=${apptId}`;
@@ -315,9 +381,36 @@ export const appointmentRoutes = new Elysia()
         gatewayOrderId: razorpayOrderId,
         escrowStatus,
         status: initialStatus,
+        createdAt: now,
+        updatedAt: now,
       };
 
       await repository.createAppointment(appointment);
+
+      // If advance payment is required, persist a tracking PaymentOrder
+      if (advanceAmount > 0) {
+        await paymentRepo.createOrder({
+          id: razorpayOrderId,
+          salonId: salon.id,
+          amount: advanceAmount,
+          currency: 'INR',
+          provider: (paymentMethod === 'UPI_MANUAL' ? 'UPI_MANUAL' : 'RAZORPAY') as any,
+          targetType: 'APPOINTMENT_ADVANCE' as any,
+          targetId: apptId,
+          status: 'PENDING',
+          metadata: {
+            appointmentId: apptId,
+            customerName: customerName.trim(),
+            customerPhone: cleanPhone,
+            couponId: appliedCoupon?.id || null,
+            couponCode: appliedCoupon?.code || null,
+            couponDiscount: couponDiscountAmount,
+          },
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
 
       // If free booking auto-confirmed, trigger queue recalculation and notification
       if (initialStatus === 'CONFIRMED') {
@@ -364,20 +457,101 @@ export const appointmentRoutes = new Elysia()
     }
   })
 
-  // 3. Confirm Prepaid Booking
+  // 3. Confirm Prepaid Booking (Protected via ADR 005 C1)
   .post('/api/v1/appointments/confirm', async ({ body, set }) => {
     try {
       const { appointmentId, paymentId } = body as any;
+      if (!appointmentId) {
+        set.status = 400;
+        return { success: false, error: 'appointmentId is required' };
+      }
+
       const appt = await repository.getAppointmentById(appointmentId);
       if (!appt) {
         set.status = 404;
         return { success: false, error: 'Appointment not found' };
       }
 
+      // Idempotency: If already confirmed, return success without re-dispatching
+      if (appt.status === 'CONFIRMED') {
+        return { success: true, appointment: appt, message: 'Appointment already confirmed' };
+      }
+
+      // Transition check: Enforce valid state transition
+      const transitionResult = validateAppointmentTransition(appt, 'CONFIRMED');
+      if (!transitionResult.allowed) {
+        set.status = 400;
+        return { success: false, error: transitionResult.reason };
+      }
+
+      // Hold Window Guard: Reject if hold window (>10 mins) has elapsed
+      const createdAtMs = appt.createdAt ? new Date(appt.createdAt).getTime() : Date.now();
+      const holdWindowMs = 10 * 60 * 1000;
+      if (Date.now() - createdAtMs > holdWindowMs) {
+        await repository.updateAppointment(appointmentId, { status: 'EXPIRED' });
+        set.status = 400;
+        return { success: false, error: 'Appointment hold window has expired (10 minutes limit)' };
+      }
+
+      const cleanPaymentId = (paymentId || '').trim();
+
+      // Payment Verification Guard for Prepaid Appointments
+      if (appt.advanceAmount > 0) {
+        if (!cleanPaymentId) {
+          set.status = 400;
+          return { success: false, error: 'paymentId is required for prepaid appointments' };
+        }
+
+        // Anti-Replay: Ensure paymentId is not reused by another appointment
+        const salonAppts = await repository.getAppointments(appt.salonId);
+        const isReused = salonAppts.some(
+          (a) => a.id !== appt.id && a.gatewayPaymentId === cleanPaymentId && a.status !== 'CANCELLED' && a.status !== 'EXPIRED'
+        );
+        if (isReused) {
+          set.status = 400;
+          return { success: false, error: 'Payment ID has already been used for another appointment' };
+        }
+
+        // Validate and complete associated PaymentOrder if present
+        if (appt.gatewayOrderId) {
+          const order = await paymentRepo.getOrderById(appt.gatewayOrderId);
+          if (order) {
+            if (order.status === 'REJECTED' || order.status === 'EXPIRED') {
+              set.status = 400;
+              return { success: false, error: `Associated payment order is in ${order.status} state` };
+            }
+            if (order.amount !== appt.advanceAmount) {
+              set.status = 400;
+              return {
+                success: false,
+                error: `Payment order amount (₹${order.amount}) does not match appointment deposit (₹${appt.advanceAmount})`,
+              };
+            }
+            await paymentRepo.updateOrderStatus(order.id, 'COMPLETED', cleanPaymentId, new Date());
+
+            if (order.metadata?.couponId) {
+              try {
+                const { couponRepo } = await import('../db/repositories/coupon.repo');
+                await couponRepo.recordRedemption({
+                  couponId: order.metadata.couponId,
+                  targetType: 'SALON_SERVICE',
+                  targetOrderId: appt.id,
+                  userId: appt.customerPhone,
+                  discountApplied: Number(order.metadata.couponDiscount || 0),
+                });
+              } catch (redemptionErr) {
+                console.warn('[appointments.confirm] Coupon redemption record warning:', redemptionErr);
+              }
+            }
+          }
+        }
+      }
+
       const updated = await repository.updateAppointment(appointmentId, {
         status: 'CONFIRMED',
-        gatewayPaymentId: paymentId || 'pay_' + Math.random().toString(36).substring(2, 10),
+        gatewayPaymentId: cleanPaymentId || (appt.advanceAmount === 0 ? 'FREE_BOOKING' : null),
         escrowStatus: 'HELD',
+        updatedAt: new Date().toISOString(),
       });
 
       // Recalculate queue wait times dynamically

@@ -108,7 +108,19 @@ export const planRepo = {
       const [rows]: any = await db.query('SELECT * FROM subscription_plans WHERE id = ? LIMIT 1', [id]);
       if (rows.length > 0) return mapRowToPlan(rows[0]);
     }
-    return memoryStore.plans.get(id) || null;
+    const mem = memoryStore.plans.get(id);
+    if (mem) return mem;
+
+    const all = await this.getAllPlans();
+    const idLower = (id || '').toLowerCase();
+    const match = all.find(
+      (p) =>
+        p.id.toLowerCase() === idLower ||
+        p.slug.toLowerCase() === idLower ||
+        (p.badge && p.badge.toLowerCase().includes(idLower)) ||
+        p.name.toLowerCase().includes(idLower)
+    );
+    return match || null;
   },
 
   async getPlanBySlug(slug: string): Promise<SubscriptionPlan | null> {
@@ -117,7 +129,19 @@ export const planRepo = {
       const [rows]: any = await db.query('SELECT * FROM subscription_plans WHERE slug = ? LIMIT 1', [slug]);
       if (rows.length > 0) return mapRowToPlan(rows[0]);
     }
-    return memoryStore.plans.get(slug) || null;
+    const mem = memoryStore.plans.get(slug);
+    if (mem) return mem;
+
+    const all = await this.getAllPlans();
+    const slugLower = (slug || '').toLowerCase();
+    const match = all.find(
+      (p) =>
+        p.slug.toLowerCase() === slugLower ||
+        p.id.toLowerCase() === slugLower ||
+        (p.badge && p.badge.toLowerCase().includes(slugLower)) ||
+        p.name.toLowerCase().includes(slugLower)
+    );
+    return match || null;
   },
 
   async createPlan(payload: CreatePlanPayload): Promise<SubscriptionPlan> {

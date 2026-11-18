@@ -1,4 +1,5 @@
 import { isMySqlConnected, getDb } from '../mysql';
+import { cacheService } from '../../cache/cache.service';
 import type {
   Salon,
   Stylist,
@@ -28,6 +29,9 @@ import type {
   PartnerProgramSettings,
   PartnerMarketingContent,
   SecuritySettings,
+  LoyaltyCard,
+  LoyaltyVoucher,
+  CustomerGroomingProfile,
 } from '../../engine/types';
 
 export const defaultPlatformSettings: PlatformSettings = {
@@ -55,6 +59,13 @@ export const defaultPlatformSettings: PlatformSettings = {
   gateway: {
     provider: 'SIMULATOR',
     senderPhone: '+91 98765 00000',
+  },
+  b2bReferral: {
+    commissionPercent: 30,
+    refereeDiscountPercent: 20,
+    rewardCalculationBasis: 'NET_PAID',
+    maxUsesPerReferee: 1,
+    enabled: true,
   },
   pwa: {
     autoInstallPrompt: false,
@@ -196,6 +207,9 @@ export const memoryStore = {
   wallets: new Map<string, Wallet>(),
   walletTransactions: new Map<string, WalletTransaction>(),
   referralAttributions: new Map<string, ReferralAttribution>(),
+  loyaltyCards: new Map<string, LoyaltyCard>(),
+  loyaltyVouchers: new Map<string, LoyaltyVoucher>(),
+  customerProfiles: new Map<string, CustomerGroomingProfile>(),
   appointments: new Map<string, Appointment>(),
   payoutRecords: new Map<string, SalonPayoutRecord>(),
   partners: new Map<string, Partner>(),
@@ -227,17 +241,22 @@ export const CACHE_TTL_MS = 60000;
 export function invalidateSalonCache(salonIdOrSlug?: string): void {
   if (!salonIdOrSlug) {
     salonCache.clear();
+    cacheService.delPattern('salon:catalog:*').catch(() => {});
     return;
   }
   const entry = salonCache.get(salonIdOrSlug);
   if (entry) {
     salonCache.delete(entry.salon.slug);
     salonCache.delete(entry.salon.id);
+    cacheService.del(`salon:catalog:${entry.salon.slug}`).catch(() => {});
+    cacheService.del(`salon:catalog:${entry.salon.id}`).catch(() => {});
   } else {
     salonCache.delete(salonIdOrSlug);
+    cacheService.del(`salon:catalog:${salonIdOrSlug}`).catch(() => {});
     for (const [key, val] of salonCache.entries()) {
       if (val.salon.id === salonIdOrSlug || val.salon.slug === salonIdOrSlug) {
         salonCache.delete(key);
+        cacheService.del(`salon:catalog:${key}`).catch(() => {});
       }
     }
   }
@@ -264,6 +283,7 @@ export function toIsoStringSafe(val?: string | Date | null): string | null {
 
 export function seedDemoData() {
   salonCache.clear();
+  cacheService.clear().catch(() => {});
   memoryStore.tickets.clear();
   memoryStore.ticketSequence.clear();
   memoryStore.salons.clear();

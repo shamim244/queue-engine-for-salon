@@ -1,135 +1,85 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
+import { partnerApi } from "@/lib/partner-api";
 import { AuthCardLayout } from "@/components/auth/auth-card-layout";
-import { AuthPasswordInput } from "@/components/auth/auth-password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
+  Handshake,
   Store,
-  Scissors,
-  Sparkles,
   Loader2,
   ArrowRight,
   ShieldAlert,
-  AlertCircle,
-  Building2,
-  KeyRound,
-  Info,
+  User,
+  Lock,
+  Eye,
+  EyeOff,
+  Sparkles,
 } from "lucide-react";
 
 function PartnerLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get("redirect");
-  const defaultTab = searchParams.get("tab") === "staff" ? "staff" : "owner";
 
-  const { login, pinLogin, logout, user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"owner" | "staff">(defaultTab);
-
-  // Owner Form State
-  const [ownerIdentifier, setOwnerIdentifier] = useState("");
-  const [ownerPassword, setOwnerPassword] = useState("");
-
-  // Staff Form State
-  const [staffIdentifier, setStaffIdentifier] = useState("");
-  const [staffPassword, setStaffPassword] = useState("");
-  const [showStaffInfo, setShowStaffInfo] = useState(false);
-
+  // Field Partner Form State
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // If already logged in with valid partner role, route appropriately
-  useEffect(() => {
-    if (user) {
-      if (user.role === "SALON_OWNER") {
-        router.push(redirectParam?.startsWith("/owner") ? redirectParam : "/owner");
-      } else if (user.role === "STAFF") {
-        router.push(
-          redirectParam?.startsWith("/staff") || redirectParam?.includes("/station")
-            ? redirectParam
-            : "/staff"
-        );
-      }
-    }
-  }, [user, redirectParam, router]);
-
-  const handleOwnerSubmit = async (e: React.FormEvent) => {
+  // Affiliate Partner Login
+  const handlePartnerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
-    if (!ownerIdentifier.trim() || !ownerPassword.trim()) {
-      setErrorMessage("Please enter your salon owner username or email and password.");
+    const cleanId = identifier.trim();
+    if (!cleanId) {
+      setErrorMessage("Please enter your registered email address or mobile number.");
+      return;
+    }
+
+    // Security Guard: Alert user if they enter a public referral code instead of login credential
+    const isEmail = cleanId.includes("@");
+    const digitsOnly = cleanId.replace(/\D/g, "");
+    if (!isEmail && digitsOnly.length < 10) {
+      setErrorMessage("Login identifier must be your registered Email Address or 10-digit Mobile Number. Public referral codes cannot be used for authentication.");
+      return;
+    }
+
+    if (!password.trim()) {
+      setErrorMessage("Please enter your partner account password.");
       return;
     }
 
     setIsLoading(true);
     try {
-      const resp = await login(ownerIdentifier.trim(), ownerPassword);
-      if (resp.user?.role === "SALON_OWNER") {
-        // Verify owner's assigned salon branch
-        const activeSalonSlug = resp.salon?.slug || (resp.branches && resp.branches.length > 0 ? resp.branches[0].slug : null);
-        if (activeSalonSlug) {
-          router.push(redirectParam?.startsWith("/owner") ? redirectParam : `/owner?salon=${activeSalonSlug}`);
-        } else {
-          // If unassigned: route directly to salon onboarding wizard
-          router.push("/register?role=owner");
-        }
-      } else if (resp.user?.role === "STAFF") {
-        const staffSalon = resp.salon?.slug || (resp.staff?.salonId ? resp.branches?.find(b => b.id === resp.staff?.salonId)?.slug : null) || resp.user?.salonId;
-        if (staffSalon) {
-          router.push(`/s/${staffSalon}/station`);
-        } else {
-          router.push("/staff");
-        }
+      const res = await partnerApi.login({
+        identifier: cleanId,
+        password: password.trim(),
+      });
+
+      if (res.success && res.token) {
+        const dest = redirectParam && redirectParam.startsWith("/partner") ? redirectParam : "/partner";
+        router.push(dest);
       } else {
-        await logout();
-        if (resp.user?.role === "SUPER_ADMIN") {
-          setErrorMessage("Platform Administrators please use the dedicated portal at /hq/login.");
+        if (res.message?.includes("No password configured") || (res as any).code === "PASSWORD_NOT_SET") {
+          setErrorMessage("No password configured for this partner account. Please contact Super Admin to set your password.");
         } else {
-          setErrorMessage("This portal is strictly for Salon Partners. Consumers please sign in at /login.");
+          setErrorMessage(res.message || "Failed to authenticate partner.");
         }
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || "Invalid salon credentials. Please check your username and password.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleStaffSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-
-    if (!staffIdentifier.trim() || !staffPassword.trim()) {
-      setErrorMessage("Please enter your stylist username or phone and password.");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const resp = await login(staffIdentifier.trim(), staffPassword);
-      if (resp.user?.role === "STAFF") {
-        // Resolve exact salon branch for this stylist
-        const staffSalon = resp.salon?.slug || (resp.staff?.salonId ? resp.branches?.find(b => b.id === resp.staff?.salonId)?.slug : null) || resp.user?.salonId;
-        if (staffSalon) {
-          router.push(`/s/${staffSalon}/station`);
-        } else {
-          router.push("/staff");
-        }
-      } else if (resp.user?.role === "SALON_OWNER") {
-        const activeSalonSlug = resp.salon?.slug || (resp.branches && resp.branches.length > 0 ? resp.branches[0].slug : null);
-        router.push(activeSalonSlug ? `/owner?salon=${activeSalonSlug}` : "/register?role=owner");
+      if (err?.code === "PASSWORD_NOT_SET" || err?.message?.includes("No password configured")) {
+        setErrorMessage("No password configured for this partner account. Please contact Super Admin to set your password.");
       } else {
-        await logout();
-        setErrorMessage("Access denied: Stylist / Staff credentials required. Consumers please visit /login.");
+        setErrorMessage(err?.message || "Invalid credentials or partner account pending review.");
       }
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Invalid stylist credentials. Please verify with your salon owner.");
     } finally {
       setIsLoading(false);
     }
@@ -137,194 +87,120 @@ function PartnerLoginForm() {
 
   return (
     <AuthCardLayout
-      theme="gold"
-      badge={
-        <Badge variant="warning" className="px-3 py-1 text-xs gap-1.5 font-medium shadow-sm">
-          <Store className="w-3.5 h-3.5" />
-          Partner Business Portal
-        </Badge>
-      }
-      icon={
-        <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-2">
-          <Scissors className="w-6 h-6" />
-        </div>
-      }
-      title="Salon Partner Sign In"
-      description="Manage your chairs, live queues, staff rosters, and salon operations."
+      title="Field Partner & Affiliate Sign In"
+      description="Access your referral cockpit, live net earnings ledger, and UPI withdrawal desk."
+      icon={<Handshake className="w-8 h-8 text-emerald-400" />}
       footer={
-        <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
-            <span className="text-slate-400">Want to launch a salon on Engine Que?</span>
+        <div className="flex flex-col items-center gap-2 text-center text-xs text-slate-400 w-full">
+          <div className="flex items-center gap-2">
+            <span>Want to become a partner?</span>
             <Link
-              href="/register?role=owner"
-              className="text-amber-400 hover:text-amber-300 font-semibold inline-flex items-center gap-1 transition-colors"
+              href="/partner/join"
+              className="text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-4"
             >
-              Register New Salon
-              <ArrowRight className="w-3.5 h-3.5" />
+              Apply as Field Partner
             </Link>
           </div>
-          <div className="text-slate-500 text-[11px]">
-            Haircut customer?{" "}
-            <Link href="/login" className="text-blue-400 hover:underline">
-              Check in at Consumer Portal
+          <div className="flex items-center gap-3 pt-2 text-[11px] text-slate-400">
+            <Link href="/salon/login" className="text-slate-300 hover:text-emerald-400">
+              Salon Owner &amp; Staff Login
+            </Link>
+            <span>•</span>
+            <Link href="/login" className="text-slate-300 hover:text-emerald-400">
+              Customer Portal
             </Link>
           </div>
         </div>
       }
     >
-      {/* Role Tabs: Owner vs Staff */}
-      <div className="flex rounded-xl bg-slate-900/90 p-1 border border-slate-800 mb-6">
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab("owner");
-            setErrorMessage(null);
-          }}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold transition-all min-h-[44px] ${
-            activeTab === "owner"
-              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm"
-              : "text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <Building2 className="w-4 h-4" />
-          <span>Salon Owner</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab("staff");
-            setErrorMessage(null);
-          }}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold transition-all min-h-[44px] ${
-            activeTab === "staff"
-              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm"
-              : "text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <Scissors className="w-4 h-4" />
-          <span>Staff / Barber</span>
-        </button>
-      </div>
-
-      {errorMessage && (
-        <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2 mb-4 animate-in fade-in">
-          <ShieldAlert className="w-4 h-4 flex-shrink-0 text-rose-400 mt-0.5" />
-          <div className="leading-relaxed">{errorMessage}</div>
+      <div className="space-y-4">
+        {/* Salon Owner Redirect Notice */}
+        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Store className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Salon Owner or Barber?</span>
+          </div>
+          <Link
+            href="/salon/login"
+            className="text-[11px] font-bold text-amber-400 hover:text-amber-300 underline underline-offset-2 shrink-0 flex items-center gap-0.5"
+          >
+            <span>Salon Login</span>
+            <ArrowRight className="w-3 h-3" />
+          </Link>
         </div>
-      )}
 
-      {activeTab === "owner" ? (
-        <form onSubmit={handleOwnerSubmit} className="space-y-4">
-          <div className="space-y-1.5 text-left">
-            <label htmlFor="owner-identifier" className="block text-xs font-semibold text-slate-300">
-              Owner Username or Email
+        {errorMessage && (
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2">
+            <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {/* Affiliate / Field Partner Form */}
+        <form onSubmit={handlePartnerSubmit} className="space-y-4 pt-1">
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+              Partner Mobile Number or Email Address <span className="text-emerald-400">*</span>
             </label>
-            <Input
-              id="owner-identifier"
-              type="text"
-              autoComplete="username"
-              placeholder="salonowner or owner@example.com"
-              value={ownerIdentifier}
-              onChange={(e) => setOwnerIdentifier(e.target.value)}
-              disabled={isLoading}
-              className="h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-            />
+            <div className="relative">
+              <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="partner@example.com or 9876543210"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                className="pl-9 h-11 bg-slate-800 border-slate-700 text-white rounded-xl placeholder:text-slate-500 text-sm min-h-[48px]"
+                required
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Supports registered email address or 10-digit mobile number.
+            </p>
           </div>
 
-          <AuthPasswordInput
-            id="owner-password"
-            label="Owner Password"
-            autoComplete="current-password"
-            placeholder="••••••••••••"
-            value={ownerPassword}
-            onChange={(e) => setOwnerPassword(e.target.value)}
-            disabled={isLoading}
-          />
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+              Partner Password
+            </label>
+            <div className="relative">
+              <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pl-9 pr-10 h-11 bg-slate-800 border-slate-700 text-white rounded-xl placeholder:text-slate-500 text-sm min-h-[48px]"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
 
           <Button
             type="submit"
             disabled={isLoading}
-            className="w-full h-12 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold text-sm shadow-lg shadow-amber-600/20 transition-all flex items-center justify-center gap-2 min-h-[48px]"
+            className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl gap-2 shadow-lg shadow-emerald-900/20 min-h-[48px]"
           >
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Entering Salon Hub...</span>
+                Verifying Account...
               </>
             ) : (
               <>
-                <span>Sign In as Salon Owner</span>
+                Access Partner Cockpit
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </Button>
         </form>
-      ) : (
-        <form onSubmit={handleStaffSubmit} className="space-y-4">
-          <div className="space-y-1.5 text-left">
-            <label htmlFor="staff-identifier" className="block text-xs font-semibold text-slate-300">
-              Stylist Username or Phone
-            </label>
-            <Input
-              id="staff-identifier"
-              type="text"
-              autoComplete="username"
-              placeholder="e.g. ramesh or 9876543210"
-              value={staffIdentifier}
-              onChange={(e) => setStaffIdentifier(e.target.value)}
-              disabled={isLoading}
-              className="h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-            />
-          </div>
-
-          <AuthPasswordInput
-            id="staff-password"
-            label="Stylist Password"
-            autoComplete="current-password"
-            placeholder="••••••••••••"
-            value={staffPassword}
-            onChange={(e) => setStaffPassword(e.target.value)}
-            disabled={isLoading}
-          />
-
-          <Button
-            type="submit"
-            disabled={isLoading}
-            className="w-full h-12 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold text-sm shadow-lg shadow-amber-600/20 transition-all flex items-center justify-center gap-2 min-h-[48px]"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Signing In to Station...</span>
-              </>
-            ) : (
-              <>
-                <span>Access Chair Station</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </Button>
-
-          {/* Staff Registration Policy Banner */}
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => setShowStaffInfo((prev) => !prev)}
-              className="w-full text-center text-xs text-slate-400 hover:text-amber-400 flex items-center justify-center gap-1.5 py-1 transition-colors"
-            >
-              <Info className="w-3.5 h-3.5" />
-              <span>Need a staff account?</span>
-            </button>
-            {showStaffInfo && (
-              <div className="mt-2 p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-[12px] text-slate-300 leading-relaxed text-left animate-in fade-in">
-                <p className="font-semibold text-amber-300 mb-1">Staff Account Policy</p>
-                Staff accounts are provisioned and linked directly by your salon owner. Please ask your
-                salon manager to invite your phone number or chair from their Owner Dashboard.
-              </div>
-            )}
-          </div>
-        </form>
-      )}
+      </div>
     </AuthCardLayout>
   );
 }
@@ -333,8 +209,8 @@ export default function PartnerLoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-[80vh] flex items-center justify-center">
-          <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
         </div>
       }
     >

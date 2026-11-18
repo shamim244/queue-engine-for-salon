@@ -46,12 +46,17 @@ export class ReferralService {
     const byId = await organizationRepo.getOrganizationById(raw);
     if (byId) return byId.id;
 
-    // 2. Check if slug matches
+    // 2. Check if slug matches organization
     const slugCandidate = raw.startsWith('REF_') ? raw.slice(4).toLowerCase() : raw.toLowerCase();
     const bySlug = await organizationRepo.getOrganizationBySlug(slugCandidate);
     if (bySlug) return bySlug.id;
 
-    // 3. Search all organizations by slug or ID match
+    // 3. Check if slug matches a salon with an organization
+    const { salonRepo } = await import('../db/repositories/salon.repo');
+    const bySalonSlug = await salonRepo.getSalonBySlug(slugCandidate);
+    if (bySalonSlug?.organizationId) return bySalonSlug.organizationId;
+
+    // 4. Search all organizations by slug or ID match
     const allOrgs = await organizationRepo.getAllOrganizations();
     for (const org of allOrgs) {
       const orgRefCode = this.getOrgReferralCode(org.id, org.slug);
@@ -65,7 +70,49 @@ export class ReferralService {
       }
     }
 
+    // 5. Search all salons by slug match
+    const allSalons = await salonRepo.getAllSalons();
+    for (const s of allSalons) {
+      if (s.organizationId) {
+        const salonRefCode = `REF_${s.slug.toUpperCase().replace(/[^A-Z0-9]/g, '')}`;
+        if (salonRefCode === clean || s.slug.toUpperCase() === clean || s.id === raw) {
+          return s.organizationId;
+        }
+      }
+    }
+
     return null;
+  }
+
+  /**
+   * Validates if an organization is eligible for a referral welcome discount.
+   * Enforces the strictly one-time referral rule (first purchase only).
+   */
+  async isOrgEligibleForReferral(orgId: string): Promise<{ eligible: boolean; reason?: string }> {
+    const cleanId = orgId.trim();
+    const { repository } = await import('../db/repository');
+    const platformSettings = repository.getPlatformSettings();
+    const maxUses = platformSettings.b2bReferral?.maxUsesPerReferee ?? 1;
+
+    // Check count of converted B2B referrals
+    const convertedCount = await referralRepo.getConvertedReferralCountForOrg(cleanId);
+    if (convertedCount >= maxUses) {
+      return {
+        eligible: false,
+        reason: 'Referral discount and reward are valid for your first subscription purchase only.',
+      };
+    }
+
+    // Check if org already has prior paid subscriptions
+    const hasPriorPaid = await referralRepo.hasPriorPaidSubscription(cleanId);
+    if (hasPriorPaid && convertedCount > 0) {
+      return {
+        eligible: false,
+        reason: 'Referral discount is valid for your first subscription purchase only.',
+      };
+    }
+
+    return { eligible: true };
   }
 
   /**
@@ -81,6 +128,12 @@ export class ReferralService {
     if (referralType === 'B2B_OWNER') {
       if (!referredOrgId) {
         throw new Error('Referred organization ID is required for B2B referrals.');
+      }
+
+      // Enforce strictly one-time referral usage
+      const eligibility = await this.isOrgEligibleForReferral(referredOrgId);
+      if (!eligibility.eligible) {
+        throw new Error(eligibility.reason || 'Referral discount is valid for your first subscription purchase only.');
       }
 
       // Check if already attributed
@@ -147,7 +200,13 @@ export class ReferralService {
     referralType: ReferralType,
     targetIdentifier: string,
     conversionReferenceId: string,
-    salonId?: string | null
+    salonId?: string | null,
+    purchaseAmount?: number | null,
+    breakdownInput?: {
+      originalAmount?: number;
+      subscriptionDiscount?: number;
+      friendDiscount?: number;
+    }
   ): Promise<ReferralAttribution | null> {
     if (referralType === 'B2B_OWNER') {
       const pending = await referralRepo.getPendingAttributionForOrg(targetIdentifier);
@@ -155,17 +214,82 @@ export class ReferralService {
         return null;
       }
 
-      // 1. Mark converted
-      const converted = await referralRepo.markConverted(pending.id, conversionReferenceId);
+      // Calculate dynamic admin-configured percentage reward if purchaseAmount provided
+      const { repository } = await import('../db/repository');
+      const platformSettings = repository.getPlatformSettings();
+      const commissionPercent = platformSettings.b2bReferral?.commissionPercent ?? 30;
+      const friendDiscountPercent = platformSettings.b2bReferral?.refereeDiscountPercent ?? 20;
+      const calculationBasis = platformSettings.b2bReferral?.rewardCalculationBasis ?? 'NET_PAID';
 
-      // 2. Credit referrer's wallet with reward
-      await walletService.creditBonus({
-        walletType: 'OWNER',
-        identifier: pending.referrerOrgId,
-        amount: pending.rewardAmount,
-        reason: `Referral commission for referred salon (${targetIdentifier}) subscription`,
-        referenceId: conversionReferenceId,
-      });
+      // Guard: strictly one-time reward per referred organization
+      const convertedCount = await referralRepo.getConvertedReferralCountForOrg(targetIdentifier);
+      const maxUses = platformSettings.b2bReferral?.maxUsesPerReferee ?? 1;
+      if (convertedCount >= maxUses) {
+        console.warn(`[referralService] Blocked duplicate referral conversion for org: ${targetIdentifier}`);
+        return null;
+      }
+
+      // Net eligible amount calculation (Original - Subscription Discount - Friend Discount)
+      const originalAmount = breakdownInput?.originalAmount ?? (purchaseAmount || 0);
+      const subscriptionDiscount = breakdownInput?.subscriptionDiscount ?? 0;
+      const friendDiscount = breakdownInput?.friendDiscount ?? 0;
+      const netEligibleAmount = Math.max(0, originalAmount - subscriptionDiscount - friendDiscount);
+
+      // Dual Engine:
+      // If 'ORIGINAL_PRICE': calculate percentage on original plan price before discounts
+      // If 'NET_PAID': calculate percentage on net cash received after friend discount
+      let finalReward = 0;
+      if (calculationBasis === 'ORIGINAL_PRICE') {
+        const base = originalAmount > 0 ? originalAmount : (purchaseAmount || 0);
+        finalReward = base > 0
+          ? Math.round((base * commissionPercent) / 100)
+          : (pending.rewardAmount || REFERRAL_CONSTANTS.B2B_DEFAULT_REWARD);
+      } else {
+        // NET_PAID (Default)
+        finalReward = netEligibleAmount > 0
+          ? Math.round((netEligibleAmount * commissionPercent) / 100)
+          : (purchaseAmount && purchaseAmount > 0 
+              ? Math.round((purchaseAmount * commissionPercent) / 100) 
+              : (pending.rewardAmount || REFERRAL_CONSTANTS.B2B_DEFAULT_REWARD));
+      }
+
+      const financialBreakdown = {
+        originalAmount,
+        subscriptionDiscount,
+        friendDiscount,
+        netEligibleAmount: netEligibleAmount > 0 ? netEligibleAmount : (purchaseAmount || originalAmount),
+        rewardPercentage: commissionPercent,
+        friendDiscountPercentage: friendDiscountPercent,
+        calculationBasis,
+      };
+
+      // 1. Atomically claim/mark converted conditional on status === 'PENDING'
+      const converted = await referralRepo.markConverted(
+        pending.id, 
+        conversionReferenceId, 
+        finalReward,
+        financialBreakdown
+      );
+      if (!converted) {
+        return null;
+      }
+
+      // 2. Credit referrer's wallet with reward (roll back on error to prevent lost rewards)
+      const basisDesc = calculationBasis === 'ORIGINAL_PRICE'
+        ? `original ₹${originalAmount}`
+        : `net ₹${financialBreakdown.netEligibleAmount}`;
+      try {
+        await walletService.creditBonus({
+          walletType: 'OWNER',
+          identifier: pending.referrerOrgId,
+          amount: finalReward,
+          reason: `Referral reward (${commissionPercent}% on ${basisDesc}) for salon (${targetIdentifier}) subscription`,
+          referenceId: conversionReferenceId,
+        });
+      } catch (creditErr) {
+        await referralRepo.rollbackToPending(pending.id);
+        throw creditErr;
+      }
 
       return converted;
     } else {
@@ -176,18 +300,26 @@ export class ReferralService {
         return null;
       }
 
-      // 1. Mark converted
+      // 1. Atomically claim/mark converted
       const converted = await referralRepo.markConverted(pending.id, conversionReferenceId);
+      if (!converted) {
+        return null;
+      }
 
-      // 2. Credit referrer's consumer wallet
-      await walletService.creditBonus({
-        walletType: 'CONSUMER',
-        identifier: pending.referrerPhone,
-        salonId,
-        amount: pending.rewardAmount,
-        reason: `Friend haircut referral reward (${targetIdentifier})`,
-        referenceId: conversionReferenceId,
-      });
+      // 2. Credit referrer's consumer wallet (roll back on error)
+      try {
+        await walletService.creditBonus({
+          walletType: 'CONSUMER',
+          identifier: pending.referrerPhone,
+          salonId,
+          amount: pending.rewardAmount,
+          reason: `Friend haircut referral reward (${targetIdentifier})`,
+          referenceId: conversionReferenceId,
+        });
+      } catch (creditErr) {
+        await referralRepo.rollbackToPending(pending.id);
+        throw creditErr;
+      }
 
       return converted;
     }

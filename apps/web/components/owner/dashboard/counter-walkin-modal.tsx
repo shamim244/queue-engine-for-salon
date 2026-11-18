@@ -4,6 +4,7 @@ import type { Service, Stylist } from "@/lib/api";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { formatCurrency } from "@/lib/utils";
 import { UserPlus, RefreshCw } from "lucide-react";
 
@@ -27,6 +28,7 @@ export function CounterWalkinModal({
   showToast,
 }: CounterWalkinModalProps) {
   const [name, setName] = useState("");
+  const [phoneCountryCode, setPhoneCountryCode] = useState("+91");
   const [phone, setPhone] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [stylistId, setStylistId] = useState("");
@@ -39,12 +41,18 @@ export function CounterWalkinModal({
       return;
     }
 
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone && cleanPhone.length !== 10) {
+      showToast("Mobile phone must be an exact 10-digit number", "error");
+      return;
+    }
+
     setSubmitting(true);
     try {
       await api.queue.quickAdd({
         salonSlug,
         customerName: name.trim(),
-        customerPhone: phone.trim() || undefined,
+        customerPhone: cleanPhone ? `${phoneCountryCode}${cleanPhone}` : undefined,
         serviceId: serviceId || undefined,
       });
 
@@ -84,6 +92,7 @@ export function CounterWalkinModal({
               autoFocus
               required
               className="min-h-[44px]"
+              maxLength={80}
             />
           </div>
 
@@ -91,11 +100,13 @@ export function CounterWalkinModal({
             <label className="text-xs font-semibold text-slate-300 block mb-1.5">
               Mobile Phone (Optional for WhatsApp chair notification)
             </label>
-            <Input
-              placeholder="+91 98765 00000"
+            <PhoneInput
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="min-h-[44px]"
+              onChange={setPhone}
+              countryCode={phoneCountryCode}
+              onCountryCodeChange={setPhoneCountryCode}
+              placeholder="9876543210"
+              showDigitCounter={true}
             />
           </div>
 

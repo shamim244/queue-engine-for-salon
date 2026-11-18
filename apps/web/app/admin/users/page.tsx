@@ -33,6 +33,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { maskPhone } from "@/lib/utils";
+import { PhoneInput } from "@/components/ui/phone-input";
 
 function AdminUsersContent() {
   const [users, setUsers] = useState<AuthUser[]>([]);
@@ -616,11 +617,11 @@ function AdminUsersContent() {
                   <label className="text-xs font-semibold text-slate-300 block mb-1">
                     Phone Number
                   </label>
-                  <Input
+                  <PhoneInput
                     value={newPhone}
-                    onChange={(e) => setNewPhone(e.target.value)}
-                    placeholder="+91 98765 43210"
-                    className="bg-slate-950 border-slate-800"
+                    onChange={setNewPhone}
+                    placeholder="9876543210"
+                    showDigitCounter={true}
                   />
                 </div>
 
@@ -725,10 +726,11 @@ function AdminUsersContent() {
                   <label className="text-xs font-semibold text-slate-300 block mb-1">
                     Phone Number
                   </label>
-                  <Input
+                  <PhoneInput
                     value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    className="bg-slate-950 border-slate-800"
+                    onChange={setEditPhone}
+                    placeholder="9876543210"
+                    showDigitCounter={true}
                   />
                 </div>
 

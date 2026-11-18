@@ -88,6 +88,8 @@ export const repository = {
   // Services
   addService: (service: Parameters<typeof serviceRepo.addService>[0]) => serviceRepo.addService(service),
   deleteService: (serviceId: string) => serviceRepo.deleteService(serviceId),
+  updateService: (serviceId: string, updates: Parameters<typeof serviceRepo.updateService>[1]) =>
+    serviceRepo.updateService(serviceId, updates),
 
   // Queue & Tickets
   getNextTicketNumber: (salonId: string) => queueRepo.getNextTicketNumber(salonId),

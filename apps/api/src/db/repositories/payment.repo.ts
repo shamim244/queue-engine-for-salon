@@ -460,6 +460,37 @@ export const paymentRepo = {
     return updated;
   },
 
+  async claimOrderForProcessing(
+    orderId: string,
+    fromStatus: PaymentOrderStatus = 'PENDING_APPROVAL'
+  ): Promise<boolean> {
+    const existing = await this.getOrderById(orderId);
+    if (!existing || existing.status !== fromStatus) {
+      return false;
+    }
+
+    if (isMySqlConnected) {
+      try {
+        const db = getDb();
+        const [result]: any = await db.query(
+          `UPDATE payment_orders 
+           SET status = 'PROCESSING', updated_at = NOW()
+           WHERE id = ? AND status = ?`,
+          [orderId, fromStatus]
+        );
+        if (result && result.affectedRows === 0) {
+          return false;
+        }
+      } catch (err: any) {
+        console.warn(`[paymentRepo.claimOrderForProcessing] MySQL fallback: ${err.message}`);
+      }
+    }
+
+    existing.status = 'PROCESSING';
+    existing.updatedAt = new Date();
+    return true;
+  },
+
   async approvePaymentOrder(
     orderId: string,
     adminId?: string,

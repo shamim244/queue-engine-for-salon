@@ -30,6 +30,7 @@ import {
   MessageCircle,
   Mail,
   Instagram,
+  Megaphone,
   ExternalLink,
   ChevronRight,
 } from "lucide-react";
@@ -103,7 +104,24 @@ export default function CustomerStorefrontPage({ params }: { params: Promise<{ s
       <SalonNavbar slug={slug} salon={salon} user={user} activeRoute="home" />
 
       {/* 2. MAIN STOREFRONT CONTENT */}
-      <main className="max-w-6xl mx-auto w-full px-4 sm:px-8 py-6 sm:py-8 space-y-12 flex-1">
+      <main className="max-w-6xl mx-auto w-full px-4 sm:px-8 py-6 sm:py-8 space-y-8 sm:space-y-12 flex-1">
+        {/* TOP ANNOUNCEMENT BANNER */}
+        {salon?.announcementActive && salon?.announcement && (
+          <div className="rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-amber-950/20 border border-amber-500/40 p-3.5 sm:p-4 flex items-center gap-3 text-amber-200 text-sm shadow-xl shadow-amber-500/5 animate-in fade-in duration-300">
+            <div className="h-9 w-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+              <Megaphone className="h-4 w-4 text-amber-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block">
+                Announcement
+              </span>
+              <p className="text-xs sm:text-sm font-medium text-slate-100 truncate sm:whitespace-normal">
+                {salon.announcement}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* HERO SECTION */}
         <section
           id="hero"
@@ -479,6 +497,34 @@ export default function CustomerStorefrontPage({ params }: { params: Promise<{ s
                         <span>WhatsApp Chat</span>
                       </span>
                       <span className="text-[10px] text-emerald-400 uppercase font-bold">Instant</span>
+                    </a>
+                  )}
+
+                  {salon?.instagramHandle && (
+                    <a
+                      href={salon.instagramHandle.startsWith("http") ? salon.instagramHandle : `https://instagram.com/${salon.instagramHandle.replace(/^@/, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between text-xs text-slate-300 hover:text-white hover:border-slate-700 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Instagram className="h-3.5 w-3.5 text-pink-400" />
+                        <span>{salon.instagramHandle}</span>
+                      </span>
+                      <span className="text-[10px] text-pink-400 uppercase font-bold">Instagram</span>
+                    </a>
+                  )}
+
+                  {salon?.email && (
+                    <a
+                      href={`mailto:${salon.email}`}
+                      className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between text-xs text-slate-300 hover:text-white hover:border-slate-700 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Mail className="h-3.5 w-3.5 text-purple-400" />
+                        <span className="truncate max-w-[170px]">{salon.email}</span>
+                      </span>
+                      <span className="text-[10px] text-purple-400 uppercase font-bold">Email</span>
                     </a>
                   )}
                 </div>

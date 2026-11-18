@@ -34,6 +34,9 @@ export interface ApplyCouponResult {
     discountType: CouponDiscountType;
     discountValue: number;
     maxDiscountAmount?: number | null;
+    minOrderAmount?: number;
+    isFirstTimeOnly?: boolean;
+    maxUsesPerUser?: number;
   };
   discountAmount: number;
   netPayable: number;

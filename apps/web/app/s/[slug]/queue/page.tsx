@@ -59,6 +59,20 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
   const [selectedAddOnIds, setSelectedAddOnIds] = useState<string[]>([]);
   const [isUpdatingServices, setIsUpdatingServices] = useState(false);
 
+  // Client Coupon State for Live Queue Check-in
+  const [couponCodeInput, setCouponCodeInput] = useState(searchParams?.get("coupon") || "");
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    id: string;
+    code: string;
+    discountType: string;
+    discountValue: number;
+    maxDiscountAmount?: number | null;
+    minOrderAmount?: number;
+  } | null>(null);
+  const [couponDiscount, setCouponDiscount] = useState<number>(0);
+  const [validatingCoupon, setValidatingCoupon] = useState<boolean>(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+
   // Notification Toast
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
@@ -311,11 +325,134 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
     fetchSalonAndQueue();
   });
 
+  const handleApplyCoupon = async (codeToUse?: string) => {
+    const targetCode = (codeToUse || couponCodeInput).trim().toUpperCase();
+    if (!targetCode) {
+      setCouponError("Please enter a coupon code");
+      return;
+    }
+    if (!salon?.id) return;
+
+    // Check phone requirement for coupon verification & fraud prevention
+    const cleanDigits = customerPhone.replace(/[^0-9]/g, "");
+    if (!cleanDigits || cleanDigits.length < 10) {
+      setCouponError("Please enter your 10-digit mobile phone number above to verify coupon eligibility.");
+      if (typeof document !== "undefined") {
+        const phoneInput = document.querySelector<HTMLInputElement>("input[placeholder*='9876543210'], input[type='tel']");
+        if (phoneInput) {
+          phoneInput.scrollIntoView({ behavior: "smooth", block: "center" });
+          phoneInput.focus();
+        }
+      }
+      return;
+    }
+
+    const srv = salon.services?.find((s) => s.id === selectedServiceId) || salon.services?.[0];
+    const orderAmt = srv ? srv.basePrice : 150;
+
+    setValidatingCoupon(true);
+    setCouponError(null);
+    try {
+      const res = await api.coupons.apply({
+        code: targetCode,
+        targetType: "SALON_SERVICE",
+        orderAmount: orderAmt,
+        salonId: salon.id,
+        userId: customerPhone.trim(),
+      });
+      if (res.valid && res.coupon) {
+        setAppliedCoupon(res.coupon);
+        setCouponDiscount(res.discountAmount);
+        setCouponError(null);
+        showToast(`Coupon ${res.coupon.code} applied! ₹${res.discountAmount} saved`, "success");
+      } else {
+        setAppliedCoupon(null);
+        setCouponDiscount(0);
+        setCouponError(res.message || "Invalid coupon code for this salon.");
+      }
+    } catch (err: any) {
+      setAppliedCoupon(null);
+      setCouponDiscount(0);
+      setCouponError(err.message || "Failed to validate coupon.");
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponDiscount(0);
+    setCouponError(null);
+    setCouponCodeInput("");
+  };
+
+  // Dynamically recalculate coupon discount whenever user changes selected service before check-in
+  useEffect(() => {
+    if (appliedCoupon && salon?.services) {
+      const srv = salon.services.find((s) => s.id === selectedServiceId) || salon.services[0];
+      const price = srv?.basePrice || 0;
+      if (appliedCoupon.minOrderAmount && price < appliedCoupon.minOrderAmount) {
+        setCouponDiscount(0);
+        setCouponError(`Min order of ₹${appliedCoupon.minOrderAmount} required for coupon ${appliedCoupon.code}`);
+        return;
+      }
+      setCouponError(null);
+      let discount = 0;
+      if (appliedCoupon.discountType === "PERCENT") {
+        discount = (price * appliedCoupon.discountValue) / 100;
+        if (appliedCoupon.maxDiscountAmount) {
+          discount = Math.min(discount, appliedCoupon.maxDiscountAmount);
+        }
+      } else {
+        discount = appliedCoupon.discountValue;
+      }
+      const capped = Math.min(Math.round(discount * 100) / 100, price);
+      setCouponDiscount(capped);
+    }
+  }, [selectedServiceId, salon, appliedCoupon]);
+
+  // Auto-apply coupon from URL if present
+  useEffect(() => {
+    const paramCoupon = searchParams?.get("coupon");
+    if (paramCoupon && salon?.id && !appliedCoupon) {
+      setCouponCodeInput(paramCoupon.toUpperCase());
+      handleApplyCoupon(paramCoupon.toUpperCase());
+    }
+  }, [salon?.id, searchParams]);
+
+  // Auto-detect loyalty voucher & customer grooming specs for this salon upon entering 10-digit phone
+  useEffect(() => {
+    const digits = customerPhone.replace(/\D/g, "").slice(-10);
+    if (digits.length === 10 && salon?.id && !appliedCoupon) {
+      api.loyalty
+        .getCard(salon.id, digits)
+        .then((res) => {
+          if (res?.success && res.activeVouchers && res.activeVouchers.length > 0) {
+            const topVoucher = res.activeVouchers[0];
+            setCouponCodeInput(topVoucher.voucherCode);
+            showToast(
+              `🎁 Unlocked Free ${topVoucher.rewardServiceName || "Service"} milestone voucher detected! Click Apply to redeem.`,
+              "info"
+            );
+          }
+        })
+        .catch(() => {});
+    }
+  }, [customerPhone, salon?.id, appliedCoupon]);
+
   const handleJoinQueue = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName.trim() || !selectedServiceId) {
       showToast("Please enter your name and select a service", "error");
       return;
+    }
+
+    if (appliedCoupon) {
+      const cleanDigits = customerPhone.replace(/[^0-9]/g, "");
+      if (!cleanDigits || cleanDigits.length < 10) {
+        showToast("Mobile number is required to claim the coupon discount. Please enter your 10-digit number.", "error");
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -326,6 +463,7 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
         customerPhone: customerPhone.trim(),
         serviceId: selectedServiceId,
         stylistId: selectedStylistId,
+        couponCode: appliedCoupon?.code || undefined,
       });
 
       if (resp.ticket) {
@@ -346,6 +484,11 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
 
   const handleConfirmCancelMyTicket = async () => {
     if (!myTicket) return;
+    if (myTicket.status === "IN_CHAIR" || myTicket.status === "IN_SERVICE") {
+      showToast("Cannot cancel ticket: Service is currently in progress in the chair. Please settle checkout with your barber.", "error");
+      setIsCancelConfirmOpen(false);
+      return;
+    }
     setCancelling(true);
     try {
       await api.queue.cancel(myTicket.id, "Customer left");
@@ -604,6 +747,14 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
             queueLoadMetrics={queueLoadMetrics}
             submitting={submitting}
             onSubmit={handleJoinQueue}
+            couponCodeInput={couponCodeInput}
+            setCouponCodeInput={setCouponCodeInput}
+            appliedCoupon={appliedCoupon}
+            couponDiscount={couponDiscount}
+            validatingCoupon={validatingCoupon}
+            couponError={couponError}
+            onApplyCoupon={() => handleApplyCoupon()}
+            onRemoveCoupon={handleRemoveCoupon}
           />
         )}
 

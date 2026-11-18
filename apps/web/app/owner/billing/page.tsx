@@ -4,7 +4,7 @@ import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import type { Organization, SubscriptionPlan, BillingCycle, OrganizationSubscription } from "@/lib/api";
+import type { Organization, SubscriptionPlan, BillingCycle, OrganizationSubscription, PaymentOrder } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ import {
   Layers,
   ArrowRight,
   TrendingDown,
+  Clock,
+  AlertCircle,
 } from "lucide-react";
 
 const featureLabelMap: Record<string, string> = {};
@@ -60,10 +62,18 @@ function OwnerBillingContent() {
   const [org, setOrg] = useState<Organization | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [activeSubscription, setActiveSubscription] = useState<OrganizationSubscription | null>(null);
+  const [pendingPaymentOrder, setPendingPaymentOrder] = useState<PaymentOrder | null>(null);
+  const [rejectedPaymentOrder, setRejectedPaymentOrder] = useState<PaymentOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedCycle, setSelectedCycle] = useState<BillingCycle>("3m");
   const [selectingPlanId, setSelectingPlanId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [partnerReferral, setPartnerReferral] = useState<{
+    code: string;
+    partnerName: string;
+    discountPercent: number;
+  } | null>(null);
+  const [currentSalonId, setCurrentSalonId] = useState<string | null>(null);
   const [checkoutData, setCheckoutData] = useState<{
     plan: SubscriptionPlan;
     cycle: BillingCycle;
@@ -84,18 +94,58 @@ function OwnerBillingContent() {
           setPlans(plansRes.plans);
         }
 
+        if (salonRes.salon?.id) {
+          setCurrentSalonId(salonRes.salon.id);
+        }
+
+        // Check for active Partner Referral Discount
+        try {
+          let cookieCode: string | undefined;
+          if (typeof document !== "undefined") {
+            const match = document.cookie.match(/(?:^|;\s*)partner_ref=([^;]+)/);
+            if (match) cookieCode = decodeURIComponent(match[1]).trim().toUpperCase();
+          }
+          const autoRefRes = await api.coupons.getAutoReferral({
+            salonId: salonRes.salon?.id || undefined,
+            organizationId: salonRes.salon?.organizationId || undefined,
+            cookieCode,
+          });
+          if (autoRefRes.success && autoRefRes.hasReferralDiscount && autoRefRes.partnerCode) {
+            setPartnerReferral({
+              code: autoRefRes.partnerCode,
+              partnerName: autoRefRes.partnerName || "Partner",
+              discountPercent: autoRefRes.discountPercent || 10,
+            });
+          }
+        } catch (e) {
+          console.warn("Could not check partner referral discount:", e);
+        }
+
         if (salonRes.salon?.organizationId) {
-          const [orgRes, subRes] = await Promise.all([
+          const [orgRes, subRes, ordersRes] = await Promise.all([
             api.salons.getOrganization(salonRes.salon.organizationId),
             api.payments
               .getSubscription(salonRes.salon.organizationId)
               .catch(() => ({ success: false, subscription: null })),
+            api.payments
+              .getOrders({ organizationId: salonRes.salon.organizationId, limit: 10 })
+              .catch(() => ({ success: false, orders: [] })),
           ]);
           if (orgRes.organization) {
             setOrg(orgRes.organization);
           }
           if (subRes.subscription) {
             setActiveSubscription(subRes.subscription);
+          }
+          if (ordersRes.orders && ordersRes.orders.length > 0) {
+            const pending = ordersRes.orders.find((o) => o.status === "PENDING_APPROVAL");
+            setPendingPaymentOrder(pending || null);
+            if (!pending) {
+              const rejected = ordersRes.orders.find((o) => o.status === "REJECTED");
+              setRejectedPaymentOrder(rejected || null);
+            } else {
+              setRejectedPaymentOrder(null);
+            }
           }
         } else {
           // Default demo organization
@@ -163,6 +213,44 @@ function OwnerBillingContent() {
         </p>
       </div>
 
+      {/* Payment Verification Status Banner (Manual UPI Approval) */}
+      {pendingPaymentOrder && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 shadow-xl space-y-2 animate-in fade-in">
+          <div className="flex flex-wrap items-center gap-2 font-bold text-amber-300">
+            <Clock className="w-5 h-5 text-amber-400 shrink-0" />
+            <span>Payment Verification Under Process &bull; UTR: {pendingPaymentOrder.utrNumber || "Manual Reference"}</span>
+            <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px]">
+              Pending Approval
+            </Badge>
+          </div>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Your manual payment of <strong>₹{pendingPaymentOrder.amount}</strong> for subscription plan upgrade is currently under review by Super Admin.
+          </p>
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-amber-500/20 text-xs text-slate-300">
+            ⚡ <strong>Your salon is currently active on the Free Plan.</strong> You can continue serving walk-in queue clients right now. As soon as Super Admin verifies your bank reference, your paid plan and stylist quotas will unlock automatically!
+          </div>
+        </div>
+      )}
+
+      {/* Rejected Payment Notification */}
+      {rejectedPaymentOrder && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-rose-950/40 border border-rose-500/40 text-rose-200 shadow-xl space-y-2 animate-in fade-in">
+          <div className="flex flex-wrap items-center gap-2 font-bold text-rose-300">
+            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+            <span>Payment Verification Rejected</span>
+            <Badge className="bg-rose-500/20 text-rose-300 border-rose-500/30 text-[10px]">
+              Action Needed
+            </Badge>
+          </div>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Your payment reference of <strong>₹{rejectedPaymentOrder.amount}</strong> was rejected by Super Admin. Reason: <span className="text-rose-300 font-semibold">{rejectedPaymentOrder.rejectionReason || "Bank UTR could not be verified."}</span>
+          </p>
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-rose-500/20 text-xs text-slate-300">
+            🛡️ <strong>Zero Data Loss:</strong> Your salon remains active on the <strong>Free Plan (₹0)</strong>. You can choose any plan below and submit a valid payment reference or scan the instant UPI QR.
+          </div>
+        </div>
+      )}
+
       {/* Active Subscription Summary */}
       <Card className="border-indigo-500/40 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/20 shadow-xl">
         <CardHeader>
@@ -170,8 +258,18 @@ function OwnerBillingContent() {
             <div>
               <div className="flex items-center gap-2">
                 <CardTitle className="text-xl text-white">Active Subscription</CardTitle>
-                <Badge className="bg-indigo-600 hover:bg-indigo-600 text-white font-bold text-xs uppercase px-2.5 py-0.5">
-                  {currentPlan ? currentPlan.name : org?.tier || "STARTER"}
+                <Badge
+                  className={`font-bold text-xs uppercase px-2.5 py-0.5 ${
+                    org?.tier === "FREE"
+                      ? "bg-emerald-600 hover:bg-emerald-600 text-white"
+                      : "bg-indigo-600 hover:bg-indigo-600 text-white"
+                  }`}
+                >
+                  {org?.tier === "FREE"
+                    ? "Free Testing Tier"
+                    : currentPlan
+                    ? currentPlan.name
+                    : org?.tier || "STARTER"}
                 </Badge>
               </div>
               <CardDescription className="mt-1 text-slate-400">
@@ -181,7 +279,9 @@ function OwnerBillingContent() {
 
             <div className="text-left sm:text-right">
               <span className="text-xs text-slate-400 block">
-                {activeSubscription
+                {org?.tier === "FREE"
+                  ? "Free Core Lifetime (Zero Expiry)"
+                  : activeSubscription
                   ? `Valid until ${new Date(activeSubscription.expiresAt).toLocaleDateString("en-IN", {
                       day: "numeric",
                       month: "short",
@@ -191,7 +291,9 @@ function OwnerBillingContent() {
               </span>
               <span className="text-sm font-bold text-emerald-400 flex items-center sm:justify-end gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                {activeSubscription ? (
+                {org?.tier === "FREE" ? (
+                  "Active Free Core (1 Station & Live Queue)"
+                ) : activeSubscription ? (
                   <>
                     Active ({activeSubscription.cycle.toUpperCase()}) •{" "}
                     {Math.max(
@@ -240,6 +342,31 @@ function OwnerBillingContent() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Partner Referral Active Discount Banner */}
+      {partnerReferral && (
+        <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-emerald-300 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <div className="font-semibold text-sm text-white flex items-center gap-2">
+                <span>{partnerReferral.discountPercent}% Partner Discount Active</span>
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-[10px] py-0 px-2">
+                  CODE: {partnerReferral.code}
+                </Badge>
+              </div>
+              <p className="text-xs text-emerald-400/80">
+                Referred by {partnerReferral.partnerName}. Your special discount will be automatically applied at checkout.
+              </p>
+            </div>
+          </div>
+          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-xs py-1 px-3 self-start sm:self-auto">
+            Auto-Applied at Checkout
+          </Badge>
+        </div>
+      )}
 
       {/* Multi-Cycle Interactive Segmented Switcher */}
       <div className="flex flex-col items-center justify-center space-y-3 pt-2">
@@ -473,6 +600,8 @@ function OwnerBillingContent() {
           cycle={checkoutData.cycle}
           amount={checkoutData.amount}
           organizationId={org?.id || "org-demo"}
+          salonId={currentSalonId || undefined}
+          initialCouponCode={partnerReferral?.code}
           onSuccess={(sub) => {
             setActiveSubscription(sub);
             if (org) {

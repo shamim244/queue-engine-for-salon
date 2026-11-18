@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Next.js & Build Outputs
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# Test & Coverage Outputs
+coverage/
+*.lcov
+load-tests/reports/
+load-tests/results/
+
+# Logs & Temporary Files
+*.log
+logs/
+.cache/
+.eslintcache
+graphify-out/cache/
+
+# Environment & Credentials
+.env*
+!*.env.example
+
+# IDE & OS Artifacts
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -82,13 +82,30 @@ export const organizationRepo = {
       slug = `${rawSlug}-${counter++}`;
     }
 
-    const tier: SubscriptionTier = params.tier === 'PRO' || params.tier === 'ENTERPRISE' ? params.tier : 'STARTER';
+    let tier: SubscriptionTier = params.tier === 'FREE' ? 'FREE' : params.tier === 'PRO' || params.tier === 'ENTERPRISE' ? params.tier : 'STARTER';
     let maxBranches = params.maxBranches;
     let maxStylistsPerBranch = params.maxStylistsPerBranch;
 
     if (params.planId) {
-      const plan = await planRepo.getPlanById(params.planId);
+      let plan = await planRepo.getPlanById(params.planId);
+      if (!plan) {
+        plan = await planRepo.getPlanBySlug(params.planId);
+      }
       if (plan) {
+        if (!params.tier) {
+          const badgeUpper = (plan.badge || '').toUpperCase();
+          const slugUpper = (plan.slug || '').toUpperCase();
+          const nameUpper = (plan.name || '').toUpperCase();
+          if (badgeUpper.includes('ENTERPRISE') || slugUpper.includes('ENTERPRISE') || nameUpper.includes('ENTERPRISE') || plan.maxBranches > 5) {
+            tier = 'ENTERPRISE';
+          } else if (badgeUpper.includes('POPULAR') || badgeUpper.includes('PRO') || slugUpper.includes('PRO') || nameUpper.includes('PRO') || plan.maxBranches > 1 || plan.maxStylistsPerBranch > 2) {
+            tier = 'PRO';
+          } else if (badgeUpper.includes('FREE') || slugUpper.includes('FREE') || nameUpper.includes('FREE') || (Number(plan.price1m) === 0 && Number(plan.price3m) === 0)) {
+            tier = 'FREE';
+          } else {
+            tier = 'STARTER';
+          }
+        }
         if (maxBranches === undefined) maxBranches = plan.maxBranches;
         if (maxStylistsPerBranch === undefined) maxStylistsPerBranch = plan.maxStylistsPerBranch;
       }
@@ -96,6 +113,7 @@ export const organizationRepo = {
 
     if (maxBranches === undefined || maxStylistsPerBranch === undefined) {
       const limits = {
+        FREE: { maxBranches: 1, maxStylistsPerBranch: 1 },
         STARTER: { maxBranches: 1, maxStylistsPerBranch: 1 },
         PRO: { maxBranches: 3, maxStylistsPerBranch: 10 },
         ENTERPRISE: { maxBranches: 999, maxStylistsPerBranch: 999 },
@@ -174,6 +192,19 @@ export const organizationRepo = {
     }
     if (!plan) return null;
 
+    let newTier: SubscriptionTier = 'STARTER';
+    const badgeUpper = (plan.badge || '').toUpperCase();
+    const slugUpper = (plan.slug || '').toUpperCase();
+    const nameUpper = (plan.name || '').toUpperCase();
+    if (badgeUpper.includes('ENTERPRISE') || slugUpper.includes('ENTERPRISE') || nameUpper.includes('ENTERPRISE') || plan.maxBranches > 5) {
+      newTier = 'ENTERPRISE';
+    } else if (badgeUpper.includes('POPULAR') || badgeUpper.includes('PRO') || slugUpper.includes('PRO') || nameUpper.includes('PRO') || plan.maxBranches > 1 || plan.maxStylistsPerBranch > 2) {
+      newTier = 'PRO';
+    } else if (badgeUpper.includes('FREE') || slugUpper.includes('FREE') || nameUpper.includes('FREE') || (plan.price1m === 0 && plan.price3m === 0)) {
+      newTier = 'FREE';
+    }
+
+    org.tier = newTier;
     org.planId = plan.id;
     org.maxBranches = plan.maxBranches;
     org.maxStylistsPerBranch = plan.maxStylistsPerBranch;
@@ -184,8 +215,8 @@ export const organizationRepo = {
     if (isMySqlConnected) {
       const db = getDb();
       await db.query(
-        'UPDATE organizations SET plan_id = ?, max_branches = ?, max_stylists_per_branch = ? WHERE id = ?',
-        [plan.id, plan.maxBranches, plan.maxStylistsPerBranch, orgId]
+        'UPDATE organizations SET tier = ?, plan_id = ?, max_branches = ?, max_stylists_per_branch = ? WHERE id = ?',
+        [newTier, plan.id, plan.maxBranches, plan.maxStylistsPerBranch, orgId]
       );
     }
     return org;

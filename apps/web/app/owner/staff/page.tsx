@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import type { Stylist, AuthUser, StaffLeave } from "@/lib/api";
@@ -18,6 +19,7 @@ import {
   Search,
   Calendar,
   XCircle,
+  Sparkles,
 } from "lucide-react";
 import {
   UnlinkedStationsBanner,
@@ -30,11 +32,13 @@ import {
   KillSwitchModal,
   DeleteStaffModal,
   StaffAbsenceRecoveryModal,
+  UpgradePlanPromptModal,
   InitialStaffData,
 } from "@/components/owner/staff";
 
 function OwnerStaffContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { salon, setSelectedSalon } = useAuth();
 
   const [stylists, setStylists] = useState<Stylist[]>([]);
@@ -60,6 +64,14 @@ function OwnerStaffContent() {
   const [selectedStaffUser, setSelectedStaffUser] = useState<AuthUser | null>(null);
   const [absenceTarget, setAbsenceTarget] = useState<{ user: AuthUser; stylist: Stylist | null } | null>(null);
   const [initialCreateData, setInitialCreateData] = useState<InitialStaffData | undefined>(undefined);
+  const [isUpgradePromptOpen, setIsUpgradePromptOpen] = useState(false);
+  const [hasPartnerDiscount, setHasPartnerDiscount] = useState(false);
+  const [quota, setQuota] = useState<{
+    allowed: boolean;
+    current: number;
+    max: number;
+    tier: string;
+  } | null>(null);
 
   const currentSlug = salon?.slug || searchParams.get("salon") || "ramesh-barber";
 
@@ -79,6 +91,40 @@ function OwnerStaffContent() {
           setLeaves(leavesRes.leaves || []);
         } catch {
           setLeaves([]);
+        }
+
+        // Quota telemetry
+        try {
+          const quotaRes = await api.salons.getQuota(salonRes.salon.id || currentSlug);
+          if (quotaRes && quotaRes.success) {
+            setQuota({
+              allowed: quotaRes.allowed,
+              current: quotaRes.current,
+              max: quotaRes.max,
+              tier: quotaRes.tier,
+            });
+          }
+        } catch (e) {
+          console.warn("Could not fetch salon station quota:", e);
+        }
+
+        // Check active Partner Referral Discount
+        try {
+          let cookieCode: string | undefined;
+          if (typeof document !== "undefined") {
+            const match = document.cookie.match(/(?:^|;\s*)partner_ref=([^;]+)/);
+            if (match) cookieCode = decodeURIComponent(match[1]).trim().toUpperCase();
+          }
+          const autoRef = await api.coupons.getAutoReferral({
+            salonId: salonRes.salon.id,
+            organizationId: salonRes.salon.organizationId || undefined,
+            cookieCode,
+          });
+          if (autoRef && autoRef.success && autoRef.hasReferralDiscount) {
+            setHasPartnerDiscount(true);
+          }
+        } catch {
+          // ignore
         }
       }
     } catch (err: any) {
@@ -101,6 +147,29 @@ function OwnerStaffContent() {
   useEffect(() => {
     fetchStaffData();
   }, [currentSlug]);
+
+  // Handle returning from dedicated /owner/staff/new page
+  useEffect(() => {
+    const created = searchParams.get("created");
+    if (created) {
+      showToast(`Team member "${decodeURIComponent(created)}" registered successfully!`, "success");
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("created");
+        window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+      }
+    }
+
+    const deleted = searchParams.get("deleted");
+    if (deleted) {
+      showToast(`Team member "${decodeURIComponent(deleted)}" removed successfully.`, "info");
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("deleted");
+        window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+      }
+    }
+  }, [searchParams]);
 
   // Filter staff by search query
   const filteredStaffUsers = useMemo(() => {
@@ -127,8 +196,28 @@ function OwnerStaffContent() {
   const configuredPinsCount = staffUsers.filter((u) => Boolean(u.pin)).length;
 
   const handleOpenAddModal = (data?: InitialStaffData) => {
-    setInitialCreateData(data);
-    setIsCreateOpen(true);
+    // If provisioning login for an existing unlinked stylist station, route to dedicated creation page
+    if (data?.staffId) {
+      const q = new URLSearchParams({
+        salon: currentSlug,
+        staffId: data.staffId,
+        name: data.fullName || "",
+        phone: data.phone || "",
+        pace: String(data.pace || 25),
+      });
+      router.push(`/owner/staff/new?${q.toString()}`);
+      return;
+    }
+
+    // Gating check: if quota is exhausted (e.g. Free Tier with 1 chair, or max stations reached)
+    const isAtLimit = quota ? !quota.allowed : stylists.length >= 1;
+    if (isAtLimit) {
+      setIsUpgradePromptOpen(true);
+      return;
+    }
+
+    // Navigate to dedicated staff creation page with full-page error display
+    router.push(`/owner/staff/new?salon=${currentSlug}`);
   };
 
   const handleProvisionLegacyStylist = (st: Stylist) => {
@@ -209,6 +298,39 @@ function OwnerStaffContent() {
         </div>
       </div>
 
+      {/* Free Tier Active Quota Banner */}
+      {quota?.tier === "FREE" && (
+        <div className="p-4 rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-bold text-white">Free Testing Plan Active</span>
+                <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-[10px] py-0 px-2 font-mono">
+                  {stylists.length} / {quota?.max || 1} Station Configured
+                </Badge>
+                {hasPartnerDiscount && (
+                  <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-[10px] py-0 px-2">
+                    10% Partner Referral Saved
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Your salon is testing 1 Master Barber Station. Upgrade your subscription to unlock multiple barber chairs, Departure Lounge TV, and team PINs.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/owner/billing?salon=${currentSlug}`}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold shrink-0 min-h-[40px] shadow-sm transition-colors active:scale-[0.98]"
+          >
+            Upgrade Plan →
+          </Link>
+        </div>
+      )}
+
       {/* KPI Stats Cards */}
       <StaffKpiCards
         totalStaff={staffUsers.length}
@@ -275,6 +397,7 @@ function OwnerStaffContent() {
                 user={user}
                 matchedStylist={matchedStylist}
                 isOnLeaveToday={isStylistOnLeaveToday(matchedStylist?.id || user.staffId)}
+                salonSlug={currentSlug}
                 onEdit={(u) => {
                   setSelectedStaffUser(u);
                   setIsEditOpen(true);
@@ -477,6 +600,16 @@ function OwnerStaffContent() {
           fetchStaffData();
         }}
         showToast={showToast}
+      />
+
+      <UpgradePlanPromptModal
+        isOpen={isUpgradePromptOpen}
+        onClose={() => setIsUpgradePromptOpen(false)}
+        currentTier={quota?.tier || "FREE"}
+        maxStylists={quota?.max || 1}
+        currentCount={stylists.length}
+        salonSlug={currentSlug}
+        hasPartnerDiscount={hasPartnerDiscount}
       />
     </div>
   );

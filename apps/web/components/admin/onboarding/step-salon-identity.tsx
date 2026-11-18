@@ -1,10 +1,12 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Store, ChevronRight } from "lucide-react";
+import { Store, ChevronRight, CheckCircle2, Ticket } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { slugify, type OnboardingFormData } from "@/lib/onboarding";
+import { partnerApi } from "@/lib/partner-api";
 
 interface StepSalonIdentityProps {
   formData: OnboardingFormData;
@@ -25,6 +27,35 @@ export function StepSalonIdentity({
   setIsSlugManual,
   onNext,
 }: StepSalonIdentityProps) {
+  const [verifiedPartner, setVerifiedPartner] = useState<{ name: string; city: string } | null>(null);
+  const [partnerChecking, setPartnerChecking] = useState(false);
+
+  const checkPartnerCode = useCallback(async (code: string) => {
+    const clean = code.trim().toUpperCase();
+    if (!clean) {
+      setVerifiedPartner(null);
+      return;
+    }
+    setPartnerChecking(true);
+    try {
+      const res = await partnerApi.verifyCode(clean);
+      if (res.success && res.valid && res.partner) {
+        setVerifiedPartner({ name: res.partner.fullName, city: res.partner.city });
+      } else {
+        setVerifiedPartner(null);
+      }
+    } catch {
+      setVerifiedPartner(null);
+    } finally {
+      setPartnerChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (formData.partnerCode) {
+      checkPartnerCode(formData.partnerCode);
+    }
+  }, [formData.partnerCode, checkPartnerCode]);
   return (
     <Card className="bg-slate-900/60 border-slate-800 shadow-xl">
       <CardHeader>
@@ -94,10 +125,11 @@ export function StepSalonIdentity({
               </span>
               <span className="text-xs text-slate-500">For SMS & WhatsApp alerts</span>
             </label>
-            <Input
-              value={formData.phone}
-              onChange={(e) => {
-                setFormData((prev) => ({ ...prev, phone: e.target.value }));
+            <PhoneInput
+              value={formData.phone?.replace(/^\+\d+\s*/, "") || ""}
+              onChange={(cleanDigits) => {
+                const country = formData.countryCode || "+91";
+                setFormData((prev) => ({ ...prev, phone: `${country}${cleanDigits}` }));
                 if (stepErrors.phone) {
                   setStepErrors((errs) => {
                     const n = { ...errs };
@@ -106,10 +138,17 @@ export function StepSalonIdentity({
                   });
                 }
               }}
-              placeholder="+91 98765 43210"
-              className={`bg-slate-950 border-slate-800 text-white min-h-[44px] ${
-                stepErrors.phone ? "border-red-500" : ""
-              }`}
+              countryCode={formData.countryCode || "+91"}
+              onCountryCodeChange={(code) => {
+                const cleanDigits = (formData.phone || "").replace(/\D/g, "").slice(-10);
+                setFormData((prev) => ({
+                  ...prev,
+                  countryCode: code,
+                  phone: cleanDigits ? `${code}${cleanDigits}` : "",
+                }));
+              }}
+              placeholder="9876543210"
+              showDigitCounter={true}
             />
             {stepErrors.phone && <p className="text-xs text-red-400">{stepErrors.phone}</p>}
           </div>
@@ -168,6 +207,36 @@ export function StepSalonIdentity({
             />
             <p className="text-[11px] text-slate-500">
               Assigns this branch to a parent franchise or multi-branch organization.
+            </p>
+          </div>
+
+          {/* Partner / Referral Code */}
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-sm font-medium text-slate-200 flex items-center justify-between">
+              <span>Partner / Referral Code (Optional)</span>
+              {verifiedPartner ? (
+                <span className="text-xs font-semibold text-emerald-400">
+                  ✅ Verified: {verifiedPartner.name} ({verifiedPartner.city})
+                </span>
+              ) : formData.partnerCode ? (
+                <span className="text-xs font-semibold text-emerald-400">
+                  🎟️ Partner Attribution Active
+                </span>
+              ) : null}
+            </label>
+            <Input
+              value={formData.partnerCode || ""}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, partnerCode: e.target.value.toUpperCase() }))
+              }
+              onBlur={() => {
+                if (formData.partnerCode) checkPartnerCode(formData.partnerCode);
+              }}
+              placeholder="e.g. AMITVERMA"
+              className="bg-slate-950 border-slate-800 text-white font-mono text-sm uppercase tracking-wider min-h-[44px]"
+            />
+            <p className="text-[11px] text-slate-500">
+              Enter affiliate or field partner promo code to link recurring SaaS rewards.
             </p>
           </div>
         </div>

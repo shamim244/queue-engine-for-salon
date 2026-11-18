@@ -1,9 +1,30 @@
 import { Elysia, t } from 'elysia';
 import { repository } from '../db/repository';
+import { uniquenessService } from '../security/uniqueness.service';
 
 export const salonRoutes = new Elysia({ prefix: '/api/salons' })
   .get('/', async () => {
     return await repository.getAllSalons();
+  })
+
+  // 0. Real-Time Slug Availability & Collision Check
+  .get('/check-slug', async ({ query, set }) => {
+    const rawSlug = (query.slug || '').trim();
+    if (!rawSlug) {
+      set.status = 400;
+      return {
+        available: false,
+        slug: '',
+        reason: 'Slug parameter is required.',
+        suggestions: [],
+      };
+    }
+    const result = await uniquenessService.checkSlug(rawSlug);
+    return {
+      success: true,
+      ...result,
+      slug: result.value,
+    };
   })
 
   // 1. Salon Self-Registration (Static route first)
@@ -146,6 +167,21 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
     })
   })
 
+  // 1.4 Get Salon Stylist & Station Quota
+  .get('/:id/quota', async ({ params, set }) => {
+    const salon = (await repository.getSalonBySlug(params.id)) ||
+                  (await repository.getAllSalons()).find(s => s.id === params.id);
+    if (!salon) {
+      set.status = 404;
+      return { success: false, message: 'Salon not found' };
+    }
+    const quota = await repository.checkSalonStylistQuota(salon.id);
+    return {
+      success: true,
+      ...quota,
+    };
+  })
+
   // 2. Get Salon by Slug or ID
   .get('/:id', async ({ params, set }) => {
     const salon = (await repository.getSalonBySlug(params.id)) ||
@@ -210,6 +246,11 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
       wifiPassword: t.Optional(t.String()),
       enableLoungeWifi: t.Optional(t.Boolean()),
       enableScreenWakeLock: t.Optional(t.Boolean()),
+      loyaltyEnabled: t.Optional(t.Boolean()),
+      loyaltyStampGoal: t.Optional(t.Number()),
+      loyaltyReferrerBonus: t.Optional(t.Number()),
+      loyaltyRefereeDiscount: t.Optional(t.Number()),
+      loyaltyRewardDescription: t.Optional(t.String()),
     })
   })
 
@@ -265,6 +306,33 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
   .delete('/:id/services/:serviceId', async ({ params }) => {
     await repository.deleteService(params.serviceId);
     return { success: true };
+  })
+
+  // 5b. Update Service (Salon Owner)
+  .patch('/:id/services/:serviceId', async ({ params, body }) => {
+    const b = body as {
+      name?: string;
+      basePrice?: number;
+      estimatedDurationMinutes?: number;
+      pricingType?: 'FIXED' | 'STARTING_AT' | 'FLEXIBLE_CHAIR';
+      isAddOn?: boolean;
+      icon?: string;
+    };
+    await repository.updateService(params.serviceId, b);
+    return { success: true };
+  }, {
+    body: t.Object({
+      name: t.Optional(t.String()),
+      basePrice: t.Optional(t.Number()),
+      estimatedDurationMinutes: t.Optional(t.Number()),
+      pricingType: t.Optional(t.Union([
+        t.Literal('FIXED'),
+        t.Literal('STARTING_AT'),
+        t.Literal('FLEXIBLE_CHAIR'),
+      ])),
+      isAddOn: t.Optional(t.Boolean()),
+      icon: t.Optional(t.String()),
+    })
   })
 
   // 6. Salon Performance Metrics

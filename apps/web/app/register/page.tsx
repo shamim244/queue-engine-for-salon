@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -22,8 +22,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { api, setAuthToken } from "@/lib/api";
 import { slugify, getStandardSalonPreset } from "@/lib/onboarding";
+import { UniversalSalonOnboardingWizard } from "@/components/onboarding/universal-onboarding-wizard";
 
 function RegisterContent() {
   const router = useRouter();
@@ -36,9 +38,18 @@ function RegisterContent() {
       : "owner"
   );
 
+  useEffect(() => {
+    const ref = searchParams.get("ref") || searchParams.get("partner");
+    if (ref && typeof document !== "undefined") {
+      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString();
+      document.cookie = `partner_ref=${encodeURIComponent(ref.trim().toUpperCase())}; path=/; expires=${expires}; SameSite=Lax`;
+    }
+  }, [searchParams]);
+
   // Customer registration state
   const [custFullName, setCustFullName] = useState("");
-  const [custPhone, setCustPhone] = useState("+91 ");
+  const [custCountryCode, setCustCountryCode] = useState("+91");
+  const [custPhone, setCustPhone] = useState("");
   const [custUsername, setCustUsername] = useState("");
   const [custEmail, setCustEmail] = useState("");
   const [custPassword, setCustPassword] = useState("");
@@ -48,7 +59,7 @@ function RegisterContent() {
   // Salon Owner registration state
   const [salonName, setSalonName] = useState("");
   const [salonSlug, setSalonSlug] = useState("");
-  const [phone, setPhone] = useState("+91 ");
+  const [phone, setPhone] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -69,8 +80,9 @@ function RegisterContent() {
       setCustError("Full name is required");
       return;
     }
-    if (!custPhone.trim() || custPhone.trim() === "+91") {
-      setCustError("Valid phone number is required");
+    const cleanDigits = custPhone.replace(/\D/g, "");
+    if (!cleanDigits || cleanDigits.length !== 10) {
+      setCustError("Please enter an exact 10-digit mobile number.");
       return;
     }
     if (!custPassword || custPassword.length < 6) {
@@ -82,7 +94,7 @@ function RegisterContent() {
     try {
       const resp = await api.auth.registerCustomer({
         name: custFullName.trim(),
-        phone: custPhone.trim(),
+        phone: `${custCountryCode}${cleanDigits}`,
         username: custUsername.trim() || undefined,
         email: custEmail.trim() || undefined,
         password: custPassword,
@@ -141,12 +153,20 @@ function RegisterContent() {
     try {
       const preset = getStandardSalonPreset(salonName, ownerName);
 
+      const refParam = searchParams.get("ref") || searchParams.get("partner");
+      let partnerCode = refParam?.trim().toUpperCase();
+      if (!partnerCode && typeof document !== "undefined") {
+        const match = document.cookie.match(/(?:^|;\s*)partner_ref=([^;]+)/);
+        if (match) partnerCode = decodeURIComponent(match[1]).trim().toUpperCase();
+      }
+
       const payload = {
         name: salonName.trim(),
         slug: salonSlug.trim(),
         phone: phone.trim(),
         countryCode: "+91",
         currency: "INR",
+        partnerCode: partnerCode || undefined,
         ownerUser: {
           username: username.trim(),
           password: password,
@@ -277,6 +297,7 @@ function RegisterContent() {
                   placeholder="e.g. Vikram Sharma"
                   value={custFullName}
                   onChange={(e) => setCustFullName(e.target.value)}
+                  maxLength={80}
                   required
                 />
               </div>
@@ -285,10 +306,16 @@ function RegisterContent() {
                 <label className="text-xs font-bold text-slate-300 block mb-1">
                   Mobile Number (For Ticket Chimes & SMS) *
                 </label>
-                <Input
-                  placeholder="+91 98765 43210"
+                <PhoneInput
                   value={custPhone}
-                  onChange={(e) => setCustPhone(e.target.value)}
+                  onChange={(cleanDigits) => {
+                    setCustPhone(cleanDigits);
+                    if (custError) setCustError(null);
+                  }}
+                  countryCode={custCountryCode}
+                  onCountryCodeChange={setCustCountryCode}
+                  placeholder="9876543210"
+                  showDigitCounter={true}
                   required
                 />
                 <span className="text-[11px] text-slate-500 mt-1 block">
@@ -304,6 +331,7 @@ function RegisterContent() {
                   placeholder="e.g. vikram_sharma"
                   value={custUsername}
                   onChange={(e) => setCustUsername(e.target.value)}
+                  maxLength={40}
                 />
               </div>
 
@@ -316,6 +344,7 @@ function RegisterContent() {
                   placeholder="vikram@example.com"
                   value={custEmail}
                   onChange={(e) => setCustEmail(e.target.value)}
+                  maxLength={120}
                 />
               </div>
 
@@ -330,6 +359,7 @@ function RegisterContent() {
                   onChange={(e) => setCustPassword(e.target.value)}
                   required
                   minLength={6}
+                  maxLength={80}
                 />
               </div>
 
@@ -460,7 +490,21 @@ function RegisterContent() {
             </div>
           </div>
         ) : (
-          /* Registration Form */
+          /* Universal Salon Onboarding Wizard (PUBLIC mode) */
+          <div className="space-y-4">
+            <div className="text-center mb-6 pb-4 border-b border-slate-800">
+              <Badge variant="purple" className="mb-2 text-xs">Self-Service Onboarding</Badge>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                Register Your Salon
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-md mx-auto">
+                Launch your salon queue engine in 3 minutes. Zero setup fee.
+              </p>
+            </div>
+            <UniversalSalonOnboardingWizard mode="PUBLIC" />
+          </div>
+        )}
+        {false && (
           <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 sm:p-10 shadow-2xl">
             <div className="mb-8 pb-6 border-b border-slate-800">
               <Badge variant="purple" className="mb-2 text-xs">Self-Service Onboarding</Badge>
@@ -495,6 +539,7 @@ function RegisterContent() {
                     value={salonName}
                     onChange={(e) => handleNameChange(e.target.value)}
                     required
+                    maxLength={80}
                     className="bg-slate-950/80 border-slate-700 text-sm"
                   />
                 </div>
@@ -511,6 +556,7 @@ function RegisterContent() {
                         value={salonSlug}
                         onChange={(e) => setSalonSlug(slugify(e.target.value))}
                         required
+                        maxLength={50}
                         className="bg-slate-950/80 border-slate-700 text-sm pl-8 font-mono text-blue-400"
                       />
                     </div>
@@ -525,6 +571,7 @@ function RegisterContent() {
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       required
+                      maxLength={18}
                       className="bg-slate-950/80 border-slate-700 text-sm font-mono"
                     />
                   </div>
@@ -547,6 +594,7 @@ function RegisterContent() {
                       placeholder="e.g. Ramesh Kumar"
                       value={ownerName}
                       onChange={(e) => setOwnerName(e.target.value)}
+                      maxLength={80}
                       className="bg-slate-950/80 border-slate-700 text-sm"
                     />
                   </div>
@@ -560,6 +608,7 @@ function RegisterContent() {
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       required
+                      maxLength={40}
                       className="bg-slate-950/80 border-slate-700 text-sm font-mono"
                     />
                   </div>
@@ -576,6 +625,8 @@ function RegisterContent() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
+                      minLength={6}
+                      maxLength={80}
                       className="bg-slate-950/80 border-slate-700 text-sm pr-10"
                     />
                     <button

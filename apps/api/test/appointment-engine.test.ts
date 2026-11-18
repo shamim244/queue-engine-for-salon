@@ -926,5 +926,46 @@ describe('Hybrid Appointment Booking, Dynamic Buffer Interleaving & Escrow Payou
       expect(resetData.policy.isCustomized).toBe(false);
       expect(resetData.policy.enabled).toBe(true);
     });
+
+    it('should retrieve customer appointments by 10-digit phone number with salon details', async () => {
+      const custPhone = '9876543999';
+      const salon = await repository.getSalonBySlug(salonSlug);
+      const service = salon?.services[0];
+
+      // Initiate a booking for this customer
+      const initRes = await app.handle(
+        new Request('http://localhost/api/v1/appointments/initiate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            salonSlug,
+            serviceId: service?.id,
+            date: '2026-11-22',
+            slotTime: '11:00',
+            customerName: 'Mobile User',
+            customerPhone: custPhone,
+            advanceType: 'FULL',
+          }),
+        })
+      );
+
+      expect(initRes.status).toBe(200);
+      const initData = await initRes.json();
+      expect(initData.success).toBe(true);
+
+      // Query customer appointments
+      const queryRes = await app.handle(
+        new Request(`http://localhost/api/v1/customer/appointments?phone=${custPhone}`)
+      );
+      expect(queryRes.status).toBe(200);
+      const queryData = await queryRes.json();
+      expect(queryData.success).toBe(true);
+      expect(queryData.appointments.length).toBeGreaterThanOrEqual(1);
+      const found = queryData.appointments.find((a: any) => a.id === initData.appointmentId);
+      expect(found).toBeDefined();
+      expect(found.customerName).toBe('Mobile User');
+      expect(found.slotStartTime).toBe('11:00');
+      expect(found.salonName).toBe(salon?.name);
+    });
   });
 });

@@ -20,10 +20,14 @@ import { StepOwnerCredentials } from "@/components/admin/onboarding/step-owner-c
 import { StepStylistsRoster } from "@/components/admin/onboarding/step-stylists-roster";
 import { StepServicesCatalog } from "@/components/admin/onboarding/step-services-catalog";
 import { StepLaunchKit } from "@/components/admin/onboarding/step-launch-kit";
+import { UniversalSalonOnboardingWizard } from "@/components/onboarding/universal-onboarding-wizard";
 
 function OnboardingWizardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Mode: Universal 4-step wizard vs Granular 5-step configurator
+  const [wizardView, setWizardView] = useState<"universal" | "granular">("universal");
 
   // Wizard Step State (1: Identity, 2: Model, 3: Owner, 4: Stylists, 5: Services, 6: Launch Kit)
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -74,6 +78,15 @@ function OnboardingWizardContent() {
     const initialPlan = searchParams.get("plan")?.toUpperCase();
     if (initialPlan === "PRO" || initialPlan === "ENTERPRISE" || initialPlan === "STARTER") {
       setFormData((prev) => ({ ...prev, tier: initialPlan as any }));
+    }
+
+    let refCode = searchParams.get("ref") || searchParams.get("partner");
+    if (!refCode && typeof document !== "undefined") {
+      const match = document.cookie.match(/(?:^|;\s*)partner_ref=([^;]+)/);
+      if (match) refCode = decodeURIComponent(match[1]);
+    }
+    if (refCode) {
+      setFormData((prev) => ({ ...prev, partnerCode: refCode.trim().toUpperCase() }));
     }
   }, [searchParams]);
 
@@ -344,6 +357,43 @@ function OnboardingWizardContent() {
         )}
       </div>
 
+      {/* View Switcher Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-4">
+        <button
+          type="button"
+          onClick={() => setWizardView("universal")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all min-h-[44px] ${
+            wizardView === "universal"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+              : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
+          }`}
+        >
+          ⚡ Universal Fast Wizard (4 Steps)
+        </button>
+        <button
+          type="button"
+          onClick={() => setWizardView("granular")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all min-h-[44px] ${
+            wizardView === "granular"
+              ? "bg-purple-600 text-white shadow-md shadow-purple-600/20"
+              : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
+          }`}
+        >
+          📋 Granular Roster &amp; Catalog Configurator (5 Steps)
+        </button>
+      </div>
+
+      {/* View 1: Universal Salon Onboarding Wizard (ADMIN mode) */}
+      <div className={wizardView === "universal" ? "block" : "hidden"}>
+        <UniversalSalonOnboardingWizard
+          mode="ADMIN"
+          adminOverridesAllowed={true}
+          onSuccessRedirectUrl="/admin/tenants"
+        />
+      </div>
+
+      {/* View 2: Granular 5-Step Configurator */}
+      <div className={wizardView === "granular" ? "block space-y-8" : "hidden space-y-8"}>
       {/* Stepper Navigation (Steps 1 to 5) */}
       {currentStep <= 5 && (
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-5 backdrop-blur-sm">
@@ -487,6 +537,7 @@ function OnboardingWizardContent() {
           resetForm={resetForm}
         />
       )}
+      </div>
     </div>
   );
 }

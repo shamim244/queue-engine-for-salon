@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useState, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
@@ -11,6 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
+import { ServiceIcon } from "@/components/ui/service-icon";
+import { IconPickerDialog } from "@/components/owner/services/icon-picker-dialog";
+import {
+  suggestIconForServiceName,
+  suggestMultipleIconsForServiceName,
+  CURATED_SALON_ICONS,
+  type SalonIconItem,
+} from "@/lib/salon-icons";
 import {
   Tag,
   Plus,
@@ -22,6 +30,8 @@ import {
   Sliders,
   Check,
   AlertCircle,
+  Edit2,
+  Palette,
 } from "lucide-react";
 
 function OwnerServicesContent() {
@@ -38,8 +48,69 @@ function OwnerServicesContent() {
   const [duration, setDuration] = useState<number>(25);
   const [pricingType, setPricingType] = useState<"FIXED" | "STARTING_AT" | "FLEXIBLE_CHAIR">("FIXED");
   const [icon, setIcon] = useState("✂️");
+  const [isIconManuallySelected, setIsIconManuallySelected] = useState(false);
+  const [autoMatchedIcon, setAutoMatchedIcon] = useState<SalonIconItem | null>(null);
   const [isAddOn, setIsAddOn] = useState(false);
   const [savingService, setSavingService] = useState(false);
+
+  // Edit Service Modal State
+  const [editingService, setEditingService] = useState<Service | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editBasePrice, setEditBasePrice] = useState<number>(150);
+  const [editDuration, setEditDuration] = useState<number>(25);
+  const [editPricingType, setEditPricingType] = useState<"FIXED" | "STARTING_AT" | "FLEXIBLE_CHAIR">("FIXED");
+  const [editIcon, setEditIcon] = useState("✂️");
+  const [isEditIconManuallySelected, setIsEditIconManuallySelected] = useState(false);
+  const [editAutoMatchedIcon, setEditAutoMatchedIcon] = useState<SalonIconItem | null>(null);
+  const [editIsAddOn, setEditIsAddOn] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Computed multiple suggested icons for the typed service names
+  const addServiceSuggestedIcons = useMemo(() => {
+    return suggestMultipleIconsForServiceName(name, 4);
+  }, [name]);
+
+  const editServiceSuggestedIcons = useMemo(() => {
+    return suggestMultipleIconsForServiceName(editName, 4);
+  }, [editName]);
+
+  const handleNameChange = (val: string) => {
+    setName(val);
+    if (!val.trim()) {
+      setAutoMatchedIcon(null);
+      setIsIconManuallySelected(false);
+      setIcon("✂️");
+      return;
+    }
+
+    if (!isIconManuallySelected) {
+      const match = suggestIconForServiceName(val);
+      if (match) {
+        setIcon(match.value);
+        setAutoMatchedIcon(match);
+      }
+    }
+  };
+
+  const handleEditNameChange = (val: string) => {
+    setEditName(val);
+    if (!val.trim()) {
+      setEditAutoMatchedIcon(null);
+      return;
+    }
+
+    if (!isEditIconManuallySelected) {
+      const match = suggestIconForServiceName(val);
+      if (match) {
+        setEditIcon(match.value);
+        setEditAutoMatchedIcon(match);
+      }
+    }
+  };
+
+  // Icon Picker Dialog State
+  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
+  const [iconPickerTarget, setIconPickerTarget] = useState<"add" | "edit">("add");
 
   // In-app Delete Confirmation Modal State
   const [serviceToDelete, setServiceToDelete] = useState<{ id: string; name: string } | null>(null);
@@ -86,12 +157,51 @@ function OwnerServicesContent() {
       setName("");
       setBasePrice(150);
       setDuration(25);
+      setIcon("✂️");
+      setIsIconManuallySelected(false);
+      setAutoMatchedIcon(null);
+      setIsAddOn(false);
       showToast(`Service "${name.trim()}" added to catalog!`, "success");
       fetchServices();
     } catch (err) {
       showToast("Failed to add service: " + (err as Error).message, "error");
     } finally {
       setSavingService(false);
+    }
+  };
+
+  const handleOpenEdit = (srv: Service) => {
+    setEditingService(srv);
+    setEditName(srv.name);
+    setEditBasePrice(srv.basePrice);
+    setEditDuration(srv.estimatedDurationMinutes || 20);
+    setEditPricingType(srv.pricingType || "FIXED");
+    setEditIcon(srv.icon || "✂️");
+    setIsEditIconManuallySelected(true);
+    setEditAutoMatchedIcon(null);
+    setEditIsAddOn(Boolean(srv.isAddOn));
+  };
+
+  const handleUpdateService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editName.trim() || !salon || !editingService) return;
+    setSavingEdit(true);
+    try {
+      await api.salons.updateService(salon.id, editingService.id, {
+        name: editName.trim(),
+        basePrice: Number(editBasePrice) || 0,
+        estimatedDurationMinutes: Number(editDuration) || 20,
+        pricingType: editPricingType,
+        icon: editIcon,
+        isAddOn: editIsAddOn,
+      });
+      setEditingService(null);
+      showToast(`Service "${editName.trim()}" updated successfully!`, "success");
+      fetchServices();
+    } catch (err) {
+      showToast("Failed to update service: " + (err as Error).message, "error");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -207,12 +317,12 @@ function OwnerServicesContent() {
       {/* Services Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {services.map((srv) => (
-          <Card key={srv.id} className="relative flex flex-col justify-between">
+          <Card key={srv.id} className="relative flex flex-col justify-between border-slate-800 bg-slate-900/70 hover:border-slate-700 transition-all">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-2xl bg-slate-800 border border-slate-700/80 flex items-center justify-center text-xl shadow-inner">
-                    {srv.icon || "✂️"}
+                  <div className="h-11 w-11 rounded-2xl bg-slate-800 border border-slate-700/80 flex items-center justify-center shadow-inner shrink-0 p-1.5">
+                    <ServiceIcon icon={srv.icon} size={26} />
                   </div>
                   <div>
                     <CardTitle className="text-base text-white">{srv.name}</CardTitle>
@@ -222,7 +332,7 @@ function OwnerServicesContent() {
                       {srv.isAddOn && (
                         <>
                           <span>•</span>
-                          <span className="text-amber-400">Add-On</span>
+                          <span className="text-amber-400 font-semibold">Add-On</span>
                         </>
                       )}
                     </p>
@@ -253,11 +363,20 @@ function OwnerServicesContent() {
               </div>
             </CardContent>
 
-            <div className="p-4 pt-0 flex justify-end">
+            <div className="p-3 pt-0 flex items-center justify-end gap-2 border-t border-slate-800/60 mt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 gap-1.5 min-h-[38px]"
+                onClick={() => handleOpenEdit(srv)}
+              >
+                <Edit2 className="h-3.5 w-3.5 text-amber-400" />
+                Edit
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-xs text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 gap-1.5"
+                className="text-xs text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 gap-1.5 min-h-[38px]"
                 onClick={() => setServiceToDelete({ id: srv.id, name: srv.name })}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -275,32 +394,93 @@ function OwnerServicesContent() {
           <DialogHeader>
             <DialogTitle>Add Service to Catalog</DialogTitle>
             <DialogDescription>
-              Create a grooming service with duration calibration and pricing rules.
+              Create a grooming service with duration calibration, pricing rules, and custom vector icons.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 my-4">
-            <div className="flex gap-3">
-              <div className="w-20">
+            <div className="flex gap-3 items-start">
+              <div>
                 <label className="text-xs font-semibold text-slate-300 block mb-1.5">Icon</label>
-                <Input
-                  value={icon}
-                  onChange={(e) => setIcon(e.target.value)}
-                  className="text-center text-xl"
-                  required
-                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIconPickerTarget("add");
+                    setIsIconPickerOpen(true);
+                  }}
+                  className={`h-11 w-14 rounded-xl border bg-slate-900 flex items-center justify-center transition-all p-1 group relative ${
+                    autoMatchedIcon && !isIconManuallySelected
+                      ? "border-amber-500/80 ring-2 ring-amber-500/20 shadow-md"
+                      : "border-slate-700 hover:border-amber-500"
+                  }`}
+                  title="Click to choose icon or paste SVGRepo link"
+                >
+                  <ServiceIcon icon={icon} size={24} />
+                  {autoMatchedIcon && !isIconManuallySelected && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-4 w-4 bg-amber-500 text-[9px] font-black text-slate-950 items-center justify-center">✨</span>
+                    </span>
+                  )}
+                </button>
               </div>
               <div className="flex-1">
-                <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                  Service Name *
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <span>Service Name *</span>
+                    {autoMatchedIcon && !isIconManuallySelected && (
+                      <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono flex items-center gap-1">
+                        <Sparkles className="h-2.5 w-2.5" /> Auto-matched
+                      </span>
+                    )}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIconPickerTarget("add");
+                      setIsIconPickerOpen(true);
+                    }}
+                    className="text-[11px] text-amber-400 hover:underline flex items-center gap-1 font-medium"
+                  >
+                    <Palette className="h-3 w-3" />
+                    Browse All ({CURATED_SALON_ICONS.length})
+                  </button>
+                </div>
                 <Input
-                  placeholder="e.g. Royal Beard Shaping"
+                  placeholder="e.g. Royal Beard Shaping or Haircut"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => handleNameChange(e.target.value)}
                   autoFocus
                   required
                 />
+
+                {/* Quick-select matching icon chips */}
+                {addServiceSuggestedIcons.length > 0 && name.trim().length >= 2 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-2 animate-in fade-in duration-200">
+                    <span className="text-[11px] text-slate-400 flex items-center gap-1 shrink-0">
+                      <Sparkles className="h-3 w-3 text-amber-400" /> Match:
+                    </span>
+                    {addServiceSuggestedIcons.map((sug) => (
+                      <button
+                        key={sug.id}
+                        type="button"
+                        onClick={() => {
+                          setIcon(sug.value);
+                          setIsIconManuallySelected(true);
+                          setAutoMatchedIcon(sug);
+                        }}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] border transition-all ${
+                          icon === sug.value
+                            ? "bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow-sm"
+                            : "bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700"
+                        }`}
+                      >
+                        <ServiceIcon icon={sug.value} size={14} />
+                        <span>{sug.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -381,6 +561,211 @@ function OwnerServicesContent() {
           </DialogFooter>
         </form>
       </Dialog>
+
+      {/* Modal: Edit Service */}
+      {editingService && (
+        <Dialog open={Boolean(editingService)} onOpenChange={() => setEditingService(null)}>
+          <DialogClose onClose={() => setEditingService(null)} />
+          <form onSubmit={handleUpdateService}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit2 className="h-5 w-5 text-amber-400" />
+                <span>Edit &quot;{editingService.name}&quot;</span>
+              </DialogTitle>
+              <DialogDescription>
+                Update service details, icon vectors, duration calibration, and pricing engine rules.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 my-4">
+              <div className="flex gap-3 items-start">
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">Icon</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIconPickerTarget("edit");
+                      setIsIconPickerOpen(true);
+                    }}
+                    className={`h-11 w-14 rounded-xl border bg-slate-900 flex items-center justify-center transition-all p-1 group relative ${
+                      editAutoMatchedIcon && !isEditIconManuallySelected
+                        ? "border-amber-500/80 ring-2 ring-amber-500/20 shadow-md"
+                        : "border-slate-700 hover:border-amber-500"
+                    }`}
+                    title="Click to choose icon or paste SVGRepo link"
+                  >
+                    <ServiceIcon icon={editIcon} size={24} />
+                    {editAutoMatchedIcon && !isEditIconManuallySelected && (
+                      <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-4 w-4 bg-amber-500 text-[9px] font-black text-slate-950 items-center justify-center">✨</span>
+                      </span>
+                    )}
+                  </button>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                      <span>Service Name *</span>
+                      {editAutoMatchedIcon && !isEditIconManuallySelected && (
+                        <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono flex items-center gap-1">
+                          <Sparkles className="h-2.5 w-2.5" /> Auto-matched
+                        </span>
+                      )}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIconPickerTarget("edit");
+                        setIsIconPickerOpen(true);
+                      }}
+                      className="text-[11px] text-amber-400 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <Palette className="h-3 w-3" />
+                      Browse All ({CURATED_SALON_ICONS.length})
+                    </button>
+                  </div>
+                  <Input
+                    placeholder="e.g. Royal Beard Shaping"
+                    value={editName}
+                    onChange={(e) => handleEditNameChange(e.target.value)}
+                    required
+                  />
+
+                  {/* Quick-select matching icon chips */}
+                  {editServiceSuggestedIcons.length > 0 && editName.trim().length >= 2 && (
+                    <div className="flex items-center gap-1.5 flex-wrap pt-2 animate-in fade-in duration-200">
+                      <span className="text-[11px] text-slate-400 flex items-center gap-1 shrink-0">
+                        <Sparkles className="h-3 w-3 text-amber-400" /> Match:
+                      </span>
+                      {editServiceSuggestedIcons.map((sug) => (
+                        <button
+                          key={sug.id}
+                          type="button"
+                          onClick={() => {
+                            setEditIcon(sug.value);
+                            setIsEditIconManuallySelected(true);
+                            setEditAutoMatchedIcon(sug);
+                          }}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] border transition-all ${
+                            editIcon === sug.value
+                              ? "bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow-sm"
+                              : "bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700"
+                          }`}
+                        >
+                          <ServiceIcon icon={sug.value} size={14} />
+                          <span>{sug.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+                    Base Price (₹) *
+                  </label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={editBasePrice}
+                    onChange={(e) => setEditBasePrice(Number(e.target.value))}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+                    Duration (Mins) *
+                  </label>
+                  <Input
+                    type="number"
+                    min={5}
+                    max={180}
+                    value={editDuration}
+                    onChange={(e) => setEditDuration(Number(e.target.value))}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+                  Pricing Engine Rule
+                </label>
+                <select
+                  className="flex h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                  value={editPricingType}
+                  onChange={(e) => setEditPricingType(e.target.value as any)}
+                >
+                  <option value="FIXED">FIXED (Standard flat rate)</option>
+                  <option value="STARTING_AT">STARTING_AT (Upsell in chair)</option>
+                  <option value="FLEXIBLE_CHAIR">FLEXIBLE_CHAIR (Custom chairside amount)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="isEditAddonCheck"
+                  checked={editIsAddOn}
+                  onChange={(e) => setEditIsAddOn(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500"
+                />
+                <label htmlFor="isEditAddonCheck" className="text-xs text-slate-300 cursor-pointer">
+                  Mark as optional Add-on (e.g. Hair Wash, Head Massage)
+                </label>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditingService(null)}
+                disabled={savingEdit}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={savingEdit}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
+              >
+                {savingEdit ? "Updating..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Dialog>
+      )}
+
+      {/* Reusable Icon Picker Dialog */}
+      <IconPickerDialog
+        isOpen={isIconPickerOpen}
+        onClose={() => setIsIconPickerOpen(false)}
+        currentValue={iconPickerTarget === "add" ? icon : editIcon}
+        onSelect={(newIcon, iconItem) => {
+          if (iconPickerTarget === "add") {
+            setIcon(newIcon);
+            setIsIconManuallySelected(true);
+            setAutoMatchedIcon(iconItem || null);
+            // If service name is blank, auto-fill it from the chosen icon's friendly title!
+            if (!name.trim() && iconItem?.name) {
+              setName(iconItem.name);
+            }
+          } else {
+            setEditIcon(newIcon);
+            setIsEditIconManuallySelected(true);
+            setEditAutoMatchedIcon(iconItem || null);
+            // If edit service name is blank, auto-fill it from the chosen icon's friendly title!
+            if (!editName.trim() && iconItem?.name) {
+              setEditName(iconItem.name);
+            }
+          }
+        }}
+      />
 
       {/* Modal: Confirm Delete Service */}
       {serviceToDelete && (
