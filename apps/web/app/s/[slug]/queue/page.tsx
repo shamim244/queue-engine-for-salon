@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import type { Salon, Ticket } from "@/lib/api";
-import { useSalonSocket } from "@/lib/socket";
+import { useSalonSocket } from "@/lib/use-salon-socket";
 import { useAuth } from "@/lib/auth-context";
 import { SalonNavbar } from "@/components/salon/salon-navbar";
 import { ConnectionPill } from "@/components/connection-pill";

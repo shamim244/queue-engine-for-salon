@@ -20,14 +20,14 @@ export function ConnectionPill({
   className = "",
   showIcon = true,
 }: ConnectionPillProps) {
-  // Determine effective status: explicit status prop takes precedence over raw boolean
+  // Determine effective status: if connected (via WS or live polling sync), status is connected
   let effectiveStatus: ConnectionStatus = "offline";
 
-  if (status) {
-    effectiveStatus = status;
-  } else if (isConnected) {
+  if (isConnected || status === "connected") {
     effectiveStatus = "connected";
-  } else if (reconnectAttempts > 0 && reconnectAttempts <= 5) {
+  } else if (status === "connecting") {
+    effectiveStatus = "connecting";
+  } else if (status === "reconnecting" || (reconnectAttempts > 0 && reconnectAttempts <= 5)) {
     effectiveStatus = "reconnecting";
   } else {
     effectiveStatus = "offline";
