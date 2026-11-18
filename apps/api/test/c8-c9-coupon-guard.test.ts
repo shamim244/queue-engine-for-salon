@@ -92,7 +92,7 @@ describe('ADR 005 - C8 & C9: Coupon Limits & Management Auth Security', () => {
       const couponId = `coupon-c8-peruser-${Date.now()}`;
       await couponRepo.createCoupon({
         id: couponId,
-        code: `PERUSER_${Date.now()}`,
+        code: `PER_${Date.now().toString().slice(-6)}`,
         targetType: 'SUBSCRIPTION',
         discountType: 'FLAT',
         discountValue: 50,
@@ -117,7 +117,7 @@ describe('ADR 005 - C8 & C9: Coupon Limits & Management Auth Security', () => {
       const couponId = `coupon-c8-singleuser-${Date.now()}`;
       await couponRepo.createCoupon({
         id: couponId,
-        code: `SINGLEUSER_${Date.now()}`,
+        code: `SGL_${Date.now().toString().slice(-6)}`,
         targetType: 'SUBSCRIPTION',
         discountType: 'FLAT',
         discountValue: 50,
@@ -199,7 +199,7 @@ describe('ADR 005 - C8 & C9: Coupon Limits & Management Auth Security', () => {
             Authorization: `Bearer ${adminToken}`,
           },
           body: JSON.stringify({
-            code: `ADMINVALID_${Date.now()}`,
+            code: `ADM_${Date.now().toString().slice(-6)}`,
             targetType: 'SUBSCRIPTION',
             discountType: 'FLAT',
             discountValue: 150,
@@ -216,7 +216,7 @@ describe('ADR 005 - C8 & C9: Coupon Limits & Management Auth Security', () => {
     it('C9.4: should reject customer role coupon update and delete with 403', async () => {
       // 1. Admin creates a coupon
       const created = await couponRepo.createCoupon({
-        code: `GUARD_${Date.now()}`,
+        code: `GRD_${Date.now().toString().slice(-6)}`,
         targetType: 'SUBSCRIPTION',
         discountType: 'FLAT',
         discountValue: 25,
@@ -249,7 +249,7 @@ describe('ADR 005 - C8 & C9: Coupon Limits & Management Auth Security', () => {
 
     it('C9.5: should allow admin to update and delete coupon', async () => {
       const created = await couponRepo.createCoupon({
-        code: `ADM_MUT_${Date.now()}`,
+        code: `MUT_${Date.now().toString().slice(-6)}`,
         targetType: 'SUBSCRIPTION',
         discountType: 'FLAT',
         discountValue: 30,
