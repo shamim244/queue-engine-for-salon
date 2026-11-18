@@ -1,31 +1,27 @@
 export function getApiBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.includes("localhost")) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
-
   if (typeof window !== "undefined" && window.location?.hostname) {
     const hostname = window.location.hostname;
-    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      return "";
+    // When running locally on localhost or 127.0.0.1, always target local Elysia backend directly
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     }
-    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    // In production behind reverse proxy, use relative URL so Nginx handles /api/
+    return "";
   }
 
   return process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 }
 
 export function getWsBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_WS_URL && !process.env.NEXT_PUBLIC_WS_URL.includes("localhost")) {
-    return process.env.NEXT_PUBLIC_WS_URL;
-  }
-
-  if (typeof window !== "undefined" && window.location?.host) {
+  if (typeof window !== "undefined" && window.location) {
     const { protocol, host, hostname } = window.location;
-    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
-      return `${wsProtocol}//${host}/ws`;
+    // When running locally on localhost or 127.0.0.1, connect directly to local Elysia WebSocket
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001/ws";
     }
-    return process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001/ws";
+    // In production behind reverse proxy with SSL
+    const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
+    return `${wsProtocol}//${host}/ws`;
   }
 
   return process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001/ws";
