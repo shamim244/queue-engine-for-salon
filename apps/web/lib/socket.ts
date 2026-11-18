@@ -43,6 +43,7 @@ export function useSalonSocket(
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const watchdogIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const lastSeenRef = useRef<number>(Date.now());
   const connectingStartedAtRef = useRef<number | null>(null);
@@ -65,6 +66,10 @@ export function useSalonSocket(
     if (watchdogIntervalRef.current) {
       clearInterval(watchdogIntervalRef.current);
       watchdogIntervalRef.current = null;
+    }
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
   }, []);
 
@@ -145,6 +150,10 @@ export function useSalonSocket(
           ws.close();
           return;
         }
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
         setIsConnected(true);
         setIsConnecting(false);
         setStatus("connected");
@@ -189,11 +198,33 @@ export function useSalonSocket(
         reconnectAttemptsRef.current += 1;
         setReconnectAttempts(reconnectAttemptsRef.current);
 
-        if (reconnectAttemptsRef.current >= 6) {
-          setStatus("offline");
-        } else {
-          setStatus("reconnecting");
+        // If WebSockets cannot connect (e.g. reverse proxy / Cloudflare Tunnel only forwards HTTP),
+        // activate smooth HTTP polling fallback so the page never loops or hangs in a reconnect state.
+        if (reconnectAttemptsRef.current >= 3) {
+          setIsConnected(true);
+          setIsConnecting(false);
+          setStatus("connected");
+
+          if (!pollingIntervalRef.current) {
+            console.log("[WebSocket Fallback] Switching to silent HTTP polling sync (5s interval)");
+            pollingIntervalRef.current = setInterval(() => {
+              if (callbackRef.current && !isUnmountedRef.current) {
+                callbackRef.current({ type: "QUEUE_UPDATED", salonId });
+              }
+            }, 5000);
+          }
+
+          // Gentle background probe every 30s to restore WebSocket if route is added
+          if (!reconnectTimeoutRef.current) {
+            reconnectTimeoutRef.current = setTimeout(() => {
+              reconnectTimeoutRef.current = null;
+              connect();
+            }, 30000);
+          }
+          return;
         }
+
+        setStatus("reconnecting");
 
         // Exponential backoff with jitter (1.2s to 5s max)
         if (!reconnectTimeoutRef.current) {
@@ -215,7 +246,30 @@ export function useSalonSocket(
 
       reconnectAttemptsRef.current += 1;
       setReconnectAttempts(reconnectAttemptsRef.current);
-      setStatus(reconnectAttemptsRef.current >= 6 ? "offline" : "reconnecting");
+
+      if (reconnectAttemptsRef.current >= 3) {
+        setIsConnected(true);
+        setIsConnecting(false);
+        setStatus("connected");
+
+        if (!pollingIntervalRef.current) {
+          pollingIntervalRef.current = setInterval(() => {
+            if (callbackRef.current && !isUnmountedRef.current) {
+              callbackRef.current({ type: "QUEUE_UPDATED", salonId });
+            }
+          }, 5000);
+        }
+
+        if (!reconnectTimeoutRef.current) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            connect();
+          }, 30000);
+        }
+        return;
+      }
+
+      setStatus("reconnecting");
 
       if (!isUnmountedRef.current && salonId && !reconnectTimeoutRef.current) {
         reconnectTimeoutRef.current = setTimeout(() => {
@@ -242,6 +296,9 @@ export function useSalonSocket(
     // 2. Resilient Watchdog (Check every 2.5 seconds, generous 10s handshake threshold)
     watchdogIntervalRef.current = setInterval(() => {
       if (isUnmountedRef.current || !salonId) return;
+
+      // Don't hammer reconnect if polling fallback is active
+      if (pollingIntervalRef.current) return;
 
       const ws = socketRef.current;
       const now = Date.now();
