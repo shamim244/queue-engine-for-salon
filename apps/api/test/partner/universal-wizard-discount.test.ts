@@ -71,6 +71,7 @@ describe('Suite 8: Universal Wizard Bilateral Discount Engine', () => {
   });
 
   it('T8.4: should auto-resolve partner code from session headers when partnerCode is omitted and mark attribution as ASSISTED_ONBOARDING', async () => {
+    const testPhone = `+9198765${Math.floor(10000 + Math.random() * 90000)}`;
     const res = await app.handle(
       new Request('http://localhost/api/admin/onboard', {
         method: 'POST',
@@ -81,12 +82,13 @@ describe('Suite 8: Universal Wizard Bilateral Discount Engine', () => {
         },
         body: JSON.stringify({
           name: 'Assisted Test Salon',
-          phone: '+919876543210',
+          phone: testPhone,
           tier: 'PRO',
           ownerUser: {
             username: `assisted_test_${Date.now()}`,
             email: `assisted_owner_${Date.now()}@example.com`,
             password: 'Password123',
+            phone: testPhone,
           },
         }),
       })

@@ -7,6 +7,7 @@ describe('Midnight Queue Auto-Reset & Stale Ticket Cleanup Worker', () => {
   beforeEach(async () => {
     seedDemoData();
     registerResetHandler();
+    await jobQueue.clearPendingJobs();
   });
 
   it('should automatically expire tickets older than cutoff hours and mark as NO_SHOW', async () => {

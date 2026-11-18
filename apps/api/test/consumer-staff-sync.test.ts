@@ -51,7 +51,7 @@ describe('Staff Station, Consumer Lifecycle, and 4-Way Synchronization Suite', (
     it('POST /api/auth/customer/register should create a CUSTOMER user with hashed password and session token', async () => {
       const payload = {
         name: 'Arjun Verma',
-        phone: '+91 91234 56789',
+        phone: '+91 91234 11111',
         username: 'arjun_verma',
         email: 'arjun@verma.com',
         password: 'Password@123',
@@ -74,7 +74,7 @@ describe('Staff Station, Consumer Lifecycle, and 4-Way Synchronization Suite', (
       expect(data.user.role).toBe('CUSTOMER');
       expect(data.user.username).toBe('arjun_verma');
       expect(data.user.fullName).toBe('Arjun Verma');
-      expect(data.user.phone).toBe('+919123456789');
+      expect(data.user.phone).toBe('+919123411111');
 
       // Verify user can now log in via standard /api/auth/login
       const loginRes = await app.handle(

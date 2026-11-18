@@ -103,6 +103,7 @@ describe('Universal Uniqueness & Collision Prevention Engine', () => {
       const p = await partnerRepo.createPartnerApplication({
         fullName: 'Vikram Singh',
         phone: '+919911223344',
+        email: 'vikram.partner@example.com',
         city: 'Jaipur',
         persona: 'CREATOR',
         referralCode: 'VIKRAM_PARTNER',
@@ -177,6 +178,7 @@ describe('Universal Uniqueness & Collision Prevention Engine', () => {
       const p = await partnerRepo.createPartnerApplication({
         fullName: 'Test Hustler',
         phone: '+919811223344',
+        email: 'test.hustler@example.com',
         city: 'Delhi',
         persona: 'GROUND_HUSTLER',
       });

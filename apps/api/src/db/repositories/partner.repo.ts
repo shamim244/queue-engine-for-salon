@@ -38,7 +38,7 @@ export function sanitizeReferralCode(name: string): string {
     .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '');
-  return normalized || 'PARTNER' + Math.floor(1000 + Math.random() * 9000);
+  return (normalized || 'PARTNER' + Math.floor(1000 + Math.random() * 9000)).slice(0, 18);
 }
 
 export function sanitizePartner(partner: Partner): Partner {
@@ -277,10 +277,12 @@ export const partnerRepo = {
     } else {
       // Ensure unique auto-generated code across ALL namespaces
       let suffix = 1;
-      const baseCode = referralCode;
+      const baseCode = referralCode.slice(0, 18);
+      referralCode = baseCode;
       let check = await uniquenessService.checkReferralCode(referralCode);
-      while (!check.available) {
-        referralCode = `${baseCode}${suffix++}`;
+      while (!check.available && suffix < 1000) {
+        const s = String(suffix++);
+        referralCode = `${baseCode.slice(0, 20 - s.length)}${s}`;
         check = await uniquenessService.checkReferralCode(referralCode);
       }
     }

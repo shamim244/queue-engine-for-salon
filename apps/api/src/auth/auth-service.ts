@@ -77,9 +77,11 @@ export const authService = {
         throw new Error(phoneValidation.error || 'Invalid mobile phone number format.');
       }
       const cleanPhone = phoneValidation.normalizedPhone;
-      const existingPhones = await this.getUsersByPhone(cleanPhone);
-      if (existingPhones && existingPhones.length > 0) {
-        throw new Error(`Mobile phone number '${params.phone.trim()}' is already registered to another user account.`);
+      if (params.role === 'STAFF') {
+        const existingPhones = await this.getUsersByPhone(cleanPhone);
+        if (existingPhones && existingPhones.some((u) => u.role === 'STAFF')) {
+          throw new Error(`Mobile phone number '${params.phone.trim()}' is already registered to another user account.`);
+        }
       }
       params.phone = cleanPhone;
     }
@@ -554,7 +556,7 @@ export const authService = {
         }
         const cleanPhone = phoneValidation.normalizedPhone;
         const existingPhones = await this.getUsersByPhone(cleanPhone);
-        const duplicate = existingPhones.find((u) => u.id !== id);
+        const duplicate = existingPhones.find((u) => u.id !== id && (user.role === 'STAFF' || u.role === 'STAFF'));
         if (duplicate) {
           throw new Error(`Mobile phone number '${updates.phone.trim()}' is already registered to another user account.`);
         }

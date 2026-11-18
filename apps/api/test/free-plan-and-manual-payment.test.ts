@@ -12,19 +12,20 @@ describe("Point 1 & Point 2: Free Testing Tier & Manual Payment Approval Workflo
   });
 
   it("T1: should onboard salon directly onto FREE plan with ₹0 due and 1 station capacity", async () => {
+    const testPhone = `+9198755${Math.floor(10000 + Math.random() * 90000)}`;
     const onboardRes = await salonRepo.onboardSalon({
       salonName: "Ganesh Grooming Corner",
       slug: `ganesh-corner-${Date.now()}`,
-      phone: "+919876543210",
+      phone: testPhone,
       tier: "FREE",
       organizationName: "Ganesh Grooming Corner",
       ownerUser: {
         username: `ganesh_owner_${Date.now()}`,
         password: "OwnerPassword123!",
-        phone: "+919876543210",
+        phone: testPhone,
         email: `ganesh_${Date.now()}@testsalon.com`,
       },
-      stylists: [{ name: "Master Ganesh", phone: "+919876543210" }],
+      stylists: [{ name: "Master Ganesh", phone: testPhone }],
       services: [{ name: "Haircut", basePrice: 100, estimatedDurationMinutes: 20 }],
     });
 
