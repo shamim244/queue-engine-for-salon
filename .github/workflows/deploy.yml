@@ -95,12 +95,10 @@ jobs:
             bun install && \
             echo '⚡ Reloading worker salon-api-1...' && \
             pm2 reload salon-api-1 --update-env && \
-            sleep 3 && \
-            curl -sf http://127.0.0.1:3001/api/health && \
+            curl --retry 10 --retry-delay 2 --retry-connrefused -sf http://127.0.0.1:3001/api/health && \
             echo '⚡ Reloading worker salon-api-2...' && \
             pm2 reload salon-api-2 --update-env && \
-            sleep 3 && \
-            curl -sf http://127.0.0.1:3002/api/health && \
+            curl --retry 10 --retry-delay 2 --retry-connrefused -sf http://127.0.0.1:3002/api/health && \
             pm2 save
           "
 
@@ -182,8 +180,8 @@ jobs:
     steps:
       - name: Verify Backend API Gateway (Port 8000)
         run: |
-          curl -f -s -i http://${{ secrets.EC2_HOST }}:8000/api/health
+          curl --retry 5 --retry-delay 2 --retry-connrefused -f -s -i http://${{ secrets.EC2_HOST }}:8000/api/health
 
       - name: Verify Frontend Web Gateway (Port 80)
         run: |
-          curl -f -s -I http://${{ secrets.EC2_HOST }}
+          curl --retry 5 --retry-delay 2 --retry-connrefused -f -s -I http://${{ secrets.EC2_HOST }}
