@@ -70,7 +70,18 @@ const app = new Elysia()
       origin: (request) => isAllowedOrigin(request.headers.get('origin'), memoryStore.securitySettings?.allowedCustomOrigins),
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'Accept',
+        'x-partner-id',
+        'x-admin-key',
+        'X-Requested-With',
+        'Accept-Encoding',
+      ],
+      exposeHeaders: ['Content-Length', 'Content-Encoding', 'X-Cache-Engine'],
       maxAge: 86400,
+      preflight: true,
     })
   )
   // Multi-Tier Adaptive Response Compression (zstd -> br -> gzip -> raw fallback)

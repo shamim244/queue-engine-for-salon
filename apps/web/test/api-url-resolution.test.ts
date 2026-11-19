@@ -94,5 +94,43 @@ describe("API & WebSocket URL Resolution Suite (.env Authority)", () => {
       delete process.env.NEXT_PUBLIC_API_URL;
       expect(getApiBaseUrl()).toBe("");
     });
+
+    it("dynamically resolves local network IP on mobile HTTP without mixed content issues", () => {
+      (globalThis as any).window = {
+        location: {
+          protocol: "http:",
+          host: "192.168.1.50:3000",
+          hostname: "192.168.1.50",
+        },
+      };
+      // Dev env with default localhost WS URL
+      process.env.NEXT_PUBLIC_WS_URL = "ws://localhost:3001/ws";
+      expect(getWsBaseUrl()).toBe("ws://192.168.1.50:3001/ws");
+
+      // API URL falls back to relative "" so Next.js server proxies /api/*
+      expect(getApiBaseUrl()).toBe("");
+    });
+  });
+
+  describe("Re-exports Authority", () => {
+    it("ensures lib/socket re-exports getWsBaseUrl and getApiBaseUrl", async () => {
+      const socketModule = await import("../lib/socket");
+      expect(typeof socketModule.getWsBaseUrl).toBe("function");
+      expect(typeof socketModule.getApiBaseUrl).toBe("function");
+    });
+  });
+
+  describe("Next.js Config Authority", () => {
+    it("ensures next.config.ts rewrites defaults to localhost:3001 without INTERNAL_API_URL", async () => {
+      delete process.env.INTERNAL_API_URL;
+      const nextConfig = (await import("../next.config")).default;
+      if (typeof nextConfig.rewrites === "function") {
+        const rewrites = await nextConfig.rewrites();
+        const apiRewrite = Array.isArray(rewrites)
+          ? rewrites.find((r: any) => r.source === "/api/:path*")
+          : null;
+        expect(apiRewrite?.destination).toContain("http://localhost:3001/api/:path*");
+      }
+    });
   });
 });

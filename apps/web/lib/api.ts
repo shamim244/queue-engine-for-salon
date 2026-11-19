@@ -22,6 +22,7 @@ export function getWsBaseUrl(): string {
   if (typeof window !== "undefined" && window.location) {
     const { protocol, host, hostname } = window.location;
     const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
+    const isLanIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || hostname.startsWith("192.168.") || hostname.startsWith("10.");
 
     // 1. If explicit NEXT_PUBLIC_WS_URL is provided:
     if (process.env.NEXT_PUBLIC_WS_URL) {
@@ -30,6 +31,11 @@ export function getWsBaseUrl(): string {
       // If client is on localhost, always honor explicit WS URL
       if (isLocalhost) {
         return explicitWsUrl;
+      }
+
+      // If client is on a local network IP over HTTP, substitute localhost with client hostname to reach Bun API directly
+      if (isLanIp && protocol === "http:" && explicitWsUrl.includes("localhost:3001")) {
+        return explicitWsUrl.replace("localhost", hostname);
       }
 
       // If client is on a remote domain and NEXT_PUBLIC_WS_URL points to a real remote host (not localhost), honor it directly
@@ -43,7 +49,12 @@ export function getWsBaseUrl(): string {
       return "ws://localhost:3001/ws";
     }
 
-    // 3. On remote domain behind SSL (prevents mobile mixed-content block)
+    // 3. On local network IP over HTTP without explicit override
+    if (isLanIp && protocol === "http:") {
+      return `ws://${hostname}:3001/ws`;
+    }
+
+    // 4. On remote domain behind SSL (prevents mobile mixed-content block)
     const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
     return `${wsProtocol}//${host}/ws`;
   }

@@ -32,6 +32,17 @@ describe('Task 2: Subdomain-Safe CORS Validator & Security Headers', () => {
     expect(isAllowedOrigin('http://localhost:3000')).toBe(true);
     expect(isAllowedOrigin('http://localhost:3001')).toBe(true);
     expect(isAllowedOrigin('http://127.0.0.1:3000')).toBe(true);
+    expect(isAllowedOrigin('http://127.0.0.1:3001')).toBe(true);
+    // Local network / mobile private IP addresses
+    expect(isAllowedOrigin('http://192.168.1.50:3000')).toBe(true);
+    expect(isAllowedOrigin('http://192.168.0.101:3001')).toBe(true);
+    expect(isAllowedOrigin('http://10.0.0.5:3000')).toBe(true);
+    expect(isAllowedOrigin('http://172.20.10.2:3000')).toBe(true);
+    expect(isAllowedOrigin('http://100.85.12.3:3000')).toBe(true);
+    expect(isAllowedOrigin('http://[::1]:3000')).toBe(true);
+    // Malicious IP lookalikes
+    expect(isAllowedOrigin('http://evil-192.168.1.50')).toBe(false);
+    expect(isAllowedOrigin('http://192.168.1.50.attacker.com')).toBe(false);
   });
 
   it('2.5 should dynamically allow admin-registered custom origins', () => {
@@ -54,5 +65,23 @@ describe('Task 2: Subdomain-Safe CORS Validator & Security Headers', () => {
     expect(headers.get('x-frame-options')).toBe('SAMEORIGIN');
     expect(headers.get('x-xss-protection')).toBe('1; mode=block');
     expect(headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
+  });
+
+  it('2.7 should accept CORS preflight OPTIONS requests from mobile IP with custom headers', async () => {
+    const res = await app.handle(
+      new Request('http://localhost:3001/api/health', {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'http://192.168.1.50:3000',
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers': 'Content-Type, Authorization, x-partner-id',
+        },
+      })
+    );
+
+    expect(res.status).toBe(204);
+    const headers = res.headers;
+    expect(headers.get('access-control-allow-origin')).toBe('http://192.168.1.50:3000');
+    expect(headers.get('access-control-allow-credentials')).toBe('true');
   });
 });

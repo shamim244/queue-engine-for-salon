@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { api } from "@/lib/api";
+import { api, request } from "@/lib/api";
 import type { StaffLeave } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -142,7 +142,7 @@ function StaffSettingsContent() {
     setLoadingDurations(true);
     const fetcher = typeof api.auth?.getStaffServiceDurations === "function"
       ? api.auth.getStaffServiceDurations(staffId)
-      : fetch(`/api/auth/staff/service-durations/${staffId}`).then((r) => r.json());
+      : request<any>(`/api/auth/staff/service-durations/${staffId}`);
 
     fetcher
       .then((res: any) => {
@@ -261,11 +261,10 @@ function StaffSettingsContent() {
 
       const res: any = typeof api.auth?.updateStaffServiceDurations === "function"
         ? await api.auth.updateStaffServiceDurations(payload)
-        : await fetch("/api/auth/staff/service-durations", {
+        : await request<any>("/api/auth/staff/service-durations", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
-          }).then((r) => r.json());
+          });
 
       if (res && res.success) {
         setServiceDurations(res.overrides || {});

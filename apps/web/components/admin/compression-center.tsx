@@ -7,6 +7,7 @@ import {
   updateCompressionSettings,
   runCompressionBenchmark,
   request,
+  getApiBaseUrl,
 } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -149,7 +150,7 @@ export function CompressionCenter() {
     } catch (err: any) {
       console.warn("Primary compression status fetch failed, trying direct fallback:", err);
       try {
-        const raw = await fetch("/api/admin/compression");
+        const raw = await fetch(`${getApiBaseUrl()}/api/admin/compression`);
         if (raw.ok) {
           const res = await raw.json();
           if (res && res.success) {

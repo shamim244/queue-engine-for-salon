@@ -16,6 +16,9 @@ const configuredOrigins = new Set([
 const NEXGENTECH_SUBDOMAIN_REGEX = /^https?:\/\/([a-zA-Z0-9-]+\.)*nexgentech\.site(:\d+)?$/i;
 const LOCALHOST_REGEX = /^https?:\/\/localhost(:\d+)?$/i;
 const LOOPBACK_REGEX = /^https?:\/\/127\.0\.0\.1(:\d+)?$/i;
+// Local network / mobile private IP ranges (RFC 1918 + CGNAT + mobile hotspot subnets)
+const PRIVATE_IP_REGEX = /^https?:\/\/(?:192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|100\.(?:6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\.\d{1,3}\.\d{1,3})(?::\d+)?$/i;
+const IPV6_LOOPBACK_REGEX = /^https?:\/\/\[::1\](?::\d+)?$/i;
 
 export function isAllowedOrigin(
   origin: string | null | undefined,
@@ -39,7 +42,10 @@ export function isAllowedOrigin(
   if (NEXGENTECH_SUBDOMAIN_REGEX.test(clean)) return true;
 
   // 4. Localhost and Loopback testing origins
-  if (LOCALHOST_REGEX.test(clean) || LOOPBACK_REGEX.test(clean)) return true;
+  if (LOCALHOST_REGEX.test(clean) || LOOPBACK_REGEX.test(clean) || IPV6_LOOPBACK_REGEX.test(clean)) return true;
+
+  // 5. Local network / mobile private IP origins (e.g. 192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+  if (PRIVATE_IP_REGEX.test(clean)) return true;
 
   return false;
 }
