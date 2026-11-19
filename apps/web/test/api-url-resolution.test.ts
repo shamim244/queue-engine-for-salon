@@ -132,5 +132,13 @@ describe("API & WebSocket URL Resolution Suite (.env Authority)", () => {
         expect(apiRewrite?.destination).toContain("http://localhost:3001/api/:path*");
       }
     });
+
+    it("ensures next.config.ts includes local network wildcards in allowedDevOrigins for mobile dev", async () => {
+      const nextConfig = (await import("../next.config")).default;
+      const origins = nextConfig.allowedDevOrigins || [];
+      expect(origins).toContain("192.168.*");
+      expect(origins).toContain("10.*");
+      expect(origins).toContain("172.*");
+    });
   });
 });
