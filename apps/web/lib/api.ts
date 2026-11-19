@@ -5,7 +5,13 @@ export function getApiBaseUrl(): string {
     if (hostname === "localhost" || hostname === "127.0.0.1") {
       return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     }
-    // In production behind reverse proxy, use relative URL so Nginx handles /api/
+
+    // On remote domains, if an explicit remote API URL is specified, honor it
+    if (process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.includes("localhost")) {
+      return process.env.NEXT_PUBLIC_API_URL;
+    }
+
+    // In production behind reverse proxy, use relative URL so Nginx/Next handles /api/
     return "";
   }
 
@@ -15,11 +21,29 @@ export function getApiBaseUrl(): string {
 export function getWsBaseUrl(): string {
   if (typeof window !== "undefined" && window.location) {
     const { protocol, host, hostname } = window.location;
-    // When running locally on localhost or 127.0.0.1, connect directly to local Elysia WebSocket
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001/ws";
+    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
+
+    // 1. If explicit NEXT_PUBLIC_WS_URL is provided:
+    if (process.env.NEXT_PUBLIC_WS_URL) {
+      const explicitWsUrl = process.env.NEXT_PUBLIC_WS_URL.trim();
+
+      // If client is on localhost, always honor explicit WS URL
+      if (isLocalhost) {
+        return explicitWsUrl;
+      }
+
+      // If client is on a remote domain and NEXT_PUBLIC_WS_URL points to a real remote host (not localhost), honor it directly
+      if (!explicitWsUrl.includes("localhost") && !explicitWsUrl.includes("127.0.0.1")) {
+        return explicitWsUrl;
+      }
     }
-    // In production behind reverse proxy with SSL
+
+    // 2. On localhost without explicit override, default to local Bun backend
+    if (isLocalhost) {
+      return "ws://localhost:3001/ws";
+    }
+
+    // 3. On remote domain behind SSL (prevents mobile mixed-content block)
     const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
     return `${wsProtocol}//${host}/ws`;
   }
