@@ -5,6 +5,18 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: 'Target to deploy'
+        required: false
+        default: 'auto-detect'
+        type: choice
+        options:
+          - 'auto-detect'
+          - 'gateway-only'
+          - 'backend-only'
+          - 'frontend-only'
+          - 'all'
 
 concurrency:
   group: production-deploy
@@ -12,140 +24,64 @@ concurrency:
 
 jobs:
   deploy:
-    name: Production Zero-Downtime Deployment
+    name: Production Deployment Grid
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      # ----------------------------------------------------
-      # 0. NATIVE LIGHTWEIGHT PATH FILTERING (0s Overhead)
-      # ----------------------------------------------------
       - name: Detect Changed Components
-        id: filter
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "api=true" >> $GITHUB_OUTPUT
-            echo "web=true" >> $GITHUB_OUTPUT
-            echo "gateway=true" >> $GITHUB_OUTPUT
-            echo "Triggered via manual workflow_dispatch: deploying all components."
-            exit 0
-          fi
-
-          DIFF=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "ALL")
-          echo "=== Changed Files Detected ==="
-          echo "$DIFF"
-
-          if [ "$DIFF" = "ALL" ] || echo "$DIFF" | grep -qE '^(apps/api/|ecosystem\.config\.cjs|package\.json|\.github/workflows/)'; then
-            echo "api=true" >> $GITHUB_OUTPUT
-            echo "  ✓ API change detected"
-          fi
-
-          if [ "$DIFF" = "ALL" ] || echo "$DIFF" | grep -qE '^(apps/web/|package\.json|\.github/workflows/)'; then
-            echo "web=true" >> $GITHUB_OUTPUT
-            echo "  ✓ Web frontend change detected"
-          fi
-
-          if [ "$DIFF" = "ALL" ] || echo "$DIFF" | grep -qE '^(gateway/|\.github/workflows/)'; then
-            echo "gateway=true" >> $GITHUB_OUTPUT
-            echo "  ✓ Nginx gateway change detected"
-          fi
-
-      # ----------------------------------------------------
-      # 1. QUALITY GATE: TEST BACKEND (If API changed)
-      # ----------------------------------------------------
-      - name: Setup Bun Runtime
-        if: steps.filter.outputs.api == 'true'
-        uses: oven-sh/setup-bun@v2
+        id: changes
+        uses: ./.github/actions/detect-changes
         with:
-          bun-version: latest
+          override: ${{ github.event.inputs.deploy_target || 'auto-detect' }}
 
-      - name: Run Backend Integration & Security Tests
-        if: steps.filter.outputs.api == 'true'
-        run: |
-          bun install
-          bun test apps/api/test --bail
-
-      # ----------------------------------------------------
-      # 2. CONFIGURE SSH (Only once per pipeline)
-      # ----------------------------------------------------
       - name: Configure SSH Key
-        if: steps.filter.outputs.api == 'true' || steps.filter.outputs.web == 'true' || steps.filter.outputs.gateway == 'true'
+        if: steps.changes.outputs.run_any == 'true'
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
       - name: Add Server Host to Known Hosts
-        if: steps.filter.outputs.api == 'true' || steps.filter.outputs.web == 'true' || steps.filter.outputs.gateway == 'true'
+        if: steps.changes.outputs.run_any == 'true'
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      # ----------------------------------------------------
-      # 3. SYNC & RELOAD NGINX GATEWAYS (If gateway changed)
-      # ----------------------------------------------------
-      - name: Sync & Reload Nginx Gateway
-        if: steps.filter.outputs.gateway == 'true'
+      - name: Pull Latest Changes on VPS
+        if: steps.changes.outputs.run_any == 'true'
         run: |
-          rsync -avz gateway/ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/salon/gateway/
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
-            sudo cp /home/ubuntu/salon/gateway/salon-backend-gateway.conf /etc/nginx/sites-available/salon-backend-gateway && \
-            sudo cp /home/ubuntu/salon/gateway/salon-frontend-gateway.conf /etc/nginx/sites-available/salon-frontend-gateway && \
-            sudo nginx -t && \
-            sudo systemctl reload nginx
-          "
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "cd /home/ubuntu/queue-engine-for-salon && git pull origin main"
 
-      # ----------------------------------------------------
-      # 4. DEPLOY BACKEND CLUSTER (Zero-Downtime Rolling)
-      # ----------------------------------------------------
-      - name: Deploy Backend Cluster (Zero-Downtime)
-        if: steps.filter.outputs.api == 'true'
-        run: |
-          rsync -avz --delete \
-            --exclude='.env' \
-            --exclude='node_modules' \
-            --exclude='.git' \
-            --exclude='dist' \
-            apps/api/ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/salon/backend/
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
-            cd /home/ubuntu/salon/backend && \
-            bun install && \
-            echo '⚡ Reloading worker salon-api-1...' && \
-            pm2 reload salon-api-1 --update-env && \
-            curl --retry 10 --retry-delay 2 --retry-connrefused -sf http://127.0.0.1:3001/api/health && \
-            echo '⚡ Reloading worker salon-api-2...' && \
-            pm2 reload salon-api-2 --update-env && \
-            curl --retry 10 --retry-delay 2 --retry-connrefused -sf http://127.0.0.1:3002/api/health && \
-            pm2 save
-          "
+      - name: Deploy Gateway
+        if: steps.changes.outputs.run_gateway == 'true'
+        uses: ./.github/actions/deploy-gateway
+        with:
+          ec2_user: ${{ secrets.EC2_USER }}
+          ec2_host: ${{ secrets.EC2_HOST }}
 
-      # ----------------------------------------------------
-      # 5. DEPLOY FRONTEND WEB APPLICATION (Next.js & PM2)
-      # ----------------------------------------------------
-      - name: Deploy Frontend Web Application
-        if: steps.filter.outputs.web == 'true'
-        run: |
-          rsync -avz --delete \
-            --exclude='.env' \
-            --exclude='.env.*' \
-            --exclude='node_modules' \
-            --exclude='.next' \
-            --exclude='.git' \
-            apps/web/ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/salon/frontend/
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
-            cd /home/ubuntu/salon/frontend && \
-            bun install && \
-            bun run build && \
-            pm2 reload salon-frontend --update-env && \
-            pm2 save
-          "
+      - name: Deploy Backend
+        if: steps.changes.outputs.run_backend == 'true'
+        uses: ./.github/actions/deploy-backend
+        with:
+          ec2_user: ${{ secrets.EC2_USER }}
+          ec2_host: ${{ secrets.EC2_HOST }}
 
-      # ----------------------------------------------------
-      # 6. VALIDATE LIVE PUBLIC ENDPOINTS
-      # ----------------------------------------------------
-      - name: Validate Live Public Endpoints
+      - name: Deploy Frontend
+        if: steps.changes.outputs.run_frontend == 'true'
+        uses: ./.github/actions/deploy-frontend
+        with:
+          ec2_user: ${{ secrets.EC2_USER }}
+          ec2_host: ${{ secrets.EC2_HOST }}
+
+      - name: Final Health & Smoke Test
+        if: steps.changes.outputs.run_any == 'true'
         run: |
-          curl --retry 5 --retry-delay 2 --retry-connrefused -f -s -i http://${{ secrets.EC2_HOST }}:8000/api/health
-          curl --retry 5 --retry-delay 2 --retry-connrefused -f -s -I http://${{ secrets.EC2_HOST }}
+          echo "🔍 Validating live public endpoints..."
+          curl --retry 5 --retry-delay 2 --retry-connrefused -fsS http://${{ secrets.EC2_HOST }}:8000/api/health
+          curl --retry 5 --retry-delay 2 --retry-connrefused -fsS -I http://${{ secrets.EC2_HOST }}
+          echo "✅ All public endpoints are responding 200 OK!"

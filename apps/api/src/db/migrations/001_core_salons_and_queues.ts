@@ -95,6 +95,12 @@ export const migration_001_core_salons_and_queues: Migration = {
         completed_time TIMESTAMP NULL,
         payment_status ENUM('PENDING', 'CASH_PAID', 'ONLINE_PAID') DEFAULT 'PENDING',
         payment_amount DECIMAL(10, 2) NULL,
+        coupon_code VARCHAR(50) NULL,
+        coupon_discount DECIMAL(10, 2) DEFAULT 0.00,
+        coupon_id VARCHAR(36) NULL,
+        coupon_discount_type VARCHAR(20) NULL,
+        coupon_discount_value DECIMAL(10, 2) NULL,
+        coupon_max_discount DECIMAL(10, 2) NULL,
         INDEX idx_salon_status_time (salon_id, status, check_in_time),
         INDEX idx_stylist_status (stylist_id, status)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`,

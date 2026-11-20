@@ -7,6 +7,7 @@ import { migration_004_appointments_and_escrow } from './migrations/004_appointm
 import { migration_005_partner_affiliate_system } from './migrations/005_partner_affiliate_system';
 import { migration_006_security_settings } from './migrations/006_security_settings';
 import { migration_007_milestone_loyalty_and_specs } from './migrations/007_milestone_loyalty_and_specs';
+import { migration_008_queue_tickets_coupons } from './migrations/008_queue_tickets_coupons';
 
 import { seedDemoData, syncDemoToMySql, memoryStore } from './repository';
 import { authService } from '../auth/auth-service';
@@ -18,7 +19,8 @@ export const allMigrations: Migration[] = [
   migration_004_appointments_and_escrow,
   migration_005_partner_affiliate_system,
   migration_006_security_settings,
-  migration_007_milestone_loyalty_and_specs
+  migration_007_milestone_loyalty_and_specs,
+  migration_008_queue_tickets_coupons
 ];
 
 export async function ensureMigrationsTable(db: mysql.Pool): Promise<void> {

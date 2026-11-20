@@ -1,0 +1,43 @@
+name: 'Deploy Frontend'
+description: 'Compiles Next.js production bundle via Turbopack and executes zero-downtime PM2 reload'
+
+inputs:
+  ec2_user:
+    description: 'SSH User for EC2/VPS'
+    required: true
+  ec2_host:
+    description: 'SSH Host/IP for EC2/VPS'
+    required: true
+  repo_dir:
+    description: 'Path to repository on VPS'
+    required: false
+    default: '/home/ubuntu/queue-engine-for-salon'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Deploy Frontend to VPS
+      shell: bash
+      run: |
+        echo "🌐 Connecting to VPS for frontend deployment..."
+        ssh ${{ inputs.ec2_user }}@${{ inputs.ec2_host }} "
+          set -e
+          cd ${{ inputs.repo_dir }}
+
+          echo '📦 Ensuring dependencies are up to date...'
+          bun install
+
+          echo '🏗️ Compiling Next.js production build via Turbopack...'
+          bun run build:frontend
+
+          echo '⚡ Reloading worker salon-frontend (:3000)...'
+          (pm2 reload salon-frontend --update-env || pm2 start ecosystem.config.cjs --only salon-frontend)
+
+          echo '🔍 Verifying frontend availability on port 3000...'
+          curl --retry 5 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:3000 > /dev/null
+          echo '  ✓ salon-frontend is healthy.'
+
+          echo '💾 Persisting PM2 state...'
+          pm2 save
+          echo '🎉 Frontend web application deployed successfully with zero downtime!'
+        "

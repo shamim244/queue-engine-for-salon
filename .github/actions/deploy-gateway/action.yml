@@ -1,0 +1,49 @@
+name: 'Deploy Gateway'
+description: 'Safely links, syntax-checks, and reloads Nginx reverse proxy with automated rollback'
+
+inputs:
+  ec2_user:
+    description: 'SSH User for EC2/VPS'
+    required: true
+  ec2_host:
+    description: 'SSH Host/IP for EC2/VPS'
+    required: true
+  repo_dir:
+    description: 'Path to repository on VPS'
+    required: false
+    default: '/home/ubuntu/queue-engine-for-salon'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Verify and Reload Nginx Gateway
+      shell: bash
+      run: |
+        echo "🌐 Deploying Nginx Gateway configuration..."
+        ssh ${{ inputs.ec2_user }}@${{ inputs.ec2_host }} "
+          set -e
+          echo '⚡ Ensuring local upstream nodes configuration exists...'
+          sudo mkdir -p /etc/nginx/conf.d
+          if [ ! -f /etc/nginx/conf.d/salon-backend-nodes.conf ]; then
+            echo '  -> Creating initial /etc/nginx/conf.d/salon-backend-nodes.conf from template...'
+            sudo cp ${{ inputs.repo_dir }}/gateway/conf.d/salon-backend-nodes.conf.example /etc/nginx/conf.d/salon-backend-nodes.conf
+          fi
+
+          echo '⚡ Establishing gateway symlinks in /etc/nginx/sites-enabled/...'
+          sudo ln -sf ${{ inputs.repo_dir }}/gateway/salon-frontend-gateway.conf /etc/nginx/sites-enabled/salon-frontend.conf
+          sudo ln -sf ${{ inputs.repo_dir }}/gateway/salon-backend-gateway.conf /etc/nginx/sites-enabled/salon-backend.conf
+
+          echo '🔍 Validating Nginx configuration syntax...'
+          if sudo nginx -t; then
+            echo '✅ Nginx configuration syntax valid. Reloading service...'
+            sudo systemctl reload nginx
+            echo '🎉 Nginx Gateway successfully reloaded with zero downtime.'
+          else
+            echo '❌ Nginx configuration syntax invalid! Initiating rollback...'
+            cd ${{ inputs.repo_dir }}
+            git checkout HEAD~1 -- gateway/
+            sudo nginx -t
+            echo '🚨 Rolled back gateway configuration to previous commit. Aborting deployment.'
+            exit 1
+          fi
+        "

@@ -1,0 +1,103 @@
+name: 'Detect Changed Components'
+description: 'Evaluates the 7-combination matrix of deployable changes across Gateway, Backend, and Frontend'
+
+inputs:
+  override:
+    description: 'Deployment target override (auto-detect, gateway-only, backend-only, frontend-only, all)'
+    required: false
+    default: 'auto-detect'
+
+outputs:
+  run_gateway:
+    description: 'Deploy Nginx Gateway'
+    value: ${{ steps.detect.outputs.run_gateway }}
+  run_backend:
+    description: 'Deploy Backend Cluster'
+    value: ${{ steps.detect.outputs.run_backend }}
+  run_frontend:
+    description: 'Deploy Frontend Web'
+    value: ${{ steps.detect.outputs.run_frontend }}
+  run_any:
+    description: 'True if at least one component needs deployment'
+    value: ${{ steps.detect.outputs.run_any }}
+  summary:
+    description: 'Summary of changes'
+    value: ${{ steps.detect.outputs.summary }}
+
+runs:
+  using: 'composite'
+  steps:
+    - id: detect
+      shell: bash
+      run: |
+        OVERRIDE="${{ inputs.override }}"
+        echo "🎯 Change detection initiated with override mode: '$OVERRIDE'"
+
+        RUN_GATEWAY="false"
+        RUN_BACKEND="false"
+        RUN_FRONTEND="false"
+
+        case "$OVERRIDE" in
+          "gateway-only")
+            RUN_GATEWAY="true"
+            ;;
+          "backend-only")
+            RUN_BACKEND="true"
+            ;;
+          "frontend-only")
+            RUN_FRONTEND="true"
+            ;;
+          "all")
+            RUN_GATEWAY="true"
+            RUN_BACKEND="true"
+            RUN_FRONTEND="true"
+            ;;
+          "auto-detect"|*)
+            DIFF=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "ALL")
+            echo "=== Changed Files Detected ==="
+            echo "$DIFF"
+
+            if [ "$DIFF" = "ALL" ]; then
+              echo "⚠️ Unable to diff against HEAD~1 (shallow clone or initial commit). Triggering full deployment."
+              RUN_GATEWAY="true"
+              RUN_BACKEND="true"
+              RUN_FRONTEND="true"
+            else
+              if echo "$DIFF" | grep -qE '^(\.github/workflows/deploy\.yml|\.github/actions/detect-changes/)'; then
+                echo "⚡ Pipeline definition changed: running all components."
+                RUN_GATEWAY="true"
+                RUN_BACKEND="true"
+                RUN_FRONTEND="true"
+              fi
+
+              if echo "$DIFF" | grep -qE '^(gateway/|\.github/actions/deploy-gateway/)'; then
+                RUN_GATEWAY="true"
+                echo "  ✓ Gateway changes detected"
+              fi
+
+              if echo "$DIFF" | grep -qE '^(apps/api/|ecosystem\.config\.cjs|package\.json|bun\.lockb|\.github/actions/deploy-backend/)'; then
+                RUN_BACKEND="true"
+                echo "  ✓ Backend changes detected"
+              fi
+
+              if echo "$DIFF" | grep -qE '^(apps/web/|package\.json|bun\.lockb|\.github/actions/deploy-frontend/)'; then
+                RUN_FRONTEND="true"
+                echo "  ✓ Frontend changes detected"
+              fi
+            fi
+            ;;
+        esac
+
+        RUN_ANY="false"
+        if [ "$RUN_GATEWAY" = "true" ] || [ "$RUN_BACKEND" = "true" ] || [ "$RUN_FRONTEND" = "true" ]; then
+          RUN_ANY="true"
+        fi
+
+        SUMMARY="Gateway: $RUN_GATEWAY | Backend: $RUN_BACKEND | Frontend: $RUN_FRONTEND | Any: $RUN_ANY"
+        echo "📊 Detection Result: $SUMMARY"
+
+        echo "run_gateway=$RUN_GATEWAY" >> $GITHUB_OUTPUT
+        echo "run_backend=$RUN_BACKEND" >> $GITHUB_OUTPUT
+        echo "run_frontend=$RUN_FRONTEND" >> $GITHUB_OUTPUT
+        echo "run_any=$RUN_ANY" >> $GITHUB_OUTPUT
+        echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
