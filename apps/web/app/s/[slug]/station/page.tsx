@@ -186,25 +186,30 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       const salonRes = await api.salons.get(slug);
       let targetStylist = activeStylistRef.current;
 
-      if (salonRes.salon) {
-        setSalon((prev) => (prev?.id === salonRes.salon.id ? prev : salonRes.salon));
+      if (!salonRes?.salon) {
+        setIsNotFound(true);
+        setSalon(null);
+        return;
+      }
 
-        // Strict Session Binding: Match authenticated staff user to their specific chair
-        const matchedStylist = salonRes.salon.stylists?.find(
-          (s: Stylist) => s.id === user?.staffId || s.userId === user?.id || (authStaff && s.id === authStaff.id)
-        );
+      setIsNotFound(false);
+      setSalon((prev) => (prev?.id === salonRes.salon.id ? prev : salonRes.salon));
 
-        if (user?.role === "STAFF") {
-          targetStylist = matchedStylist || salonRes.salon.stylists?.[0] || null;
-          setActiveStylist((prev) => (prev?.id === targetStylist?.id ? prev : targetStylist));
-        } else if (!targetStylist && salonRes.salon.stylists?.length > 0) {
-          targetStylist = matchedStylist || salonRes.salon.stylists[0];
-          setActiveStylist((prev) => (prev?.id === targetStylist?.id ? prev : targetStylist));
-        }
+      // Strict Session Binding: Match authenticated staff user to their specific chair
+      const matchedStylist = salonRes.salon.stylists?.find(
+        (s: Stylist) => s.id === user?.staffId || s.userId === user?.id || (authStaff && s.id === authStaff.id)
+      );
 
-        if (!quickAddServiceId && salonRes.salon.services?.length > 0) {
-          setQuickAddServiceId(salonRes.salon.services[0].id);
-        }
+      if (user?.role === "STAFF") {
+        targetStylist = matchedStylist || salonRes.salon.stylists?.[0] || null;
+        setActiveStylist((prev) => (prev?.id === targetStylist?.id ? prev : targetStylist));
+      } else if (!targetStylist && salonRes.salon.stylists?.length > 0) {
+        targetStylist = matchedStylist || salonRes.salon.stylists[0];
+        setActiveStylist((prev) => (prev?.id === targetStylist?.id ? prev : targetStylist));
+      }
+
+      if (!quickAddServiceId && salonRes.salon.services?.length > 0) {
+        setQuickAddServiceId(salonRes.salon.services[0].id);
       }
 
       const queueRes = await api.queue.getActive(salonRes.salon.id);
@@ -288,6 +293,17 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       setIsOffline(false);
     } catch (err) {
       console.error("Failed to load station data:", err);
+      if (isSalonNotFoundError(err)) {
+        setIsNotFound(true);
+        setSalon(null);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.removeItem(`station_offline_cache_${slug}`);
+            localStorage.removeItem(`salon_cache_${slug}`);
+          } catch {}
+        }
+        return;
+      }
       // Rural offline resilience fallback: Load from local device cache
       try {
         const cachedJson = localStorage.getItem(`station_offline_cache_${slug}`);
