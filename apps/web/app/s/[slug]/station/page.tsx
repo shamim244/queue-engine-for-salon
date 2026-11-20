@@ -971,6 +971,10 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
     );
   }
 
+  if (isNotFound) {
+    return <SalonNotFound slug={slug} />;
+  }
+
   // View 0B: Primary Authentication - Staff Account Login (Username/Phone/Email + Password)
   if (!user) {
     return (

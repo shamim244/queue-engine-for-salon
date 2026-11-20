@@ -712,9 +712,8 @@ export function isSalonNotFoundError(err: any): boolean {
   const msg = typeof err.message === "string" ? err.message.toLowerCase() : "";
   return (
     msg.includes("salon not found") ||
-    msg === "not found" ||
-    msg.includes("http 404") ||
-    msg.includes("404 not found")
+    msg.includes("not found") ||
+    msg.includes("404")
   );
 }
 
