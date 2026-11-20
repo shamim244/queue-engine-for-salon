@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import QRCode from "qrcode";
-import { api } from "@/lib/api";
+import { api, isSalonNotFoundError } from "@/lib/api";
 import type { Salon, Ticket } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
+import { SalonNotFound } from "@/components/salon/salon-not-found";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, maskPhone } from "@/lib/utils";
 import { LiveServiceTimer } from "@/components/live-service-timer";
@@ -77,6 +78,7 @@ function announceTicketVoice(ticketNumber: number, customerName: string, stylist
 export default function TvClient({ slug }: { slug: string }) {
   const [salon, setSalon] = useState<Salon | null>(null);
   const [activeTickets, setActiveTickets] = useState<Ticket[]>([]);
+  const [isNotFound, setIsNotFound] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<string>("");
   const [lastSummoned, setLastSummoned] = useState<Ticket | null>(null);
   const [showSummonFlash, setShowSummonFlash] = useState<boolean>(false);
@@ -166,10 +168,11 @@ export default function TvClient({ slug }: { slug: string }) {
   const fetchQueueData = async () => {
     try {
       setIsRefreshing(true);
-      const salonRes = await api.salons.get(slug).catch(() => null);
+      const salonRes = await api.salons.get(slug);
 
       if (salonRes && salonRes.salon) {
         setSalon(salonRes.salon);
+        setIsNotFound(false);
         const queueRes = await api.queue.getActive(salonRes.salon.id).catch(() => ({ tickets: [] }));
         const tickets = queueRes?.tickets || [];
         setActiveTickets(tickets);
@@ -184,28 +187,25 @@ export default function TvClient({ slug }: { slug: string }) {
           prevCalledIdRef.current = null;
         }
       } else {
-        // Fallback for demo or custom slugs (e.g. 'royal')
-        const formattedName = slug ? slug.charAt(0).toUpperCase() + slug.slice(1) + " Salon" : "Salon Lounge";
-        setSalon((prev) => prev || {
-          id: `salon-${slug}`,
-          name: formattedName,
-          slug,
-          phone: "+91 98765 00000",
-          currency: "INR",
-          countryCode: "IN",
-          stylists: [],
-          services: [],
-        });
+        setIsNotFound(true);
+        setSalon(null);
         setActiveTickets([]);
       }
     } catch (err) {
-      console.warn("TV queue fetch error (graceful fallback active):", err);
+      if (isSalonNotFoundError(err)) {
+        setIsNotFound(true);
+        setSalon(null);
+        setActiveTickets([]);
+      } else {
+        console.warn("TV queue fetch error:", err);
+      }
     } finally {
       setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
+    setIsNotFound(false);
     fetchQueueData();
   }, [slug]);
 
@@ -232,6 +232,10 @@ export default function TvClient({ slug }: { slug: string }) {
   const nextInLine = activeTickets.filter(
     (t) => t.status === "WAITING" || t.status === "SOFT_BUMPED"
   );
+
+  if (isNotFound) {
+    return <SalonNotFound slug={slug} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between overflow-x-hidden p-4 sm:p-8 select-none">

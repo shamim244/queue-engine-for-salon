@@ -31,7 +31,7 @@ queue-engine-for-salon/
 │   ├── salon-frontend-gateway.conf           # Port 80 reverse proxy (REST, WS, Next.js)
 │   ├── salon-backend-gateway.conf            # Port 8000 reverse proxy (least_conn load balancer)
 │   └── conf.d/
-│       └── salon-backend-nodes.conf.example  # Starter template for server-local upstream nodes
+│       └── salon-backend-nodes.inc.example  # Starter template for server-local upstream nodes
 └── docs/
     └── superpowers/plans/
         └── 2026-11-20-modular-cicd-pipeline.md # This Master Plan
@@ -89,7 +89,7 @@ flowchart TD
 
 ### Module 2: `deploy-gateway` (`.github/actions/deploy-gateway/action.yml`)
 - **Universal & Drift-Proof:**
-  - `salon-backend-gateway.conf` contains `include /etc/nginx/conf.d/salon-backend-nodes.conf;`.
+  - `salon-backend-gateway.conf` contains `include /etc/nginx/conf.d/salon-backend-nodes.inc;`.
   - Server-specific load balancer nodes live in `/etc/nginx/conf.d/` outside git, so git pushes **never delete or overwrite server-level scaling additions**.
 - **Symlink Operation:**
   - Production uses symlinks: `/etc/nginx/sites-enabled/*.conf` $\rightarrow$ `~/queue-engine-for-salon/gateway/*.conf`.
@@ -133,7 +133,7 @@ On any fresh or existing Ubuntu VPS, running these three commands establishes th
 ```bash
 # 1. Create server-local nodes file (outside git)
 sudo mkdir -p /etc/nginx/conf.d
-sudo cp ~/queue-engine-for-salon/gateway/conf.d/salon-backend-nodes.conf.example /etc/nginx/conf.d/salon-backend-nodes.conf
+sudo cp ~/queue-engine-for-salon/gateway/conf.d/salon-backend-nodes.inc.example /etc/nginx/conf.d/salon-backend-nodes.inc
 
 # 2. Establish direct symlinks
 sudo ln -sf ~/queue-engine-for-salon/gateway/salon-frontend-gateway.conf /etc/nginx/sites-enabled/salon-frontend.conf
@@ -148,8 +148,8 @@ sudo nginx -t && sudo systemctl reload nginx
 ## 5. Implementation Tasks (Bite-Sized)
 
 - [x] **Task 1: Gateway Decoupling & Node Isolation**
-  - Update `gateway/salon-backend-gateway.conf` to include `/etc/nginx/conf.d/salon-backend-nodes.conf;`
-  - Create template `gateway/conf.d/salon-backend-nodes.conf.example`
+  - Update `gateway/salon-backend-gateway.conf` to include `/etc/nginx/conf.d/salon-backend-nodes.inc;`
+  - Create template `gateway/conf.d/salon-backend-nodes.inc.example`
 - [x] **Task 2: Build `detect-changes` Composite Action**
   - Implement 7-combination detection matrix in `.github/actions/detect-changes/action.yml`
 - [x] **Task 3: Build `deploy-gateway` Composite Action**

@@ -2,11 +2,12 @@
 
 import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, isSalonNotFoundError } from "@/lib/api";
 import type { Salon } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { SalonNavbar } from "@/components/salon/salon-navbar";
 import { SalonServicesList } from "@/components/salon/salon-services-list";
+import { SalonNotFound } from "@/components/salon/salon-not-found";
 import { ArrowLeft, Zap, ShieldCheck } from "lucide-react";
 
 export default function DedicatedServicesPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -14,8 +15,10 @@ export default function DedicatedServicesPage({ params }: { params: Promise<{ sl
   const { user } = useAuth();
   const [salon, setSalon] = useState<Salon | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isNotFound, setIsNotFound] = useState(false);
 
   useEffect(() => {
+    setIsNotFound(false);
     // SWR Cache First
     if (typeof window !== "undefined") {
       try {
@@ -30,20 +33,37 @@ export default function DedicatedServicesPage({ params }: { params: Promise<{ sl
     const loadSalon = async () => {
       try {
         const res = await api.salons.get(slug);
-        if (res.salon) {
+        if (res?.salon) {
           setSalon(res.salon);
+          setIsNotFound(false);
           if (typeof window !== "undefined") {
             localStorage.setItem(`salon_cache_${slug}`, JSON.stringify(res.salon));
           }
+        } else {
+          setIsNotFound(true);
+          setSalon(null);
         }
       } catch (err) {
         console.error("Failed to load salon services:", err);
+        if (isSalonNotFoundError(err)) {
+          setIsNotFound(true);
+          setSalon(null);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.removeItem(`salon_cache_${slug}`);
+            } catch {}
+          }
+        }
       } finally {
         setLoading(false);
       }
     };
     loadSalon();
   }, [slug]);
+
+  if (isNotFound) {
+    return <SalonNotFound slug={slug} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950">

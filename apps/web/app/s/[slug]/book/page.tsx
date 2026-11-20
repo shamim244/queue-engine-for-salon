@@ -3,7 +3,8 @@
 import React, { useEffect, useState, useMemo, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, type Salon, type Service, type Stylist, type AppointmentSlot } from "@/lib/api";
+import { api, isSalonNotFoundError, type Salon, type Service, type Stylist, type AppointmentSlot } from "@/lib/api";
+import { SalonNotFound } from "@/components/salon/salon-not-found";
 import { SlotGrid } from "@/components/booking/slot-grid";
 import { WeekCalendarStrip } from "@/components/booking/week-calendar-strip";
 import {
@@ -45,6 +46,7 @@ export default function BookAppointmentPage({
 
   const [salon, setSalon] = useState<Salon | null>(null);
   const [loadingSalon, setLoadingSalon] = useState(true);
+  const [isNotFound, setIsNotFound] = useState(false);
 
   // Dynamic Booking Policy from Admin / Salon Settings
   const [policy, setPolicy] = useState<{
@@ -109,17 +111,22 @@ export default function BookAppointmentPage({
   // Fetch Salon Catalog and Dynamic Booking Policy
   useEffect(() => {
     let isMounted = true;
+    setIsNotFound(false);
     Promise.all([
       api.salons.get(slug),
       api.appointments.getPolicy(slug).catch(() => null),
     ])
       .then(([salonRes, policyRes]) => {
         if (!isMounted) return;
-        if (salonRes.salon) {
+        if (salonRes?.salon) {
           setSalon(salonRes.salon);
+          setIsNotFound(false);
           if (salonRes.salon.services?.length > 0) {
             setSelectedServiceId(salonRes.salon.services[0].id);
           }
+        } else {
+          setIsNotFound(true);
+          setSalon(null);
         }
         if (policyRes?.policy) {
           setPolicy(policyRes.policy);
@@ -131,7 +138,17 @@ export default function BookAppointmentPage({
         }
       })
       .catch((err) => {
+        if (!isMounted) return;
         console.error("Failed to load salon for booking:", err);
+        if (isSalonNotFoundError(err)) {
+          setIsNotFound(true);
+          setSalon(null);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.removeItem(`salon_cache_${slug}`);
+            } catch {}
+          }
+        }
       })
       .finally(() => {
         if (isMounted) setLoadingSalon(false);
@@ -333,6 +350,10 @@ export default function BookAppointmentPage({
       setSubmitting(false);
     }
   };
+
+  if (isNotFound) {
+    return <SalonNotFound slug={slug} />;
+  }
 
   if (loadingSalon) {
     return (

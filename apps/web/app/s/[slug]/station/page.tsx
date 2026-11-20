@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState, useCallback, use } from "react";
 import { parseTimestampMs } from "@/lib/utils";
-import { api, request, markTicketNoShow } from "@/lib/api";
+import { api, request, markTicketNoShow, isSalonNotFoundError } from "@/lib/api";
 import type { Salon, Ticket, Stylist } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
 import { useAuth } from "@/lib/auth-context";
+import { SalonNotFound } from "@/components/salon/salon-not-found";
 import { CheckCircle2, AlertCircle, Sparkles, Armchair, Users, Columns, Layers } from "lucide-react";
 
 // Modular Station Components
@@ -31,6 +32,7 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const [salon, setSalon] = useState<Salon | null>(null);
   const [activeTickets, setActiveTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isNotFound, setIsNotFound] = useState(false);
 
   // Authentication & Stylist Lock State (Username/Password is primary, PIN lock is optional screen lock)
   const [activeStylist, setActiveStylist] = useState<Stylist | null>(null);

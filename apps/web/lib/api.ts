@@ -677,12 +677,17 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
 
   if (!response.ok) {
     let errorMsg = `HTTP ${response.status} ${response.statusText}`;
+    let errorData: any = null;
     try {
       const errJson = await response.json();
+      errorData = errJson;
       if (errJson.message) errorMsg = errJson.message;
       else if (errJson.error) errorMsg = errJson.error;
     } catch {}
-    throw new Error(errorMsg);
+    const err = new Error(errorMsg);
+    (err as any).status = response.status;
+    (err as any).data = errorData;
+    throw err;
   }
 
   if (response.status === 204) {
@@ -699,6 +704,18 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
   } catch {
     return text as unknown as T;
   }
+}
+
+export function isSalonNotFoundError(err: any): boolean {
+  if (!err) return false;
+  if (err.status === 404) return true;
+  const msg = typeof err.message === "string" ? err.message.toLowerCase() : "";
+  return (
+    msg.includes("salon not found") ||
+    msg === "not found" ||
+    msg.includes("http 404") ||
+    msg.includes("404 not found")
+  );
 }
 
 function serializeBody(body: any): BodyInit | undefined {

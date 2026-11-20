@@ -1,0 +1,6 @@
+# Upstream worker nodes for salon_backend_cluster
+# Copy this file to /etc/nginx/conf.d/salon-backend-nodes.inc on the VPS.
+# This file uses .inc so /etc/nginx/nginx.conf does not auto-include it at the top-level http block.
+
+server 127.0.0.1:3001;
+server 127.0.0.1:3002;

@@ -25,10 +25,10 @@ runs:
           export PATH=\"\$HOME/.bun/bin:\$HOME/.local/bin:/usr/local/bin:\$PATH\"
           echo '⚡ Ensuring local upstream nodes configuration exists...'
           sudo mkdir -p /etc/nginx/conf.d /etc/nginx/sites-enabled
-          sudo rm -f /etc/nginx/sites-enabled/default
-          if [ ! -f /etc/nginx/conf.d/salon-backend-nodes.conf ]; then
-            echo '  -> Creating initial /etc/nginx/conf.d/salon-backend-nodes.conf from template...'
-            sudo cp ${{ inputs.repo_dir }}/gateway/conf.d/salon-backend-nodes.conf.example /etc/nginx/conf.d/salon-backend-nodes.conf
+          sudo rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/salon-backend-nodes.conf
+          if [ ! -f /etc/nginx/conf.d/salon-backend-nodes.inc ]; then
+            echo '  -> Creating initial /etc/nginx/conf.d/salon-backend-nodes.inc from template...'
+            sudo cp ${{ inputs.repo_dir }}/gateway/conf.d/salon-backend-nodes.inc.example /etc/nginx/conf.d/salon-backend-nodes.inc
           fi
 
           echo '⚡ Establishing gateway symlinks in /etc/nginx/sites-enabled/...'

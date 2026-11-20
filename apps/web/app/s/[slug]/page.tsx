@@ -2,11 +2,12 @@
 
 import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, isSalonNotFoundError } from "@/lib/api";
 import type { Salon, Ticket } from "@/lib/api";
 import { useSalonSocket } from "@/lib/socket";
 import { useAuth } from "@/lib/auth-context";
 import { SalonNavbar } from "@/components/salon/salon-navbar";
+import { SalonNotFound } from "@/components/salon/salon-not-found";
 import { SalonServicesList } from "@/components/salon/salon-services-list";
 import { SalonStylists } from "@/components/salon/salon-stylists";
 import { SalonReviews } from "@/components/salon/salon-reviews";
@@ -43,35 +44,52 @@ export default function CustomerStorefrontPage({ params }: { params: Promise<{ s
   const [activeTickets, setActiveTickets] = useState<Ticket[]>([]);
   const [appointmentPolicy, setAppointmentPolicy] = useState<{ enabled: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isNotFound, setIsNotFound] = useState(false);
 
   const fetchSalonAndQueue = async () => {
     try {
       const salonRes = await api.salons.get(slug);
-      if (salonRes.salon) {
+      if (salonRes?.salon) {
         setSalon(salonRes.salon);
+        setIsNotFound(false);
         if (typeof window !== "undefined") {
           try {
             localStorage.setItem(`salon_cache_${slug}`, JSON.stringify(salonRes.salon));
           } catch {}
         }
+      } else {
+        setIsNotFound(true);
+        setSalon(null);
       }
 
-      const [queueRes, policyRes] = await Promise.all([
-        api.queue.getActive(salonRes.salon.id),
-        api.appointments.getPolicy(slug).catch(() => null),
-      ]);
-      setActiveTickets(queueRes.tickets || []);
-      if (policyRes?.policy) {
-        setAppointmentPolicy(policyRes.policy);
+      if (salonRes?.salon?.id) {
+        const [queueRes, policyRes] = await Promise.all([
+          api.queue.getActive(salonRes.salon.id).catch(() => ({ tickets: [] })),
+          api.appointments.getPolicy(slug).catch(() => null),
+        ]);
+        setActiveTickets(queueRes.tickets || []);
+        if (policyRes?.policy) {
+          setAppointmentPolicy(policyRes.policy);
+        }
       }
     } catch (err) {
       console.error("Failed to load salon storefront:", err);
+      if (isSalonNotFoundError(err)) {
+        setIsNotFound(true);
+        setSalon(null);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.removeItem(`salon_cache_${slug}`);
+          } catch {}
+        }
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    setIsNotFound(false);
     // SWR Instant Pre-warm
     if (typeof window !== "undefined") {
       try {
@@ -97,6 +115,10 @@ export default function CustomerStorefrontPage({ params }: { params: Promise<{ s
     (t) => t.status === "WAITING" || t.status === "SUMMONED" || t.status === "CALLED"
   );
   const totalWaitMinutes = waitingSequence.length * 15;
+
+  if (isNotFound) {
+    return <SalonNotFound slug={slug} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950 scroll-smooth">
