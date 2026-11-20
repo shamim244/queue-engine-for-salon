@@ -22,6 +22,7 @@ runs:
         echo "🌐 Connecting to VPS for frontend deployment..."
         ssh ${{ inputs.ec2_user }}@${{ inputs.ec2_host }} "
           set -e
+          export PATH=\"\$HOME/.bun/bin:\$HOME/.local/bin:/usr/local/bin:\$PATH\"
           cd ${{ inputs.repo_dir }}
 
           echo '📦 Ensuring dependencies are up to date...'

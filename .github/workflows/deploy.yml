@@ -2,21 +2,14 @@ name: Production CI/CD Deployment
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
     inputs:
       deploy_target:
         description: 'Target to deploy'
-        required: false
         default: 'auto-detect'
         type: choice
-        options:
-          - 'auto-detect'
-          - 'gateway-only'
-          - 'backend-only'
-          - 'frontend-only'
-          - 'all'
+        options: ['auto-detect', 'gateway-only', 'backend-only', 'frontend-only', 'all']
 
 concurrency:
   group: production-deploy
@@ -27,61 +20,47 @@ jobs:
     name: Production Deployment Grid
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
-
       - name: Detect Changed Components
         id: changes
         uses: ./.github/actions/detect-changes
         with:
-          override: ${{ github.event.inputs.deploy_target || 'auto-detect' }}
-
+          override: ${{ inputs.deploy_target || github.event.inputs.deploy_target || 'auto-detect' }}
       - name: Configure SSH Key
         if: steps.changes.outputs.run_any == 'true'
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
-
       - name: Add Server Host to Known Hosts
         if: steps.changes.outputs.run_any == 'true'
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-
+        run: mkdir -p ~/.ssh && ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
       - name: Pull Latest Changes on VPS
         if: steps.changes.outputs.run_any == 'true'
-        run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "cd /home/ubuntu/queue-engine-for-salon && git pull origin main"
-
+        run: ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "cd /home/ubuntu/queue-engine-for-salon && git pull origin main"
       - name: Deploy Gateway
         if: steps.changes.outputs.run_gateway == 'true'
         uses: ./.github/actions/deploy-gateway
         with:
           ec2_user: ${{ secrets.EC2_USER }}
           ec2_host: ${{ secrets.EC2_HOST }}
-
       - name: Deploy Backend
         if: steps.changes.outputs.run_backend == 'true'
         uses: ./.github/actions/deploy-backend
         with:
           ec2_user: ${{ secrets.EC2_USER }}
           ec2_host: ${{ secrets.EC2_HOST }}
-
       - name: Deploy Frontend
         if: steps.changes.outputs.run_frontend == 'true'
         uses: ./.github/actions/deploy-frontend
         with:
           ec2_user: ${{ secrets.EC2_USER }}
           ec2_host: ${{ secrets.EC2_HOST }}
-
       - name: Final Health & Smoke Test
         if: steps.changes.outputs.run_any == 'true'
         run: |
-          echo "🔍 Validating live public endpoints..."
           curl --retry 5 --retry-delay 2 --retry-connrefused -fsS http://${{ secrets.EC2_HOST }}:8000/api/health
           curl --retry 5 --retry-delay 2 --retry-connrefused -fsS -I http://${{ secrets.EC2_HOST }}
-          echo "✅ All public endpoints are responding 200 OK!"

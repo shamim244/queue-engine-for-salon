@@ -16,7 +16,7 @@ export const migration_008_queue_tickets_coupons: Migration = {
       try {
         await db.query(sql);
       } catch (err: any) {
-        if (!err.message?.includes('Duplicate column')) {
+        if (err.code !== 'ER_DUP_FIELDNAME' && err.errno !== 1060 && !err.message?.includes('Duplicate column')) {
           throw err;
         }
       }

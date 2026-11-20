@@ -81,9 +81,10 @@ flowchart TD
 ### Module 1: `detect-changes` (`.github/actions/detect-changes/action.yml`)
 - **Responsibility:** Evaluates git diff against `HEAD~1` (or honors manual `workflow_dispatch` dropdown inputs).
 - **Paths Monitored:**
-  - `gateway/**` $\rightarrow$ sets `run_gateway=true`
-  - `apps/api/**`, `apps/api/src/db/**`, `ecosystem.config.cjs`, `package.json` $\rightarrow$ sets `run_backend=true`
-  - `apps/web/**`, `package.json` $\rightarrow$ sets `run_frontend=true`
+  - `gateway/**`, `.github/actions/deploy-gateway/**` $\rightarrow$ sets `run_gateway=true`
+  - `apps/api/**`, `ecosystem.config.cjs`, `package.json`, `bun.lock*`, `.github/actions/deploy-backend/**` $\rightarrow$ sets `run_backend=true`
+  - `apps/web/**`, `ecosystem.config.cjs`, `package.json`, `bun.lock*`, `.github/actions/deploy-frontend/**` $\rightarrow$ sets `run_frontend=true`
+  - `.github/workflows/deploy.yml`, `.github/actions/detect-changes/**` $\rightarrow$ sets all (`run_gateway`, `run_backend`, `run_frontend`) to `true`
 - **Output Flags:** `run_gateway`, `run_backend`, `run_frontend`, `run_any`.
 
 ### Module 2: `deploy-gateway` (`.github/actions/deploy-gateway/action.yml`)
