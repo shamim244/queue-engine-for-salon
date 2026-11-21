@@ -1,22 +1,38 @@
-# External Cloudflare Tunnel Backend Bridge (Example)
+# ==============================================================================
+# UNIVERSAL CLOUDFLARE TUNNEL ROUTER (Example)
 # Copy this file to /etc/nginx/conf.d/salon-external-tunnel.conf on the VPS.
-# This bridges plain HTTP from the Nginx upstream cluster to an external HTTPS Cloudflare Tunnel.
+# To add a new tunnel URL in the future: Just add ONE line to the map below!
+# ==============================================================================
+map $server_port $tunnel_backend {
+    3003 api1.nexgentech.site;
+    # 3004 api2.nexgentech.site;
+    # 3005 api3.nexgentech.site;
+    # 3006 api4.nexgentech.site;
+}
 
 server {
+    # Pre-opened tunnel ports
     listen 127.0.0.1:3003;
+    listen 127.0.0.1:3004;
+    listen 127.0.0.1:3005;
+    listen 127.0.0.1:3006;
     server_name _;
 
-    # Public DNS resolver for dynamic Cloudflare IP resolution
     resolver 1.1.1.1 8.8.8.8 valid=300s;
     resolver_timeout 5s;
 
     location / {
-        proxy_pass https://api1.nexgentech.site;
-        proxy_ssl_server_name on;
-        proxy_ssl_name api1.nexgentech.site;
-        proxy_set_header Host api1.nexgentech.site;
+        if ($tunnel_backend = "") {
+            return 502 "Tunnel backend not mapped to this port.";
+        }
 
-        # Real Client IP forwarding
+        # Dynamic HTTPS forwarding with automatic SNI & Host
+        proxy_pass https://$tunnel_backend;
+        proxy_ssl_server_name on;
+        proxy_ssl_name $tunnel_backend;
+        proxy_set_header Host $tunnel_backend;
+
+        # Real Client IP preservation
         proxy_set_header X-Real-IP $client_ip;
         proxy_set_header CF-Connecting-IP $http_cf_connecting_ip;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
