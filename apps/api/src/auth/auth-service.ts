@@ -624,8 +624,7 @@ export const authService = {
     }
 
     if (user.salonId) {
-      const allSalons = await repository.getAllSalons();
-      salon = allSalons.find((s) => s.id === user.salonId) || null;
+      salon = await repository.getSalonById(user.salonId);
       if (user.staffId && salon) {
         staff = salon.stylists.find((st) => st.id === user.staffId) || null;
       }

@@ -42,6 +42,11 @@ export async function initDatabase(options: { skipAutoMigrate?: boolean } = {}):
       timezone: 'Z',
     });
 
+    // Test real connectivity before declaring MySQL active
+    const conn = await pool.getConnection();
+    await conn.ping();
+    conn.release();
+
     // 3. Ensure migrations table exists and auto-apply migrations on server startup unless skipped
     if (!options.skipAutoMigrate) {
       await runMigrations();
@@ -51,6 +56,10 @@ export async function initDatabase(options: { skipAutoMigrate?: boolean } = {}):
     console.log(`[MySQL 8.0] Successfully connected to '${config.db.database}' at ${config.db.host}:${config.db.port}`);
     return true;
   } catch (err: any) {
+    if (pool) {
+      try { await pool.end(); } catch {}
+      pool = null;
+    }
     console.warn(`[MySQL 8.0 Warning] Could not connect to MySQL: ${err.message}`);
     console.warn(`[Engine Que System] Operating with resilient In-Memory Store. (Update DB_PASSWORD in .env when ready).`);
     isMySqlConnected = false;
