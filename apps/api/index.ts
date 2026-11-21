@@ -8,6 +8,7 @@ import { initDatabase } from './src/db/mysql';
 import { seedDemoData } from './src/db/repository';
 import { authService } from './src/auth/auth-service';
 import { websocketHub } from './src/websocket/hub';
+import { safeJsonParse } from './src/websocket/security';
 import { jobQueue } from './src/worker/job-queue';
 import { registerNotificationHandler } from './src/worker/handlers/notification.handler';
 import { registerResetHandler } from './src/worker/handlers/reset.handler';
@@ -133,6 +134,11 @@ const app = new Elysia()
     ...cacheService.getStatus(),
     timestamp: new Date().toISOString(),
   }))
+  .get('/api/system/websocket', () => ({
+    success: true,
+    ...websocketHub.getStatus(),
+    timestamp: new Date().toISOString(),
+  }))
   .use(swagger({
     path: '/swagger',
     documentation: {
@@ -175,20 +181,24 @@ const app = new Elysia()
   // Real-time WebSocket Endpoint
   .ws('/ws', {
     open(ws) {
-      const salonId = (ws.data.query?.salonId as string) || 'salon-rural-01';
+      const querySalonId = typeof ws.data.query?.salonId === 'string' ? ws.data.query.salonId.trim() : '';
+      const salonId = querySalonId && /^[a-zA-Z0-9_\-\.:]+$/.test(querySalonId) ? querySalonId : 'salon-rural-01';
       websocketHub.addClient(ws.id, salonId, (data) => ws.send(data));
     },
     message(ws, message) {
       let parsed: any = message;
       if (typeof message === 'string') {
-        try {
-          parsed = JSON.parse(message);
-        } catch {}
+        const result = safeJsonParse(message);
+        if (!result.success) {
+          // Reject malformed or prototype-polluting payloads
+          return;
+        }
+        parsed = result.data;
       }
       if (parsed && typeof parsed === 'object') {
         if (parsed.action === 'subscribe' || parsed.type === 'JOIN_SALON') {
           const salonId = parsed.salonId;
-          if (salonId) {
+          if (salonId && typeof salonId === 'string' && /^[a-zA-Z0-9_\-\.:]+$/.test(salonId)) {
             websocketHub.addClient(ws.id, salonId, (data) => ws.send(data));
           }
         }
