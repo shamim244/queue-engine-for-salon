@@ -1,6 +1,7 @@
 # Upstream worker nodes for salon_backend_cluster
 # Copy this file to /etc/nginx/conf.d/salon-backend-nodes.inc on the VPS.
-# This file uses .inc so /etc/nginx/nginx.conf does not auto-include it at the top-level http block.
+# max_fails=1 fail_timeout=10s guarantees that if a worker is stopped, Nginx marks it down in 0ms and routes to active workers.
 
-server 127.0.0.1:3001;
-server 127.0.0.1:3002;
+server 127.0.0.1:3001 max_fails=1 fail_timeout=10s;
+server 127.0.0.1:3002 max_fails=1 fail_timeout=10s;
+# server 127.0.0.1:3003; # External Cloudflare Tunnel
