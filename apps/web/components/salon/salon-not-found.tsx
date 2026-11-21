@@ -33,9 +33,11 @@ export function SalonNotFound({ slug }: SalonNotFoundProps) {
   const handleCopyLink = () => {
     if (typeof window === "undefined") return;
     try {
-      navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(window.location.href);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      }
     } catch {}
   };
 

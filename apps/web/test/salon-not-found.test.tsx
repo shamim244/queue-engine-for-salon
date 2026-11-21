@@ -194,5 +194,72 @@ describe("Salon Not Found & Slug Guard Architecture", () => {
       expect(source).toContain("<SalonNotFound slug={slug} />");
       expect(source).toContain("localStorage.removeItem(`station_offline_cache_${slug}`)");
     });
+
+    it("Appointment Pass (/s/[slug]/appointment/[id]/page.tsx) must guard with SalonNotFound on 404", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const pagePath = path.resolve(process.cwd(), "apps/web/app/s/[slug]/appointment/[id]/page.tsx");
+      const source = fs.readFileSync(pagePath, "utf-8");
+
+      expect(source).toContain("isSalonNotFoundError");
+      expect(source).toContain("SalonNotFound");
+      expect(source).toContain("if (isNotFound)");
+      expect(source).toContain("<SalonNotFound slug={slug} />");
+      expect(source).toContain("api.salons.get(slug)");
+    });
+
+    it("Salons index (/s/page.tsx) must redirect to /", async () => {
+      const SalonsPageModule = await import("../app/s/page");
+      const SalonsPage = SalonsPageModule.default;
+
+      try {
+        SalonsPage();
+        expect(false).toBe(true);
+      } catch (err: any) {
+        expect(err.message).toContain("NEXT_REDIRECT: /");
+      }
+    });
+  });
+
+  describe("6. Route Transition & Error Isolation Guards", () => {
+    it("Storefront must reset state on slug changes to prevent stale salon leaks", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const pagePath = path.resolve(process.cwd(), "apps/web/app/s/[slug]/page.tsx");
+      const source = fs.readFileSync(pagePath, "utf-8");
+
+      expect(source).toContain("setSalon(null)");
+      expect(source).toContain("setActiveTickets([])");
+    });
+
+    it("Queue page must isolate queue fetch errors and reset on slug changes", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const pagePath = path.resolve(process.cwd(), "apps/web/app/s/[slug]/queue/page.tsx");
+      const source = fs.readFileSync(pagePath, "utf-8");
+
+      expect(source).toContain("setSalon(null)");
+      expect(source).toContain("api.queue.getActive(currentSalon.id).catch(() => ({ tickets: [] }))");
+    });
+
+    it("Services page must reset state on slug changes", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const pagePath = path.resolve(process.cwd(), "apps/web/app/s/[slug]/services/page.tsx");
+      const source = fs.readFileSync(pagePath, "utf-8");
+
+      expect(source).toContain("setSalon(null)");
+    });
+
+    it("TV Client must guard initial loading state and reset on slug changes", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const tvPath = path.resolve(process.cwd(), "apps/web/app/s/[slug]/tv/tv-client.tsx");
+      const source = fs.readFileSync(tvPath, "utf-8");
+
+      expect(source).toContain("if (initialLoading && !salon)");
+      expect(source).toContain("setSalon(null)");
+      expect(source).toContain("setActiveTickets([])");
+    });
   });
 });

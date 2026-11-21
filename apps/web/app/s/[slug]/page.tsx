@@ -48,23 +48,40 @@ export default function CustomerStorefrontPage({ params }: { params: Promise<{ s
 
   const fetchSalonAndQueue = async () => {
     try {
-      const salonRes = await api.salons.get(slug);
-      if (salonRes?.salon) {
-        setSalon(salonRes.salon);
-        setIsNotFound(false);
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.setItem(`salon_cache_${slug}`, JSON.stringify(salonRes.salon));
-          } catch {}
+      let currentSalon: Salon | null = null;
+      try {
+        const salonRes = await api.salons.get(slug);
+        if (salonRes?.salon) {
+          currentSalon = salonRes.salon;
+          setSalon(salonRes.salon);
+          setIsNotFound(false);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`salon_cache_${slug}`, JSON.stringify(salonRes.salon));
+            } catch {}
+          }
+        } else {
+          setIsNotFound(true);
+          setSalon(null);
+          return;
         }
-      } else {
-        setIsNotFound(true);
-        setSalon(null);
+      } catch (salonErr) {
+        if (isSalonNotFoundError(salonErr)) {
+          setIsNotFound(true);
+          setSalon(null);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.removeItem(`salon_cache_${slug}`);
+            } catch {}
+          }
+          return;
+        }
+        throw salonErr;
       }
 
-      if (salonRes?.salon?.id) {
+      if (currentSalon?.id) {
         const [queueRes, policyRes] = await Promise.all([
-          api.queue.getActive(salonRes.salon.id).catch(() => ({ tickets: [] })),
+          api.queue.getActive(currentSalon.id).catch(() => ({ tickets: [] })),
           api.appointments.getPolicy(slug).catch(() => null),
         ]);
         setActiveTickets(queueRes.tickets || []);
@@ -74,15 +91,6 @@ export default function CustomerStorefrontPage({ params }: { params: Promise<{ s
       }
     } catch (err) {
       console.error("Failed to load salon storefront:", err);
-      if (isSalonNotFoundError(err)) {
-        setIsNotFound(true);
-        setSalon(null);
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.removeItem(`salon_cache_${slug}`);
-          } catch {}
-        }
-      }
     } finally {
       setLoading(false);
     }
@@ -90,6 +98,11 @@ export default function CustomerStorefrontPage({ params }: { params: Promise<{ s
 
   useEffect(() => {
     setIsNotFound(false);
+    setSalon(null);
+    setActiveTickets([]);
+    setAppointmentPolicy(null);
+    setLoading(true);
+
     // SWR Instant Pre-warm
     if (typeof window !== "undefined") {
       try {

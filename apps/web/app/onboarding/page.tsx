@@ -10,8 +10,12 @@ export default async function OnboardingPage({
   query.set("type", "owner");
 
   for (const [key, value] of Object.entries(params)) {
-    if (key !== "type" && typeof value === "string") {
-      query.set(key, value);
+    if (key !== "type") {
+      if (typeof value === "string") {
+        query.set(key, value);
+      } else if (Array.isArray(value) && value.length > 0 && typeof value[0] === "string") {
+        query.set(key, value[0]);
+      }
     }
   }
 

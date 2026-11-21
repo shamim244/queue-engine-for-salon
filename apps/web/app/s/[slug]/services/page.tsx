@@ -19,6 +19,9 @@ export default function DedicatedServicesPage({ params }: { params: Promise<{ sl
 
   useEffect(() => {
     setIsNotFound(false);
+    setSalon(null);
+    setLoading(true);
+
     // SWR Cache First
     if (typeof window !== "undefined") {
       try {
@@ -37,7 +40,9 @@ export default function DedicatedServicesPage({ params }: { params: Promise<{ sl
           setSalon(res.salon);
           setIsNotFound(false);
           if (typeof window !== "undefined") {
-            localStorage.setItem(`salon_cache_${slug}`, JSON.stringify(res.salon));
+            try {
+              localStorage.setItem(`salon_cache_${slug}`, JSON.stringify(res.salon));
+            } catch {}
           }
         } else {
           setIsNotFound(true);

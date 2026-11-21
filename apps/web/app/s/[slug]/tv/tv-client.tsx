@@ -86,6 +86,7 @@ export default function TvClient({ slug }: { slug: string }) {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [initialLoading, setInitialLoading] = useState<boolean>(true);
 
   const prevCalledIdRef = useRef<string | null>(null);
 
@@ -168,12 +169,31 @@ export default function TvClient({ slug }: { slug: string }) {
   const fetchQueueData = async () => {
     try {
       setIsRefreshing(true);
-      const salonRes = await api.salons.get(slug);
+      let salonData: Salon | null = null;
+      try {
+        const salonRes = await api.salons.get(slug);
+        if (salonRes && salonRes.salon) {
+          salonData = salonRes.salon;
+          setSalon(salonRes.salon);
+          setIsNotFound(false);
+        } else {
+          setIsNotFound(true);
+          setSalon(null);
+          setActiveTickets([]);
+          return;
+        }
+      } catch (salonErr) {
+        if (isSalonNotFoundError(salonErr)) {
+          setIsNotFound(true);
+          setSalon(null);
+          setActiveTickets([]);
+          return;
+        }
+        throw salonErr;
+      }
 
-      if (salonRes && salonRes.salon) {
-        setSalon(salonRes.salon);
-        setIsNotFound(false);
-        const queueRes = await api.queue.getActive(salonRes.salon.id).catch(() => ({ tickets: [] }));
+      if (salonData?.id) {
+        const queueRes = await api.queue.getActive(salonData.id).catch(() => ({ tickets: [] }));
         const tickets = queueRes?.tickets || [];
         setActiveTickets(tickets);
 
@@ -186,26 +206,20 @@ export default function TvClient({ slug }: { slug: string }) {
         } else {
           prevCalledIdRef.current = null;
         }
-      } else {
-        setIsNotFound(true);
-        setSalon(null);
-        setActiveTickets([]);
       }
     } catch (err) {
-      if (isSalonNotFoundError(err)) {
-        setIsNotFound(true);
-        setSalon(null);
-        setActiveTickets([]);
-      } else {
-        console.warn("TV queue fetch error:", err);
-      }
+      console.warn("TV queue fetch error:", err);
     } finally {
       setIsRefreshing(false);
+      setInitialLoading(false);
     }
   };
 
   useEffect(() => {
     setIsNotFound(false);
+    setSalon(null);
+    setActiveTickets([]);
+    setInitialLoading(true);
     fetchQueueData();
   }, [slug]);
 
@@ -235,6 +249,17 @@ export default function TvClient({ slug }: { slug: string }) {
 
   if (isNotFound) {
     return <SalonNotFound slug={slug} />;
+  }
+
+  if (initialLoading && !salon) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-400 gap-3 select-none">
+        <div className="h-10 w-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm font-semibold uppercase tracking-wider text-slate-300">
+          Connecting Live Lounge TV...
+        </span>
+      </div>
+    );
   }
 
   return (

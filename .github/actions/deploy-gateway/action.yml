@@ -30,6 +30,10 @@ runs:
             echo '  -> Creating initial /etc/nginx/conf.d/salon-backend-nodes.inc from template...'
             sudo cp ${{ inputs.repo_dir }}/gateway/conf.d/salon-backend-nodes.inc.example /etc/nginx/conf.d/salon-backend-nodes.inc
           fi
+          if [ ! -f /etc/nginx/conf.d/salon-frontend-nodes.inc ]; then
+            echo '  -> Creating initial /etc/nginx/conf.d/salon-frontend-nodes.inc from template...'
+            sudo cp ${{ inputs.repo_dir }}/gateway/conf.d/salon-frontend-nodes.inc.example /etc/nginx/conf.d/salon-frontend-nodes.inc
+          fi
 
           echo '⚡ Establishing gateway symlinks in /etc/nginx/sites-enabled/...'
           sudo ln -sf ${{ inputs.repo_dir }}/gateway/salon-frontend-gateway.conf /etc/nginx/sites-enabled/salon-frontend.conf

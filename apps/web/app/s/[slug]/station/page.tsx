@@ -58,16 +58,25 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
 
   // Immediate Optimistic Cache Hydration (Sub-50ms offline & initial load)
   useEffect(() => {
+    setIsNotFound(false);
+    setSalon(null);
+    setActiveStylist(null);
+    setActiveTickets([]);
+    setCurrentlyServing(null);
+    setSummonedTicket(null);
+    setDailyReport(null);
+    setLoading(true);
+
     try {
       const cachedJson = localStorage.getItem(`station_offline_cache_${slug}`);
       if (cachedJson) {
         const cached = JSON.parse(cachedJson);
-        if (cached.salon) setSalon((prev) => prev || cached.salon);
-        if (cached.activeStylist) setActiveStylist((prev) => prev || cached.activeStylist);
+        if (cached.salon) setSalon(cached.salon);
+        if (cached.activeStylist) setActiveStylist(cached.activeStylist);
         if (Array.isArray(cached.tickets) && cached.tickets.length > 0) {
-          setActiveTickets((prev) => (prev.length === 0 ? cached.tickets : prev));
-          if (cached.currentlyServing) setCurrentlyServing((prev) => prev || cached.currentlyServing);
-          if (cached.summonedTicket) setSummonedTicket((prev) => prev || cached.summonedTicket);
+          setActiveTickets(cached.tickets);
+          if (cached.currentlyServing) setCurrentlyServing(cached.currentlyServing);
+          if (cached.summonedTicket) setSummonedTicket(cached.summonedTicket);
         }
       }
       const cachedReport = localStorage.getItem(`station_daily_summary_${slug}`);
@@ -959,8 +968,8 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
   const eligibleTicketsCount = eligibleWaitingTickets.length;
   const nextEligibleTicket = eligibleWaitingTickets[0] || null;
 
-  // View 0A: Loading Auth State
-  if (authLoading) {
+  // View 0A: Loading Auth State or Initial Station Loading
+  if (authLoading || (loading && !salon && !isNotFound)) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
         <div className="h-16 w-16 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center animate-pulse text-amber-400 shadow-xl">

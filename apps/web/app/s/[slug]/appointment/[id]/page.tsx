@@ -3,9 +3,10 @@
 import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, type Appointment, type Salon } from "@/lib/api";
+import { api, isSalonNotFoundError, type Appointment, type Salon } from "@/lib/api";
 import { BookingPassCard } from "@/components/booking/booking-pass-card";
 import { RescheduleModal } from "@/components/booking/reschedule-modal";
+import { SalonNotFound } from "@/components/salon/salon-not-found";
 import {
   ArrowLeft,
   Share2,
@@ -27,27 +28,55 @@ export default function AppointmentPassPage({
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [salon, setSalon] = useState<Salon | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isNotFound, setIsNotFound] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const fetchAppointment = async () => {
+  const fetchAppointmentAndSalon = async () => {
     try {
-      const res = await api.appointments.getById(id);
-      if (res.success && res.appointment) {
-        setAppointment(res.appointment);
-        setSalon(res.salon);
+      const [salonRes, apptRes] = await Promise.all([
+        api.salons.get(slug),
+        api.appointments.getById(id).catch(() => null),
+      ]);
+
+      if (salonRes?.salon) {
+        setSalon(salonRes.salon);
+        setIsNotFound(false);
+      } else {
+        setIsNotFound(true);
+        setSalon(null);
+        return;
+      }
+
+      if (apptRes?.success && apptRes?.appointment) {
+        if (apptRes.appointment.salonId === salonRes.salon.id) {
+          setAppointment(apptRes.appointment);
+        } else {
+          setAppointment(null);
+        }
+      } else {
+        setAppointment(null);
       }
     } catch (err) {
-      console.error("[AppointmentPassPage] Failed to load appointment:", err);
+      console.error("[AppointmentPassPage] Failed to load appointment or salon:", err);
+      if (isSalonNotFoundError(err)) {
+        setIsNotFound(true);
+        setSalon(null);
+        setAppointment(null);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAppointment();
-  }, [id]);
+    setIsNotFound(false);
+    setSalon(null);
+    setAppointment(null);
+    setLoading(true);
+    fetchAppointmentAndSalon();
+  }, [slug, id]);
 
   const handleCheckIn = async () => {
     if (!appointment) return;
@@ -72,6 +101,10 @@ export default function AppointmentPassPage({
     const text = `💈 My Salon Booking Pass for ${appointment.serviceName} at ${appointment.slotStartTime} (${appointment.scheduledDate}): ${url}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   };
+
+  if (isNotFound) {
+    return <SalonNotFound slug={slug} />;
+  }
 
   if (loading) {
     return (

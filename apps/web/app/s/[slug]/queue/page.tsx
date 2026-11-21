@@ -263,26 +263,43 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
 
   const fetchSalonAndQueue = async () => {
     try {
-      const salonRes = await api.salons.get(slug);
-      if (salonRes?.salon) {
-        setSalon(salonRes.salon);
-        setIsNotFound(false);
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.setItem(`salon_cache_${slug}`, JSON.stringify(salonRes.salon));
-          } catch {}
+      let currentSalon: Salon | null = null;
+      try {
+        const salonRes = await api.salons.get(slug);
+        if (salonRes?.salon) {
+          currentSalon = salonRes.salon;
+          setSalon(salonRes.salon);
+          setIsNotFound(false);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`salon_cache_${slug}`, JSON.stringify(salonRes.salon));
+            } catch {}
+          }
+          if (!selectedServiceId && salonRes.salon.services?.length > 0) {
+            setSelectedServiceId(preselectedServiceId || salonRes.salon.services[0].id);
+          }
+        } else {
+          setIsNotFound(true);
+          setSalon(null);
+          return;
         }
-        if (!selectedServiceId && salonRes.salon.services?.length > 0) {
-          setSelectedServiceId(preselectedServiceId || salonRes.salon.services[0].id);
+      } catch (salonErr) {
+        if (isSalonNotFoundError(salonErr)) {
+          setIsNotFound(true);
+          setSalon(null);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.removeItem(`salon_cache_${slug}`);
+            } catch {}
+          }
+          return;
         }
-      } else {
-        setIsNotFound(true);
-        setSalon(null);
+        throw salonErr;
       }
 
-      if (salonRes?.salon?.id) {
-        const queueRes = await api.queue.getActive(salonRes.salon.id);
-        const tickets = queueRes.tickets || [];
+      if (currentSalon?.id) {
+        const queueRes = await api.queue.getActive(currentSalon.id).catch(() => ({ tickets: [] }));
+        const tickets = queueRes?.tickets || [];
         setActiveTickets(tickets);
 
         // Check if user has an active ticket
@@ -306,15 +323,6 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
       }
     } catch (err) {
       console.error("Queue load error:", err);
-      if (isSalonNotFoundError(err)) {
-        setIsNotFound(true);
-        setSalon(null);
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.removeItem(`salon_cache_${slug}`);
-          } catch {}
-        }
-      }
     } finally {
       setLoading(false);
     }
@@ -322,6 +330,11 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
 
   useEffect(() => {
     setIsNotFound(false);
+    setSalon(null);
+    setMyTicket(null);
+    setActiveTickets([]);
+    setLoading(true);
+
     if (typeof window !== "undefined") {
       try {
         const cached = localStorage.getItem(`salon_cache_${slug}`);

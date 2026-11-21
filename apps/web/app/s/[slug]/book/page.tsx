@@ -112,6 +112,8 @@ export default function BookAppointmentPage({
   useEffect(() => {
     let isMounted = true;
     setIsNotFound(false);
+    setSalon(null);
+    setLoadingSalon(true);
     Promise.all([
       api.salons.get(slug),
       api.appointments.getPolicy(slug).catch(() => null),
