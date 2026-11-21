@@ -8,7 +8,13 @@ import { initDatabase } from './src/db/mysql';
 import { seedDemoData } from './src/db/repository';
 import { authService } from './src/auth/auth-service';
 import { websocketHub } from './src/websocket/hub';
-import { safeJsonParse } from './src/websocket/security';
+import {
+  safeJsonParse,
+  SAFE_SALON_ID_REGEX,
+  verifyAdminAccess,
+  checkWsConnectionRateLimit,
+} from './src/websocket/security';
+import { rateLimiter } from './src/security/rate-limiter';
 import { jobQueue } from './src/worker/job-queue';
 import { registerNotificationHandler } from './src/worker/handlers/notification.handler';
 import { registerResetHandler } from './src/worker/handlers/reset.handler';
@@ -129,16 +135,50 @@ const app = new Elysia()
     timestamp: Date.now(),
     uptime: process.uptime(),
   }))
-  .get('/api/system/cache', () => ({
-    success: true,
-    ...cacheService.getStatus(),
-    timestamp: new Date().toISOString(),
-  }))
-  .get('/api/system/websocket', () => ({
-    success: true,
-    ...websocketHub.getStatus(),
-    timestamp: new Date().toISOString(),
-  }))
+  .get('/api/system/cache', async ({ headers, query }) => {
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '');
+    const adminKey = (headers as any)['x-admin-key'] || (query as any)?.adminKey;
+    const isAuth = await verifyAdminAccess(token, adminKey);
+    const status = cacheService.getStatus();
+    if (!isAuth) {
+      return {
+        success: true,
+        activeMode: status.activeMode,
+        isHealthy: true,
+        timestamp: new Date().toISOString(),
+      };
+    }
+    return {
+      success: true,
+      ...status,
+      timestamp: new Date().toISOString(),
+    };
+  })
+  .get('/api/system/websocket', async ({ headers, query }) => {
+    const token = headers.authorization?.replace(/^Bearer\s+/i, '');
+    const adminKey = (headers as any)['x-admin-key'] || (query as any)?.adminKey;
+    const isAuth = await verifyAdminAccess(token, adminKey);
+    const status = websocketHub.getStatus();
+    if (!isAuth) {
+      return {
+        success: true,
+        instanceId: 'inst_sanitized',
+        adapterName: status.adapterName,
+        isPubSubConnected: status.isPubSubConnected,
+        clientCount: status.clientCount,
+        uniqueSalonsCount: status.uniqueSalonsCount,
+        stats: {
+          localDeliveredCount: status.stats.localDeliveredCount,
+        },
+        timestamp: new Date().toISOString(),
+      };
+    }
+    return {
+      success: true,
+      ...status,
+      timestamp: new Date().toISOString(),
+    };
+  })
   .use(swagger({
     path: '/swagger',
     documentation: {
@@ -180,12 +220,82 @@ const app = new Elysia()
 
   // Real-time WebSocket Endpoint
   .ws('/ws', {
-    open(ws) {
-      const querySalonId = typeof ws.data.query?.salonId === 'string' ? ws.data.query.salonId.trim() : '';
-      const salonId = querySalonId && /^[a-zA-Z0-9_\-\.:]+$/.test(querySalonId) ? querySalonId : 'salon-rural-01';
-      websocketHub.addClient(ws.id, salonId, (data) => ws.send(data));
+    async open(ws) {
+      const headers = (ws.data?.headers || {}) as any;
+      const clientIp = rateLimiter.getClientIp(headers) || '127.0.0.1';
+
+      // 1. Connection Rate Limiting (SEC-02)
+      const rateResult = checkWsConnectionRateLimit(clientIp);
+      if (!rateResult.allowed) {
+        try {
+          ws.send(JSON.stringify({
+            type: 'ERROR',
+            error: 'RATE_LIMIT_EXCEEDED',
+            message: 'Too many connection attempts. Please try again later.',
+            retryAfter: rateResult.retryAfter,
+          }));
+          ws.close(1008, 'Rate limit exceeded');
+        } catch {}
+        return;
+      }
+
+      // 2. Validate salonId & Admin Authorization (SEC-01 & SEC-06)
+      const rawSalonId = typeof ws.data.query?.salonId === 'string' ? ws.data.query.salonId.trim() : '';
+      const token = typeof ws.data.query?.token === 'string' ? ws.data.query.token.trim() : undefined;
+      const adminKey = typeof ws.data.query?.adminKey === 'string'
+        ? ws.data.query.adminKey.trim()
+        : (typeof headers['x-admin-key'] === 'string' ? headers['x-admin-key'].trim() : undefined);
+
+      let isAdmin = false;
+      let salonId = 'salon-rural-01';
+
+      if (rawSalonId && SAFE_SALON_ID_REGEX.test(rawSalonId)) {
+        if (rawSalonId === 'GLOBAL' || rawSalonId === 'ADMIN') {
+          isAdmin = await verifyAdminAccess(token, adminKey);
+          if (isAdmin) {
+            salonId = rawSalonId;
+          } else {
+            ws.send(JSON.stringify({
+              type: 'ERROR',
+              error: 'UNAUTHORIZED_SUBSCRIPTION',
+              message: 'Public subscription to GLOBAL or ADMIN channels is prohibited.',
+            }));
+            salonId = '';
+          }
+        } else {
+          salonId = rawSalonId;
+        }
+      }
+
+      websocketHub.addClient(
+        ws.id,
+        salonId,
+        (data) => ws.send(data),
+        isAdmin,
+        () => ws.close(),
+        () => ws.readyState === 1,
+        () => {
+          try {
+            ws.ping();
+          } catch {}
+        }
+      );
     },
-    message(ws, message) {
+    async message(ws, message) {
+      // 1. Message rate limiting per socket
+      const msgRate = rateLimiter.checkLimit(`ws:msg:${ws.id}`, 60, 10);
+      if (!msgRate.allowed) {
+        try {
+          ws.send(JSON.stringify({
+            type: 'ERROR',
+            error: 'RATE_LIMIT_EXCEEDED',
+            message: 'Message rate limit exceeded.',
+            retryAfter: msgRate.retryAfter,
+          }));
+        } catch {}
+        return;
+      }
+
       let parsed: any = message;
       if (typeof message === 'string') {
         const result = safeJsonParse(message);
@@ -195,15 +305,48 @@ const app = new Elysia()
         }
         parsed = result.data;
       }
+
       if (parsed && typeof parsed === 'object') {
+        // Record heartbeat on every message received (SEC-04)
+        websocketHub.recordHeartbeat(ws.id);
+
         if (parsed.action === 'subscribe' || parsed.type === 'JOIN_SALON') {
-          const salonId = parsed.salonId;
-          if (salonId && typeof salonId === 'string' && /^[a-zA-Z0-9_\-\.:]+$/.test(salonId)) {
-            websocketHub.addClient(ws.id, salonId, (data) => ws.send(data));
+          const reqSalonId = parsed.salonId;
+          if (reqSalonId && typeof reqSalonId === 'string' && SAFE_SALON_ID_REGEX.test(reqSalonId)) {
+            let isAdmin = false;
+            if (reqSalonId === 'GLOBAL' || reqSalonId === 'ADMIN') {
+              isAdmin = await verifyAdminAccess(parsed.token, parsed.adminKey);
+              if (!isAdmin) {
+                ws.send(JSON.stringify({
+                  type: 'ERROR',
+                  error: 'UNAUTHORIZED_SUBSCRIPTION',
+                  message: 'Public subscription to GLOBAL or ADMIN channels is prohibited.',
+                }));
+                return;
+              }
+            }
+            websocketHub.addClient(
+              ws.id,
+              reqSalonId,
+              (data) => ws.send(data),
+              isAdmin,
+              () => ws.close(),
+              () => ws.readyState === 1,
+              () => {
+                try {
+                  ws.ping();
+                } catch {}
+              }
+            );
           }
         }
+
         if (parsed.type === 'PING' || parsed.action === 'ping') {
           ws.send(JSON.stringify({ type: 'PONG', timestamp: Date.now() }));
+        }
+
+        if (parsed.type === 'PONG' || parsed.action === 'pong') {
+          // Heartbeat acknowledged
         }
       }
     },

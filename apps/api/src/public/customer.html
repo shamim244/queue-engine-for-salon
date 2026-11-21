@@ -357,6 +357,10 @@
       socket.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
+          if (payload && (payload.type === 'PING' || payload.type === 'PONG')) {
+            if (payload.type === 'PING') socket.send(JSON.stringify({ type: 'PONG' }));
+            return;
+          }
           if (currentTicket && payload.ticket && payload.ticket.id === currentTicket.id) {
             currentTicket = payload.ticket;
             updateTicketStatus(payload.ticket.status, payload.ticket.estimatedWaitMinutes, payload.ticket.positionInQueue);

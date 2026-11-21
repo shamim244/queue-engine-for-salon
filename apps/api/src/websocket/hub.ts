@@ -25,6 +25,7 @@ export class WebSocketHub {
   private dedupCache = new Map<string, number>();
   private dedupTtlMs: number;
   private dedupMaxSize: number;
+  private heartbeatInterval: any = null;
 
   private stats: WebSocketHubStats = {
     publishedCount: 0,
@@ -36,7 +37,7 @@ export class WebSocketHub {
   };
 
   constructor(options?: WebSocketHubOptions) {
-    this.instanceId = options?.instanceId || `inst_${process.pid || 1}_${Math.random().toString(36).slice(2, 9)}`;
+    this.instanceId = options?.instanceId || `inst_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
     this.channel = options?.channel || 'salon:events';
     this.dedupTtlMs = options?.dedupTtlMs || 60 * 1000; // 60s TTL
     this.dedupMaxSize = options?.dedupMaxSize || 5000;
@@ -50,6 +51,10 @@ export class WebSocketHub {
     }
 
     this.initPubSub();
+
+    if (process.env.NODE_ENV !== 'test') {
+      this.startHeartbeat(options?.heartbeatIntervalMs || 30000, options?.heartbeatTimeoutMs || 60000);
+    }
   }
 
   private initPubSub() {
@@ -81,8 +86,119 @@ export class WebSocketHub {
     this.aliasMap.get(slug)!.add(id);
   }
 
-  public addClient(id: string, salonId: string, send: (data: string) => void): void {
-    this.subscribers.set(id, { id, salonId, send });
+  public addClient(
+    id: string,
+    salonId: string,
+    send: (data: string) => void,
+    isAdmin: boolean = false,
+    close?: () => void,
+    isSocketAlive?: () => boolean,
+    ping?: () => void
+  ): void {
+    const isGlobal = salonId === 'GLOBAL' || salonId === 'ADMIN';
+    const effectiveSalonId = isGlobal && !isAdmin ? '' : salonId;
+    const effectiveIsAdmin = Boolean(isAdmin);
+
+    this.subscribers.set(id, {
+      id,
+      salonId: effectiveSalonId,
+      send,
+      isAdmin: effectiveIsAdmin,
+      close,
+      isSocketAlive,
+      ping,
+      lastSeenAt: Date.now(),
+      isAlive: true,
+    });
+  }
+
+  public getClient(id: string): ClientSubscriber | undefined {
+    return this.subscribers.get(id);
+  }
+
+  public recordHeartbeat(id: string): void {
+    const client = this.subscribers.get(id);
+    if (client) {
+      client.lastSeenAt = Date.now();
+      client.isAlive = true;
+    }
+  }
+
+  /**
+   * Proactively sweeps and prunes dead, half-open mobile sockets exceeding maxIdleMs.
+   */
+  public sweepDeadConnections(maxIdleMs: number = 60 * 1000): number {
+    const now = Date.now();
+    const deadClientIds: string[] = [];
+
+    for (const sub of this.subscribers.values()) {
+      const isSocketDead = typeof sub.isSocketAlive === 'function' && !sub.isSocketAlive();
+      const isIdleTimeout = now - sub.lastSeenAt > maxIdleMs;
+      if (isSocketDead || isIdleTimeout) {
+        deadClientIds.push(sub.id);
+      }
+    }
+
+    for (const id of deadClientIds) {
+      const sub = this.subscribers.get(id);
+      if (sub) {
+        try {
+          sub.close?.();
+        } catch {}
+        this.subscribers.delete(id);
+      }
+    }
+
+    return deadClientIds.length;
+  }
+
+  /**
+   * Proactively pings all connected clients and prunes any dead sockets where send() throws or readyState is closed.
+   */
+  public pingClients(): void {
+    const pingPayload = JSON.stringify({ type: 'PING', timestamp: Date.now() });
+    const deadClientIds: string[] = [];
+
+    for (const sub of this.subscribers.values()) {
+      if (typeof sub.isSocketAlive === 'function' && !sub.isSocketAlive()) {
+        deadClientIds.push(sub.id);
+        continue;
+      }
+      try {
+        if (typeof sub.ping === 'function') {
+          sub.ping();
+        }
+        sub.send(pingPayload);
+      } catch {
+        deadClientIds.push(sub.id);
+      }
+    }
+
+    for (const id of deadClientIds) {
+      const sub = this.subscribers.get(id);
+      try {
+        sub.close?.();
+      } catch {}
+      this.subscribers.delete(id);
+    }
+  }
+
+  public startHeartbeat(intervalMs: number = 30000, maxIdleMs: number = 60000): void {
+    this.stopHeartbeat();
+    this.heartbeatInterval = setInterval(() => {
+      this.sweepDeadConnections(maxIdleMs);
+      this.pingClients();
+    }, intervalMs);
+    if (this.heartbeatInterval?.unref) {
+      this.heartbeatInterval.unref();
+    }
+  }
+
+  public stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
   }
 
   public removeClient(id: string): void {
@@ -226,7 +342,7 @@ export class WebSocketHub {
     const deadClientIds: string[] = [];
 
     for (const sub of this.subscribers.values()) {
-      if (isSalonAuthorized(sub.salonId, salonId, alternateId, this.aliasMap)) {
+      if (isSalonAuthorized(sub.salonId, salonId, alternateId, this.aliasMap, sub.isAdmin)) {
         try {
           sub.send(payloadString);
           count++;
@@ -266,30 +382,25 @@ export class WebSocketHub {
 
   private recordEventId(eventId: string): void {
     const now = Date.now();
+    if (this.dedupCache.has(eventId)) {
+      this.dedupCache.delete(eventId);
+    }
     this.dedupCache.set(eventId, now + this.dedupTtlMs);
 
-    // Maintain max size to prevent unbounded memory growth
-    if (this.dedupCache.size > this.dedupMaxSize) {
-      this.cleanExpiredDedupKeys();
+    // O(1) eviction of the oldest entry when exceeding dedupMaxSize
+    while (this.dedupCache.size > this.dedupMaxSize) {
+      const oldestKey = this.dedupCache.keys().next().value;
+      if (oldestKey === undefined) break;
+      this.dedupCache.delete(oldestKey);
     }
   }
 
-  private cleanExpiredDedupKeys(): void {
-    const now = Date.now();
-    for (const [key, expiry] of this.dedupCache.entries()) {
-      if (now > expiry) {
-        this.dedupCache.delete(key);
-      }
-    }
-    // If still over max size after expiry cleanup, prune the oldest entries
-    if (this.dedupCache.size > this.dedupMaxSize) {
-      let toRemove = this.dedupCache.size - this.dedupMaxSize;
-      for (const key of this.dedupCache.keys()) {
-        if (toRemove <= 0) break;
-        this.dedupCache.delete(key);
-        toRemove--;
-      }
-    }
+  public getDedupCacheSize(): number {
+    return this.dedupCache.size;
+  }
+
+  public hasDedupEvent(eventId: string): boolean {
+    return this.dedupCache.has(eventId);
   }
 
   public getStatus(): WebSocketHubStatus {
@@ -309,6 +420,7 @@ export class WebSocketHub {
   }
 
   public async disconnect(): Promise<void> {
+    this.stopHeartbeat();
     this.clearClients();
     this.dedupCache.clear();
     await this.adapter.disconnect();

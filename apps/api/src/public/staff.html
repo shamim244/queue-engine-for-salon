@@ -904,6 +904,10 @@
       socket.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
+          if (payload && (payload.type === 'PING' || payload.type === 'PONG')) {
+            if (payload.type === 'PING') socket.send(JSON.stringify({ type: 'PONG' }));
+            return;
+          }
           fetchQueue();
         } catch (e) {}
       };

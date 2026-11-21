@@ -31,6 +31,15 @@ class SlidingWindowRateLimiter {
     timestamps.push(now);
     this.attempts.set(key, timestamps);
 
+    // Periodic bounded eviction to avoid memory growth from unique client IPs
+    if (this.attempts.size > 2000) {
+      for (const [k, v] of this.attempts.entries()) {
+        if (!v.some(ts => ts > windowStart)) {
+          this.attempts.delete(k);
+        }
+      }
+    }
+
     return {
       allowed: true,
       remaining: Math.max(0, maxAttempts - timestamps.length),

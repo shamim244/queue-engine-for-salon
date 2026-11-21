@@ -89,8 +89,12 @@ export default function CustomerStorefrontPage({ params }: { params: Promise<{ s
           setAppointmentPolicy(policyRes.policy);
         }
       }
-    } catch (err) {
-      console.error("Failed to load salon storefront:", err);
+    } catch (err: any) {
+      if (typeof window !== "undefined" && localStorage.getItem(`salon_cache_${slug}`)) {
+        console.warn(`[Storefront SWR] Network sync deferred (${err?.message || err}). Displaying cached salon state.`);
+      } else {
+        console.error("Failed to load salon storefront:", err);
+      }
     } finally {
       setLoading(false);
     }

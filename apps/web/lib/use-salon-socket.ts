@@ -228,6 +228,13 @@ export function useSalonSocket(
             setLastPing(Date.now());
             return;
           }
+          if (data && data.type === "PING") {
+            try {
+              ws.send(JSON.stringify({ type: "PONG", timestamp: Date.now() }));
+            } catch {}
+            setLastPing(Date.now());
+            return;
+          }
           if (callbackRef.current && data) {
             callbackRef.current(data);
           }

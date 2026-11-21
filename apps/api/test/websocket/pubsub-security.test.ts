@@ -5,6 +5,8 @@ import {
   isSalonAuthorized,
   hasPrototypePollution,
   deepContainsPollution,
+  verifyAdminAccess,
+  checkWsConnectionRateLimit,
 } from '../../src/websocket/security';
 
 describe('WebSocket Pub/Sub Security & Multi-Tenant Boundary Suite', () => {
@@ -135,6 +137,20 @@ describe('WebSocket Pub/Sub Security & Multi-Tenant Boundary Suite', () => {
       const res3 = validateEnvelope({ ...validEnvelope, event: { type: 'INVALID TYPE WITH SPACES' } });
       expect(res3.valid).toBe(false);
     });
+
+    it('should reject envelopes with salonId or alternateId containing colon characters (SEC-06)', () => {
+      const res1 = validateEnvelope({ ...validEnvelope, salonId: 'salon:rural:01' });
+      expect(res1.valid).toBe(false);
+      expect(res1.error).toContain('salonId');
+
+      const res2 = validateEnvelope({ ...validEnvelope, salonId: 'events:all' });
+      expect(res2.valid).toBe(false);
+      expect(res2.error).toContain('salonId');
+
+      const res3 = validateEnvelope({ ...validEnvelope, alternateId: 'slug:with:colon' });
+      expect(res3.valid).toBe(false);
+      expect(res3.error).toContain('alternateId');
+    });
   });
 
   describe('3. Multi-Tenant Boundary Isolation', () => {
@@ -161,10 +177,17 @@ describe('WebSocket Pub/Sub Security & Multi-Tenant Boundary Suite', () => {
       expect(isSalonAuthorized('some-random-salon', 'salon-rural-01', undefined, aliasMap)).toBe(false);
     });
 
-    it('should authorize GLOBAL and ADMIN clients for cross-tenant governance', () => {
-      expect(isSalonAuthorized('GLOBAL', 'salon-rural-01', undefined, aliasMap)).toBe(true);
-      expect(isSalonAuthorized('ADMIN', 'salon-rural-01', undefined, aliasMap)).toBe(true);
-      expect(isSalonAuthorized('GLOBAL', 'salon-modern-02', undefined, aliasMap)).toBe(true);
+    it('should strictly BLOCK unauthenticated GLOBAL and ADMIN clients (SEC-01)', () => {
+      expect(isSalonAuthorized('GLOBAL', 'salon-rural-01', undefined, aliasMap, false)).toBe(false);
+      expect(isSalonAuthorized('ADMIN', 'salon-rural-01', undefined, aliasMap, false)).toBe(false);
+      expect(isSalonAuthorized('GLOBAL', 'salon-modern-02', undefined, aliasMap, false)).toBe(false);
+      expect(isSalonAuthorized('GLOBAL', 'salon-rural-01', undefined, aliasMap)).toBe(false);
+    });
+
+    it('should authorize verified admin for GLOBAL and ADMIN cross-tenant governance', () => {
+      expect(isSalonAuthorized('GLOBAL', 'salon-rural-01', undefined, aliasMap, true)).toBe(true);
+      expect(isSalonAuthorized('ADMIN', 'salon-rural-01', undefined, aliasMap, true)).toBe(true);
+      expect(isSalonAuthorized('GLOBAL', 'salon-modern-02', undefined, aliasMap, true)).toBe(true);
     });
 
     it('should authorize even with asymmetric alias registration', () => {
@@ -179,6 +202,31 @@ describe('WebSocket Pub/Sub Security & Multi-Tenant Boundary Suite', () => {
         ['salon-x-slug', new Set(['salon-x'])],
       ]);
       expect(isSalonAuthorized('salon-x-slug', 'salon-x', undefined, reverseMap)).toBe(true);
+    });
+  });
+
+  describe('4. Admin Privilege Verification & Connection Rate Limiting', () => {
+    it('should reject unauthenticated admin verification requests', async () => {
+      expect(await verifyAdminAccess(undefined, undefined)).toBe(false);
+      expect(await verifyAdminAccess('invalid-token', 'wrong-key')).toBe(false);
+    });
+
+    it('should authorize valid admin credentials in test environment', async () => {
+      expect(await verifyAdminAccess(undefined, 'test-admin-key')).toBe(true);
+      expect(await verifyAdminAccess('test-admin-token', undefined)).toBe(true);
+    });
+
+    it('should throttle connection attempts when limit is reached', () => {
+      const testIp = '192.168.10.99';
+      // Allow up to 3 attempts
+      expect(checkWsConnectionRateLimit(testIp, 3, 10).allowed).toBe(true);
+      expect(checkWsConnectionRateLimit(testIp, 3, 10).allowed).toBe(true);
+      expect(checkWsConnectionRateLimit(testIp, 3, 10).allowed).toBe(true);
+      // 4th attempt should be blocked
+      const blocked = checkWsConnectionRateLimit(testIp, 3, 10);
+      expect(blocked.allowed).toBe(false);
+      expect(blocked.remaining).toBe(0);
+      expect(blocked.retryAfter).toBeGreaterThan(0);
     });
   });
 });

@@ -334,6 +334,11 @@
 
       socket.onmessage = (event) => {
         try {
+          const d = JSON.parse(event.data);
+          if (d && (d.type === 'PING' || d.type === 'PONG')) {
+            if (d.type === 'PING') socket.send(JSON.stringify({ type: 'PONG' }));
+            return;
+          }
           refreshQueue();
         } catch (e) {}
       };

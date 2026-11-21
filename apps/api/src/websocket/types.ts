@@ -2,6 +2,12 @@ export interface ClientSubscriber {
   id: string;
   salonId: string;
   send: (data: string) => void;
+  isAdmin?: boolean;
+  close?: () => void;
+  ping?: () => void;
+  isSocketAlive?: () => boolean;
+  lastSeenAt: number;
+  isAlive: boolean;
 }
 
 /**
@@ -37,6 +43,8 @@ export interface WebSocketHubOptions {
   channelPattern?: string;
   dedupTtlMs?: number;
   dedupMaxSize?: number;
+  heartbeatIntervalMs?: number;
+  heartbeatTimeoutMs?: number;
 }
 
 export interface WebSocketHubStats {

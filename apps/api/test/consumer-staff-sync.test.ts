@@ -313,7 +313,7 @@ describe('Staff Station, Consumer Lifecycle, and 4-Way Synchronization Suite', (
       let broadcastReceived: any = null;
       websocketHub.addClient('client-admin', 'ADMIN', (msg) => {
         broadcastReceived = JSON.parse(msg);
-      });
+      }, true);
 
       const res = await app.handle(
         new Request('http://localhost/api/auth/staff/preference', {

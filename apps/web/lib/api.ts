@@ -669,11 +669,23 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
     } catch {}
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: "include",
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
+  } catch (fetchErr: any) {
+    if (fetchErr?.name === "TypeError" && fetchErr?.message?.includes("fetch")) {
+      const enhanced = new TypeError(
+        `Failed to reach API at ${url}. Ensure the backend server (port 3001) is running and accessible.`
+      );
+      (enhanced as any).cause = fetchErr;
+      throw enhanced;
+    }
+    throw fetchErr;
+  }
 
   if (!response.ok) {
     let errorMsg = `HTTP ${response.status} ${response.statusText}`;

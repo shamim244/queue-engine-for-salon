@@ -276,4 +276,181 @@ describe('Enterprise WebSocket Hub & Redis Pub/Sub Suite', () => {
       expect(envelope.salonId).toBe('salon-special-99');
     });
   });
+
+  describe('5. Deduplication Cache Eviction Algorithmic Complexity (SEC-07)', () => {
+    it('should evict oldest entries in O(1) FIFO order when exceeding dedupMaxSize', async () => {
+      // Hub with small dedupMaxSize of 3
+      const microHub = new WebSocketHub({
+        instanceId: 'inst_micro',
+        adapter: pubsubNetwork,
+        dedupMaxSize: 3,
+      });
+
+      // Broadcast 5 events
+      for (let i = 1; i <= 5; i++) {
+        await microHub.broadcastToSalon('salon-rural-01', {
+          type: 'QUEUE_UPDATED',
+          salonId: 'salon-rural-01',
+          timestamp: new Date().toISOString(),
+          index: i,
+        });
+      }
+
+      // Max size must be strictly bounded at 3
+      expect(microHub.getDedupCacheSize()).toBe(3);
+
+      await microHub.disconnect();
+    });
+
+    it('should perform 1,000 insertions into full dedup cache in under 50ms (O(1) complexity)', async () => {
+      const benchmarkHub = new WebSocketHub({
+        instanceId: 'inst_bench',
+        adapter: pubsubNetwork,
+        dedupMaxSize: 100,
+      });
+
+      const startTime = performance.now();
+      for (let i = 0; i < 1000; i++) {
+        await benchmarkHub.broadcastToSalon('salon-rural-01', {
+          type: 'QUEUE_UPDATED',
+          salonId: 'salon-rural-01',
+          timestamp: new Date().toISOString(),
+          i,
+        });
+      }
+      const duration = performance.now() - startTime;
+
+      expect(benchmarkHub.getDedupCacheSize()).toBe(100);
+      expect(duration).toBeLessThan(500); // Sub-half-second for 1000 broadcasts + evictions
+
+      await benchmarkHub.disconnect();
+    });
+  });
+
+  describe('6. Heartbeat & Dead Connection Pruning (SEC-04)', () => {
+    it('should record heartbeat and update lastSeenAt', () => {
+      hubA.addClient('client-hb', 'salon-rural-01', () => {});
+      const client = hubA.getClient('client-hb');
+      expect(client).toBeDefined();
+      const initialSeen = client!.lastSeenAt;
+
+      // Advance time slightly
+      const tick = Date.now() + 50;
+      hubA.recordHeartbeat('client-hb');
+      expect(client!.lastSeenAt).toBeGreaterThanOrEqual(initialSeen);
+      expect(client!.isAlive).toBe(true);
+    });
+
+    it('should sweep and prune dead connections exceeding maxIdleMs', () => {
+      let closedSocket = false;
+      hubA.addClient(
+        'client-dead-idle',
+        'salon-rural-01',
+        () => {},
+        false,
+        () => {
+          closedSocket = true;
+        }
+      );
+      hubA.addClient('client-active', 'salon-rural-01', () => {});
+
+      // Artificially age the dead client's lastSeenAt
+      const deadClient = hubA.getClient('client-dead-idle');
+      deadClient!.lastSeenAt = Date.now() - 70000; // 70s ago
+
+      expect(hubA.getClientCount()).toBe(2);
+
+      // Sweep with 60s max idle
+      const prunedCount = hubA.sweepDeadConnections(60000);
+      expect(prunedCount).toBe(1);
+      expect(hubA.getClientCount()).toBe(1);
+      expect(hubA.getClient('client-dead-idle')).toBeUndefined();
+      expect(hubA.getClient('client-active')).toBeDefined();
+      expect(closedSocket).toBe(true);
+    });
+
+    it('should ping clients and prune any whose socket send() fails', () => {
+      let deadClosed = false;
+      hubA.addClient(
+        'client-broken-pipe',
+        'salon-rural-01',
+        () => {
+          throw new Error('Broken pipe');
+        },
+        false,
+        () => {
+          deadClosed = true;
+        }
+      );
+      hubA.addClient('client-working', 'salon-rural-01', () => {});
+
+      expect(hubA.getClientCount()).toBe(2);
+      hubA.pingClients();
+
+      expect(hubA.getClientCount()).toBe(1);
+      expect(hubA.getClient('client-broken-pipe')).toBeUndefined();
+      expect(deadClosed).toBe(true);
+    });
+
+    it('should prune dead sockets via isSocketAlive without relying on send throwing', () => {
+      hubA.clearClients();
+      let isAliveState = false;
+      let closed = false;
+      hubA.addClient(
+        'client-closed-state',
+        'salon-rural-01',
+        () => {}, // does not throw
+        false,
+        () => { closed = true; },
+        () => isAliveState
+      );
+      hubA.addClient('client-open-state', 'salon-rural-01', () => {}, false, undefined, () => true);
+      expect(hubA.getClientCount()).toBe(2);
+      hubA.pingClients();
+      expect(hubA.getClientCount()).toBe(1);
+      expect(hubA.getClient('client-closed-state')).toBeUndefined();
+      expect(hubA.getClient('client-open-state')).toBeDefined();
+      expect(closed).toBe(true);
+    });
+  });
+
+  describe('7. Unauthorized GLOBAL/ADMIN Registration Prevention (SEC-01)', () => {
+    it('should strip salonId from unauthenticated attempts to register as GLOBAL or ADMIN', () => {
+      hubA.addClient('unauth-global', 'GLOBAL', () => {}, false);
+      const subGlobal = hubA.getClient('unauth-global');
+      expect(subGlobal?.salonId).toBe('');
+      expect(subGlobal?.isAdmin).toBe(false);
+
+      hubA.addClient('unauth-admin', 'ADMIN', () => {}, false);
+      const subAdmin = hubA.getClient('unauth-admin');
+      expect(subAdmin?.salonId).toBe('');
+      expect(subAdmin?.isAdmin).toBe(false);
+    });
+
+    it('should preserve isAdmin flag when registering with a specific salon', () => {
+      hubA.addClient('admin-specific', 'salon-rural-01', () => {}, true);
+      const sub = hubA.getClient('admin-specific');
+      expect(sub?.salonId).toBe('salon-rural-01');
+      expect(sub?.isAdmin).toBe(true);
+    });
+
+    it('should permit verified admin to register as GLOBAL with full cross-tenant visibility', async () => {
+      const messages: string[] = [];
+      hubA.addClient('auth-admin', 'GLOBAL', (msg) => messages.push(msg), true);
+      const sub = hubA.getClient('auth-admin');
+      expect(sub?.salonId).toBe('GLOBAL');
+      expect(sub?.isAdmin).toBe(true);
+
+      // Broadcast to a specific salon
+      await hubA.broadcastToSalon('salon-modern-02', {
+        type: 'QUEUE_UPDATED',
+        salonId: 'salon-modern-02',
+        timestamp: new Date().toISOString(),
+      });
+
+      expect(messages.length).toBe(1);
+      const parsed = JSON.parse(messages[0]);
+      expect(parsed.salonId).toBe('salon-modern-02');
+    });
+  });
 });

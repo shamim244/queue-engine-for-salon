@@ -122,7 +122,10 @@ describe('Real Redis Pub/Sub Adapter & Multi-Worker Integration Suite', () => {
     await new Promise((r) => setTimeout(r, 200));
 
     await adapter.publish('test:multi-redis', 'ping-multi');
-    await new Promise((r) => setTimeout(r, 200));
+    const startWait = Date.now();
+    while ((!messagesH1.includes('ping-multi') || !messagesH2.includes('ping-multi')) && Date.now() - startWait < 3000) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
 
     expect(messagesH1).toContain('ping-multi');
     expect(messagesH2).toContain('ping-multi');

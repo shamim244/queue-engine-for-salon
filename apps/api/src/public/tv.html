@@ -206,7 +206,16 @@
     function initWebSocket() {
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       socket = new WebSocket(`${proto}//${window.location.host}/ws?salonId=${currentSalon.id}`);
-      socket.onmessage = () => refreshTV();
+      socket.onmessage = (e) => {
+        try {
+          const d = JSON.parse(e.data);
+          if (d && (d.type === 'PING' || d.type === 'PONG')) {
+            if (d.type === 'PING') socket.send(JSON.stringify({ type: 'PONG' }));
+            return;
+          }
+        } catch {}
+        refreshTV();
+      };
       socket.onclose = () => setTimeout(initWebSocket, 3000);
     }
 
