@@ -1,8 +1,21 @@
 # Upstream worker nodes for salon_frontend_cluster
 # Copy this file to /etc/nginx/conf.d/salon-frontend-nodes.inc on the VPS.
 # This file is decoupled from git tracking to allow dynamic server-side frontend node scaling.
+# max_fails=1 fail_timeout=10s guarantees instantaneous failover if a worker is offline.
 
+# Primary Local Next.js Worker (Port 3000)
 server 127.0.0.1:3000 max_fails=1 fail_timeout=10s;
-# server 127.0.0.1:3007; # Scenario 1: External Frontend via Cloudflare Tunnel
-# server 10.0.1.50:3000; # Scenario 2: External VPS Frontend on Static IP
-# server 127.0.0.1:3008; # Scenario 3: Local Second Next.js Worker on same VPS
+
+# --- SCENARIO 1: External Frontend via Cloudflare Tunnel (4000 Series) ---
+# Pre-mapped to web1.nexgentech.site, web2.nexgentech.site in salon-external-tunnel.conf
+# server 127.0.0.1:4001 max_fails=1 fail_timeout=10s;
+# server 127.0.0.1:4002 max_fails=1 fail_timeout=10s;
+
+# --- SCENARIO 2: External VPS / Server on Static Public or Private IP ---
+# Direct connection to another server running Next.js
+# server 10.0.1.50:3000 max_fails=1 fail_timeout=10s;
+# server 123.45.67.89:3000 max_fails=1 fail_timeout=10s;
+
+# --- SCENARIO 3: Multiple Local Instances on Same VPS (4000 Series) ---
+# For a second local PM2 Next.js process (e.g. PORT=4000)
+# server 127.0.0.1:4000 max_fails=1 fail_timeout=10s;

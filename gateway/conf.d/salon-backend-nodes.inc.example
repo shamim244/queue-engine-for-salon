@@ -1,7 +1,20 @@
 # Upstream worker nodes for salon_backend_cluster
 # Copy this file to /etc/nginx/conf.d/salon-backend-nodes.inc on the VPS.
-# max_fails=1 fail_timeout=10s guarantees that if a worker is stopped, Nginx marks it down in 0ms and routes to active workers.
+# max_fails=1 fail_timeout=10s guarantees instantaneous failover if a worker is offline.
 
+# Local Bun API Workers (PM2 salon-api-1 and salon-api-2)
 server 127.0.0.1:3001 max_fails=1 fail_timeout=10s;
 server 127.0.0.1:3002 max_fails=1 fail_timeout=10s;
-# server 127.0.0.1:3003; # External Cloudflare Tunnel
+
+# --- SCENARIO 1: External Backend via Cloudflare Tunnel (3000 Series) ---
+# Pre-mapped to api1.nexgentech.site, api2.nexgentech.site in salon-external-tunnel.conf
+# server 127.0.0.1:3003 max_fails=1 fail_timeout=10s;
+# server 127.0.0.1:3004 max_fails=1 fail_timeout=10s;
+
+# --- SCENARIO 2: External VPS / Server on Static Public or Private IP ---
+# Direct connection to another server running Elysia API
+# server 10.0.1.50:3001 max_fails=1 fail_timeout=10s;
+# server 123.45.67.89:3001 max_fails=1 fail_timeout=10s;
+
+# --- SCENARIO 3: Additional Local Backend Instances ---
+# server 127.0.0.1:3011 max_fails=1 fail_timeout=10s;

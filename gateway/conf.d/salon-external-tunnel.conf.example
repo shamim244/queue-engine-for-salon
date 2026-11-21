@@ -1,24 +1,36 @@
 # ==============================================================================
-# UNIVERSAL CLOUDFLARE TUNNEL ROUTER (Backend & Frontend Unified)
+# UNIVERSAL CLOUDFLARE TUNNEL ROUTER (Zero-Conflict Port Segregation)
+# 3000 Series (3003 - 3010) -> Dedicated to Backend API Tunnels
+# 4000 Series (4001 - 4010) -> Dedicated to Frontend Next.js Tunnels
 # Copy this file to /etc/nginx/conf.d/salon-external-tunnel.conf on the VPS.
 # ==============================================================================
 map $server_port $tunnel_backend {
-    # Backend Tunnel Slots (Ports 3003 - 3006)
+    # --- BACKEND API TUNNEL SLOTS (3000 Series) ---
     default api1.nexgentech.site;
     3003 api1.nexgentech.site;
     3004 api2.nexgentech.site;
     3005 api3.nexgentech.site;
     3006 api4.nexgentech.site;
+    3007 api5.nexgentech.site;
+    3008 api6.nexgentech.site;
+    3009 api7.nexgentech.site;
+    3010 api8.nexgentech.site;
 
-    # Frontend Next.js Tunnel Slots (Ports 3007 - 3010)
-    3007 web1.nexgentech.site;
-    3008 web2.nexgentech.site;
-    3009 web3.nexgentech.site;
-    3010 web4.nexgentech.site;
+    # --- FRONTEND NEXT.JS TUNNEL SLOTS (4000 Series) ---
+    4001 web1.nexgentech.site;
+    4002 web2.nexgentech.site;
+    4003 web3.nexgentech.site;
+    4004 web4.nexgentech.site;
+    4005 web5.nexgentech.site;
+    4006 web6.nexgentech.site;
+    4007 web7.nexgentech.site;
+    4008 web8.nexgentech.site;
+    4009 web9.nexgentech.site;
+    4010 web10.nexgentech.site;
 }
 
 server {
-    # Pre-opened tunnel ports (Backend: 3003-3006 | Frontend: 3007-3010)
+    # Pre-opened Backend tunnel ports (3000 Series)
     listen 127.0.0.1:3003;
     listen 127.0.0.1:3004;
     listen 127.0.0.1:3005;
@@ -27,6 +39,19 @@ server {
     listen 127.0.0.1:3008;
     listen 127.0.0.1:3009;
     listen 127.0.0.1:3010;
+
+    # Pre-opened Frontend tunnel ports (4000 Series)
+    listen 127.0.0.1:4001;
+    listen 127.0.0.1:4002;
+    listen 127.0.0.1:4003;
+    listen 127.0.0.1:4004;
+    listen 127.0.0.1:4005;
+    listen 127.0.0.1:4006;
+    listen 127.0.0.1:4007;
+    listen 127.0.0.1:4008;
+    listen 127.0.0.1:4009;
+    listen 127.0.0.1:4010;
+
     server_name _;
 
     # Disable IPv6 to prevent AWS EC2 AAAA lookup timeouts
