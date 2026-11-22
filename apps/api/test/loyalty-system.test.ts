@@ -291,4 +291,30 @@ describe("Deterministic Multi-Tenant Milestone Loyalty Engine", () => {
     expect(fetched).not.toBeNull();
     expect(fetched!.preferredBarberName).toBe("Master Barber Ramesh");
   });
+
+  it("7. Salon Loyalty & Wi-Fi Settings: updates salon loyalty configuration without SQL column errors", async () => {
+    const updated = await salonRepo.updateSalon(salonA.id, {
+      loyaltyEnabled: true,
+      loyaltyStampGoal: 5,
+      loyaltyReferrerBonus: 75,
+      loyaltyRefereeDiscount: 25,
+      loyaltyRewardDescription: "Free Beard Trim",
+      loyaltyRewardServiceId: "srv_alpha_shave",
+      loyaltyRewardServiceName: "Royal Shave",
+      loyaltyCooldownHours: 3,
+      loyaltyVoucherValidityDays: 45,
+      wifiSsid: "AlphaGuestWiFi",
+      wifiPassword: "SecretPassword123",
+      enableLoungeWifi: true,
+      enableScreenWakeLock: true,
+    });
+
+    expect(updated).not.toBeNull();
+    expect(updated!.loyaltyStampGoal).toBe(5);
+    expect(updated!.loyaltyReferrerBonus).toBe(75);
+    expect(updated!.loyaltyRefereeDiscount).toBe(25);
+    expect(updated!.loyaltyRewardDescription).toBe("Free Beard Trim");
+    expect(updated!.wifiSsid).toBe("AlphaGuestWiFi");
+    expect(updated!.enableLoungeWifi).toBe(true);
+  });
 });
