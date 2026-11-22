@@ -77,18 +77,36 @@ export const salonRoutes = new Elysia({ prefix: '/api/salons' })
     })
   })
 
-  // 1.1 List All Organizations
+  // 1.1 List All Organizations (Optimized: O(1) single batch lookup)
   .get('/organizations', async () => {
-    const orgs = await repository.getAllOrganizations();
-    const result = [];
-    for (const org of orgs) {
-      const branches = await repository.getSalonsByOrganizationId(org.id);
-      result.push({
+    const [orgs, allSalons] = await Promise.all([
+      repository.getAllOrganizations(),
+      repository.getAllSalons(),
+    ]);
+
+    // Group salons by organizationId in O(1) map
+    const orgSalonsMap = new Map<string, typeof allSalons>();
+    for (const salon of allSalons) {
+      if (!salon.organizationId) continue;
+      const list = orgSalonsMap.get(salon.organizationId) || [];
+      list.push(salon);
+      orgSalonsMap.set(salon.organizationId, list);
+    }
+
+    const result = orgs.map((org) => {
+      const branches = orgSalonsMap.get(org.id) || [];
+      return {
         ...org,
         branchCount: branches.length,
-        branches: branches.map(b => ({ id: b.id, name: b.name, slug: b.slug, stylistsCount: b.stylists.length })),
-      });
-    }
+        branches: branches.map(b => ({
+          id: b.id,
+          name: b.name,
+          slug: b.slug,
+          stylistsCount: b.stylists?.length || 0,
+        })),
+      };
+    });
+
     return { organizations: result };
   })
 

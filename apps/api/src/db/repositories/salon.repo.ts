@@ -104,14 +104,18 @@ export const salonRepo = {
 
   async getAllSalons(): Promise<Salon[]> {
     if (isMySqlConnected) {
-      const db = getDb();
-      const [rows]: any = await db.query('SELECT * FROM salons');
-      const results: Salon[] = [];
-      for (const row of rows) {
-        const full = await this.getSalonBySlug(row.slug);
-        if (full) results.push(full);
-      }
-      return results;
+      return await cacheService.getOrSet(
+        'salons:all',
+        async () => {
+          const db = getDb();
+          const [rows]: any = await db.query('SELECT * FROM salons');
+          const results = await Promise.all(
+            rows.map((row: any) => this.getSalonBySlug(row.slug))
+          );
+          return results.filter(Boolean) as Salon[];
+        },
+        30
+      );
     }
     const unique = new Set(memoryStore.salons.values());
     return Array.from(unique);
