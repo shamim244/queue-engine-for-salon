@@ -183,8 +183,8 @@ export const walletRepo = {
     if (isMySqlConnected) {
       try {
         const db = getDb();
-        await db.query('UPDATE wallets SET balance = ?, updated_at = NOW() WHERE id = ?', [
-          balanceAfter,
+        await db.query('UPDATE wallets SET balance = balance + ?, updated_at = NOW() WHERE id = ?', [
+          amount,
           walletId,
         ]);
         await db.query(
@@ -275,10 +275,14 @@ export const walletRepo = {
     if (isMySqlConnected) {
       try {
         const db = getDb();
-        await db.query('UPDATE wallets SET balance = ?, updated_at = NOW() WHERE id = ?', [
-          balanceAfter,
-          walletId,
-        ]);
+        const [updateRes]: any = await db.query(
+          'UPDATE wallets SET balance = balance - ?, updated_at = NOW() WHERE id = ? AND balance >= ?',
+          [amount, walletId, amount]
+        );
+        if (updateRes.affectedRows === 0) {
+          wallet.balance = Math.round((wallet.balance + amount) * 100) / 100;
+          throw new Error(`Insufficient wallet balance for debit of ₹${amount.toFixed(2)}.`);
+        }
         await db.query(
           `INSERT INTO wallet_transactions (id, wallet_id, wallet_type, owner_org_id, consumer_phone, salon_id, type, amount, balance_after, reason, reference_id)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -298,6 +302,7 @@ export const walletRepo = {
         );
       } catch (err: any) {
         console.warn(`[walletRepo.debitWallet] MySQL persist error: ${err.message}`);
+        throw err;
       }
     }
 
