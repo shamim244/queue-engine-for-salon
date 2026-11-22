@@ -669,22 +669,44 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
     } catch {}
   }
 
+  const MAX_RETRIES = 2;
+  let attempt = 0;
   let response: Response;
-  try {
-    response = await fetch(url, {
-      ...options,
-      headers,
-      credentials: "include",
-    });
-  } catch (fetchErr: any) {
-    if (fetchErr?.name === "TypeError" && fetchErr?.message?.includes("fetch")) {
-      const enhanced = new TypeError(
-        `Failed to reach API at ${url}. Ensure the backend server (port 3001) is running and accessible.`
-      );
-      (enhanced as any).cause = fetchErr;
-      throw enhanced;
+
+  while (true) {
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers,
+        credentials: "include",
+      });
+    } catch (fetchErr: any) {
+      if (attempt < MAX_RETRIES && (fetchErr?.name === "TypeError" || fetchErr?.message?.includes("fetch"))) {
+        attempt++;
+        await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
+        continue;
+      }
+      if (fetchErr?.name === "TypeError" && fetchErr?.message?.includes("fetch")) {
+        const enhanced = new TypeError(
+          `Failed to reach API at ${url}. Ensure the backend server (port 3001) is running and accessible.`
+        );
+        (enhanced as any).cause = fetchErr;
+        throw enhanced;
+      }
+      throw fetchErr;
     }
-    throw fetchErr;
+
+    // Auto-retry transient gateway drops during zero-downtime worker reloads (502 Bad Gateway / 503 / 504)
+    if (
+      (response.status === 502 || response.status === 503 || response.status === 504) &&
+      attempt < MAX_RETRIES
+    ) {
+      attempt++;
+      await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+      continue;
+    }
+
+    break;
   }
 
   if (!response.ok) {

@@ -157,6 +157,32 @@ describe("Frontend Web Library & Primitives", () => {
         globalThis.fetch = originalFetch;
       }
     });
+
+    it("should automatically retry transient 502 Bad Gateway responses and succeed on retry", async () => {
+      const originalFetch = globalThis.fetch;
+      let callCount = 0;
+      globalThis.fetch = async () => {
+        callCount++;
+        if (callCount === 1) {
+          return new Response("<html><body>502 Bad Gateway</body></html>", {
+            status: 502,
+            statusText: "Bad Gateway",
+          });
+        }
+        return new Response(JSON.stringify({ success: true, updated: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      };
+
+      try {
+        const result = await apiClient.post("/api/loyalty/salon-settings", { test: true });
+        expect(callCount).toBe(2);
+        expect((result as any).success).toBe(true);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
   });
 
   describe("UI Helpers and Formatters", () => {
