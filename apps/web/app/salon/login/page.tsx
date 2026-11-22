@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { AuthCardLayout } from "@/components/auth/auth-card-layout";
 import { AuthPasswordInput } from "@/components/auth/auth-password-input";
@@ -21,24 +21,52 @@ import {
 
 function SalonLoginForm() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get("redirect");
-  const defaultTab = searchParams.get("tab") === "staff" ? "staff" : "owner";
+  const tabParam = searchParams.get("tab");
+  const isStaffRoute = pathname?.includes("/staff");
+  const defaultTab = tabParam === "staff" || isStaffRoute ? "staff" : "owner";
+
+  const identifierQuery = searchParams.get("identifier") || searchParams.get("username") || searchParams.get("phone") || "";
 
   const { login, logout, user } = useAuth();
   const [activeTab, setActiveTab] = useState<"owner" | "staff">(defaultTab);
 
-  // Owner Form State
-  const [ownerIdentifier, setOwnerIdentifier] = useState("");
+  // Owner Form State (prefilled if identifier query is provided)
+  const [ownerIdentifier, setOwnerIdentifier] = useState(defaultTab === "owner" ? identifierQuery : (tabParam !== "staff" ? identifierQuery : ""));
   const [ownerPassword, setOwnerPassword] = useState("");
 
-  // Staff Form State
-  const [staffIdentifier, setStaffIdentifier] = useState("");
+  // Staff Form State (prefilled if identifier query is provided)
+  const [staffIdentifier, setStaffIdentifier] = useState(defaultTab === "staff" ? identifierQuery : "");
   const [staffPassword, setStaffPassword] = useState("");
   const [showStaffInfo, setShowStaffInfo] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Auto-fill identifier when searchParams change
+  useEffect(() => {
+    const q = searchParams.get("identifier") || searchParams.get("username") || searchParams.get("phone");
+    const tab = searchParams.get("tab");
+    if (q) {
+      if (tab === "staff" || (!tab && isStaffRoute)) {
+        setStaffIdentifier(q);
+      } else {
+        setOwnerIdentifier(q);
+      }
+    }
+  }, [searchParams, isStaffRoute]);
+
+  // Synchronize active tab from URL tab parameter
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "staff") {
+      setActiveTab("staff");
+    } else if (tab === "owner") {
+      setActiveTab("owner");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (user) {
@@ -82,8 +110,13 @@ function SalonLoginForm() {
         }
       } else {
         await logout();
-        if (resp.user?.role === "SUPER_ADMIN") {
-          setErrorMessage("Platform Administrators please use the dedicated portal at /hq/login.");
+        const userRole = (resp.user?.role as string);
+        if (userRole === "SUPER_ADMIN") {
+          setErrorMessage("Platform Administrators please use the dedicated portal at /hq/login (or /admin/login).");
+        } else if (userRole === "CUSTOMER") {
+          setErrorMessage("Customer accounts please sign in at the consumer portal at /login.");
+        } else if (userRole === "PARTNER") {
+          setErrorMessage("Field Partners and Affiliates please sign in at /partner/login.");
         } else {
           setErrorMessage("This portal is strictly for Salon Owners & Staff. Affiliates please sign in at /partner/login.");
         }
@@ -156,7 +189,7 @@ function SalonLoginForm() {
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
-          <div className="text-slate-500 text-[11px] flex items-center justify-between">
+          <div className="text-slate-500 text-[11px] flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60">
             <span>
               Customer?{" "}
               <Link href="/login" className="text-blue-400 hover:underline">
@@ -165,8 +198,14 @@ function SalonLoginForm() {
             </span>
             <span>
               Partner / Promoter?{" "}
-              <Link href="/partner/login" className="text-amber-400 hover:underline">
+              <Link href="/partner/login" className="text-emerald-400 hover:underline">
                 Partner Portal
+              </Link>
+            </span>
+            <span>
+              Platform Admin?{" "}
+              <Link href="/hq/login" className="text-purple-400 hover:underline">
+                HQ Sign In
               </Link>
             </span>
           </div>
@@ -228,6 +267,7 @@ function SalonLoginForm() {
               value={ownerIdentifier}
               onChange={(e) => setOwnerIdentifier(e.target.value)}
               disabled={isLoading}
+              autoFocus={!identifierQuery && activeTab === "owner"}
               className="h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
             />
           </div>
@@ -240,6 +280,7 @@ function SalonLoginForm() {
             value={ownerPassword}
             onChange={(e) => setOwnerPassword(e.target.value)}
             disabled={isLoading}
+            autoFocus={Boolean(identifierQuery && activeTab === "owner")}
           />
 
           <Button
@@ -274,6 +315,7 @@ function SalonLoginForm() {
               value={staffIdentifier}
               onChange={(e) => setStaffIdentifier(e.target.value)}
               disabled={isLoading}
+              autoFocus={!identifierQuery && activeTab === "staff"}
               className="h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
             />
           </div>
@@ -286,6 +328,7 @@ function SalonLoginForm() {
             value={staffPassword}
             onChange={(e) => setStaffPassword(e.target.value)}
             disabled={isLoading}
+            autoFocus={Boolean(identifierQuery && activeTab === "staff")}
           />
 
           <Button

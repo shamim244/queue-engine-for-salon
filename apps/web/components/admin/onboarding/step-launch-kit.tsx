@@ -11,6 +11,7 @@ import {
   Check,
   RotateCcw,
   ChevronLeft,
+  User,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,15 @@ export function StepLaunchKit({
               Instance <span className="font-mono text-emerald-400">{provisionedSalon.id}</span> provisioned with{" "}
               {provisionedSalon.stylists?.length || formData.stylists.length} active chairs,{" "}
               {provisionedSalon.services?.length || formData.services.length} catalog items, and owner account{" "}
-              <span className="font-mono text-blue-300">@{formData.ownerUser.username}</span>.
+              <Link
+                href={`/salon/login?tab=owner&identifier=${encodeURIComponent(formData.ownerUser.username)}&username=${encodeURIComponent(formData.ownerUser.username)}`}
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 font-mono text-emerald-300 hover:text-emerald-200 font-bold group transition-all"
+                title="Click to sign in with this username autofilled"
+              >
+                <User className="w-3 h-3 text-emerald-400" />
+                <span>{`@${formData.ownerUser.username}`}</span>
+                <ExternalLink className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+              </Link>.
             </p>
           </div>
 

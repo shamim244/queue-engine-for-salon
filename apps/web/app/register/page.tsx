@@ -227,7 +227,7 @@ function RegisterContent() {
             Back to Home
           </Link>
           <Link
-            href="/login"
+            href={accountType === "owner" ? "/salon/login" : "/login"}
             className="px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-slate-200"
           >
             Sign In
@@ -480,6 +480,14 @@ function RegisterContent() {
                   Launch Owner Hub &rarr;
                 </Button>
               </Link>
+              {(username || custUsername) && (
+                <Link href={`/salon/login?tab=owner&identifier=${encodeURIComponent(username || custUsername)}`}>
+                  <Button size="lg" variant="outline" className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10 font-bold px-6 gap-2">
+                    <span>Sign In with @{username || custUsername}</span>
+                    <ExternalLink className="w-4 h-4" />
+                  </Button>
+                </Link>
+              )}
               <Button
                 variant="outline"
                 onClick={() => setSuccessData(null)}
@@ -668,15 +676,24 @@ function RegisterContent() {
       {/* Footer */}
       <footer className="max-w-3xl mx-auto w-full pt-6 pb-2 text-center text-xs text-slate-500 border-t border-slate-800/60 flex flex-col sm:flex-row justify-between items-center gap-3">
         <div>Engine Que System &copy; 2026. All rights reserved.</div>
-        <div className="flex items-center gap-4">
-          <Link href="/dev" className="hover:text-slate-300">
-            Dev Launcher
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/" className="hover:text-slate-300">
+            Home
+          </Link>
+          <Link href="/salon/login" className="hover:text-slate-300">
+            Salon Portal
           </Link>
           <Link href="/login" className="hover:text-slate-300">
-            Sign In
+            Customer Lounge
           </Link>
-          <Link href="/" className="hover:text-slate-300">
-            Home Page
+          <Link href="/partner/login" className="hover:text-slate-300">
+            Partner
+          </Link>
+          <Link href="/hq/login" className="hover:text-slate-300">
+            HQ Admin
+          </Link>
+          <Link href="/dev" className="hover:text-slate-300">
+            Dev Launcher
           </Link>
         </div>
       </footer>

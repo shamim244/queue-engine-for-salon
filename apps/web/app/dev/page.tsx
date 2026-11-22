@@ -42,7 +42,7 @@ export default function DevLauncherPage() {
       badgeColor: "bg-amber-500/10 text-amber-400 border-amber-500/20",
       description: "Branch overview, staff rosters, emergency kill-switch, service catalogue, and flexible chair pricing.",
       href: "/owner",
-      loginHref: "/partner/login",
+      loginHref: "/salon/login",
       icon: Crown,
       color: "from-amber-500 to-orange-600",
       demo: "aura_owner / Aura@123",
@@ -131,17 +131,17 @@ export default function DevLauncherPage() {
               Home
             </Link>
             <Link
-              href="/admin/login"
-              className="px-2.5 py-1.5 rounded-lg bg-purple-950/50 hover:bg-purple-900/60 border border-purple-500/30 text-purple-300 font-medium flex items-center gap-1.5 transition-colors text-xs"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Admin Login
-            </Link>
-            <Link
-              href="/partner/login"
+              href="/salon/login"
               className="px-2.5 py-1.5 rounded-lg bg-amber-950/50 hover:bg-amber-900/60 border border-amber-500/30 text-amber-300 font-medium flex items-center gap-1.5 transition-colors text-xs"
             >
               <Store className="w-3.5 h-3.5" />
+              Salon Login
+            </Link>
+            <Link
+              href="/partner/login"
+              className="px-2.5 py-1.5 rounded-lg bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/30 text-emerald-300 font-medium flex items-center gap-1.5 transition-colors text-xs"
+            >
+              <Crown className="w-3.5 h-3.5" />
               Partner Login
             </Link>
             <Link
@@ -150,6 +150,13 @@ export default function DevLauncherPage() {
             >
               <LogIn className="w-3.5 h-3.5" />
               Customer Login
+            </Link>
+            <Link
+              href="/hq/login"
+              className="px-2.5 py-1.5 rounded-lg bg-purple-950/50 hover:bg-purple-900/60 border border-purple-500/30 text-purple-300 font-medium flex items-center gap-1.5 transition-colors text-xs"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              HQ Admin
             </Link>
             <Link
               href="/register?role=owner"
@@ -266,17 +273,21 @@ export default function DevLauncherPage() {
         <div>
           Engine Que System &copy; 2026. Enterprise Decoupled Monorepo Architecture.
         </div>
-        <div className="flex items-center gap-4">
-          <Link href="/admin/login" className="hover:text-purple-300 transition-colors">
-            Admin Login
-          </Link>
-          <span>&bull;</span>
-          <Link href="/partner/login" className="hover:text-amber-300 transition-colors">
-            Partner Login
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/salon/login" className="hover:text-amber-300 transition-colors">
+            Salon Portal
           </Link>
           <span>&bull;</span>
           <Link href="/login" className="hover:text-blue-300 transition-colors">
             Customer Lounge
+          </Link>
+          <span>&bull;</span>
+          <Link href="/partner/login" className="hover:text-emerald-300 transition-colors">
+            Partner Login
+          </Link>
+          <span>&bull;</span>
+          <Link href="/hq/login" className="hover:text-purple-300 transition-colors">
+            HQ Admin
           </Link>
           <span>&bull;</span>
           <Link href="/register?role=owner" className="hover:text-slate-300 transition-colors">

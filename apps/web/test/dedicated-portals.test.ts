@@ -18,6 +18,9 @@ import { getLoginRedirectForPath, getRoleDestination } from "../components/auth-
 import AdminLoginPage from "../app/admin/login/page";
 import PartnerLoginPage from "../app/partner/login/page";
 import ConsumerLoginPage from "../app/login/page";
+import SalonLoginPage from "../app/salon/login/page";
+import DevLauncherPage from "../app/dev/page";
+import { StepLaunchSuccess } from "../components/onboarding/step-launch-success";
 import { AuthContext } from "../lib/auth-context";
 
 // Mock AuthContext for server rendering
@@ -116,7 +119,72 @@ describe("Dedicated Portals: SSR Markup Verification", () => {
     expect(html).toContain("Email or Username");
     expect(html).toContain("Go to Partner Portal");
     expect(html).toContain("/partner/login");
+    expect(html).toContain("/salon/login");
+    expect(html).toContain("/hq/login");
     // Must NOT contain admin presets
     expect(html).not.toContain("SuperAdmin");
+  });
+
+  it("renders SalonLoginPage with Salon Owner and Staff tabs and cross-portal links", () => {
+    const html = renderToString(
+      React.createElement(
+        AuthContext.Provider,
+        { value: mockAuthValue },
+        React.createElement(SalonLoginPage)
+      )
+    );
+
+    expect(html).toContain("Salon Business Sign In");
+    expect(html).toContain("Salon Owner");
+    expect(html).toContain("Staff / Barber");
+    expect(html).toContain("/login");
+    expect(html).toContain("/partner/login");
+    expect(html).toContain("/hq/login");
+  });
+
+  it("renders StepLaunchSuccess with interactive username redirection link and icon", () => {
+    const launchResult = {
+      salon: { name: "Royal Haircuts", slug: "royal-haircuts" },
+      storeUrl: "https://queue.salon/s/royal-haircuts",
+      queueUrl: "https://queue.salon/s/royal-haircuts/queue",
+      tvUrl: "https://queue.salon/s/royal-haircuts/tv",
+      ownerLoginUrl: "https://queue.salon/salon/login?tab=owner&identifier=royal_owner&username=royal_owner",
+      chosenTier: "FREE",
+    };
+
+    const canvasRef = { current: null };
+    const html = renderToString(
+      React.createElement(StepLaunchSuccess, {
+        launchResult: launchResult as any,
+        currentPlan: { id: "p1", name: "Free Starter" } as any,
+        netPayable: 0,
+        isFreePlan: true,
+        canvasRef,
+        downloadQrCode: () => {},
+        shareOnWhatsApp: () => {},
+        copiedKey: null,
+        copyToClipboard: async () => {},
+        ownerUsername: "royal_owner",
+        mode: "PUBLIC",
+        handlePostLaunchProceed: () => {},
+      })
+    );
+
+    expect(html).toContain("royal_owner");
+    expect(html).toContain("@royal_owner");
+    expect(html).toContain("/salon/login?tab=owner&amp;identifier=royal_owner&amp;username=royal_owner");
+    expect(html).toContain("Owner Login");
+    expect(html).toContain("Sign In");
+  });
+
+  it("renders DevLauncherPage with synchronized salon owner login link and QA header", () => {
+    const html = renderToString(React.createElement(DevLauncherPage));
+
+    // Must correctly link Salon Owner Command Hub to /salon/login, NOT /partner/login
+    expect(html).toContain("/salon/login");
+    expect(html).toContain("Salon Login");
+    expect(html).toContain("Salon Portal");
+    expect(html).toContain("Partner Login");
+    expect(html).toContain("HQ Admin");
   });
 });

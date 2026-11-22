@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
-export type AllowedRole = "SUPER_ADMIN" | "SALON_OWNER" | "STAFF" | "CUSTOMER";
+export type AllowedRole = "SUPER_ADMIN" | "SALON_OWNER" | "STAFF" | "CUSTOMER" | "PARTNER";
 
 export interface AuthGuardProps {
   children: React.ReactNode;
@@ -26,6 +26,8 @@ export function getRoleDestination(role?: string, defaultSalonSlug = "ramesh-bar
       return "/staff";
     case "CUSTOMER":
       return "/me";
+    case "PARTNER":
+      return "/partner";
     default:
       return "/login";
   }
@@ -151,6 +153,13 @@ export function resolveAuthRedirect(
 
       // 4. Default for any other protected route (/admin, /owner) or general landing -> customer portal
       return "/me";
+    }
+
+    case "PARTNER": {
+      if (cleanPath.startsWith("/partner")) {
+        return cleanPath;
+      }
+      return "/partner";
     }
 
     default:

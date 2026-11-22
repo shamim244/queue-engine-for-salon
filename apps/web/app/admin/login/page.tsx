@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { AuthCardLayout } from "@/components/auth/auth-card-layout";
@@ -14,12 +15,21 @@ function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get("redirect") || "/admin";
+  const identifierQuery = searchParams.get("identifier") || searchParams.get("username") || "";
 
   const { login, logout, user } = useAuth();
-  const [identifier, setIdentifier] = useState("");
+  const [identifier, setIdentifier] = useState(identifierQuery);
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Auto-fill identifier when searchParams change
+  useEffect(() => {
+    const q = searchParams.get("identifier") || searchParams.get("username");
+    if (q) {
+      setIdentifier(q);
+    }
+  }, [searchParams]);
 
   // If already logged in as super admin, redirect to /admin
   useEffect(() => {
@@ -49,9 +59,18 @@ function AdminLoginForm() {
       } else {
         // Enforce strict zero-leakage: non-admin accounts cannot enter admin portal
         await logout();
-        setErrorMessage(
-          "Access denied: This portal is strictly for Platform Administrators. Partners please sign in at /partner/login, consumers at /login."
-        );
+        const userRole = (resp.user?.role as string);
+        if (userRole === "SALON_OWNER" || userRole === "STAFF") {
+          setErrorMessage("Salon owners and staff please sign in at the dedicated portal: /salon/login");
+        } else if (userRole === "CUSTOMER") {
+          setErrorMessage("Customer accounts please sign in at the consumer lounge: /login");
+        } else if (userRole === "PARTNER") {
+          setErrorMessage("Field Partners and Affiliates please sign in at /partner/login");
+        } else {
+          setErrorMessage(
+            "Access denied: This portal is strictly for Platform Administrators. Salons please sign in at /salon/login, partners at /partner/login, consumers at /login."
+          );
+        }
       }
     } catch (err: any) {
       setErrorMessage(err?.message || "Invalid administrative credentials or unauthorized origin.");
@@ -77,9 +96,24 @@ function AdminLoginForm() {
       title="Admin Portal"
       description="Restricted platform governance and multi-tenant operations."
       footer={
-        <div className="flex items-center justify-center gap-1.5 text-slate-500 text-xs">
-          <ShieldCheck className="w-4 h-4 text-emerald-500" />
-          <span>Zero-trust isolated perimeter. Unauthorized access logged.</span>
+        <div className="space-y-3">
+          <div className="flex items-center justify-center gap-1.5 text-slate-500 text-xs">
+            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+            <span>Zero-trust isolated perimeter. Unauthorized access logged.</span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2 border-t border-slate-800/60 text-[11px] text-slate-400">
+            <Link href="/salon/login" className="text-slate-300 hover:text-amber-400">
+              Salon Operations
+            </Link>
+            <span>•</span>
+            <Link href="/partner/login" className="text-slate-300 hover:text-emerald-400">
+              Field Partner Portal
+            </Link>
+            <span>•</span>
+            <Link href="/login" className="text-slate-300 hover:text-blue-400">
+              Customer Lounge
+            </Link>
+          </div>
         </div>
       }
     >
@@ -103,6 +137,7 @@ function AdminLoginForm() {
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
             disabled={isLoading}
+            autoFocus={!identifierQuery}
             className="h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
           />
         </div>
@@ -115,6 +150,7 @@ function AdminLoginForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           disabled={isLoading}
+          autoFocus={Boolean(identifierQuery)}
         />
 
         <Button

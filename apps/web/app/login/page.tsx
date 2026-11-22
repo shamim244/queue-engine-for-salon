@@ -30,13 +30,22 @@ function ConsumerLoginForm() {
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get("redirect");
   const initialMode = searchParams.get("tab") === "register" ? "register" : "login";
+  const identifierQuery = searchParams.get("identifier") || searchParams.get("username") || searchParams.get("phone") || "";
 
   const { login, logout, user } = useAuth();
   const [mode, setMode] = useState<"login" | "register">(initialMode);
 
   // Login state (Primary: Email or Username)
-  const [loginIdentifier, setLoginIdentifier] = useState("");
+  const [loginIdentifier, setLoginIdentifier] = useState(identifierQuery);
   const [loginPassword, setLoginPassword] = useState("");
+
+  // Auto-fill identifier when searchParams change
+  useEffect(() => {
+    const q = searchParams.get("identifier") || searchParams.get("username") || searchParams.get("phone");
+    if (q) {
+      setLoginIdentifier(q);
+    }
+  }, [searchParams]);
 
   // Registration state (Primary: Email & Username; Secondary: Mobile Phone)
   const [regFullName, setRegFullName] = useState("");
@@ -75,10 +84,13 @@ function ConsumerLoginForm() {
       } else {
         // Strict boundary: Admins and Partners cannot login on consumer portal
         await logout();
-        if (resp.user?.role === "SUPER_ADMIN") {
-          setErrorMessage("Administrator accounts must sign in at the dedicated portal: /admin/login");
-        } else if (resp.user?.role === "SALON_OWNER" || resp.user?.role === "STAFF") {
-          setErrorMessage("Salon owners and barbers must sign in at the partner portal: /partner/login");
+        const userRole = (resp.user?.role as string);
+        if (userRole === "SUPER_ADMIN") {
+          setErrorMessage("Administrator accounts must sign in at the dedicated portal: /hq/login (or /admin/login)");
+        } else if (userRole === "SALON_OWNER" || userRole === "STAFF") {
+          setErrorMessage("Salon owners and barbers must sign in at the dedicated salon portal: /salon/login");
+        } else if (userRole === "PARTNER") {
+          setErrorMessage("Affiliates and field partners must sign in at the partner portal: /partner/login");
         } else {
           setErrorMessage("Access denied: This portal is for consumers only.");
         }
@@ -174,14 +186,24 @@ function ConsumerLoginForm() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
             <span className="text-slate-400">Are you a Salon Owner or Stylist?</span>
             <Link
-              href="/partner/login"
+              href="/salon/login"
               className="text-amber-400 hover:text-amber-300 font-semibold inline-flex items-center gap-1 transition-colors"
+            >
+              Go to Salon Portal
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs pt-2 border-t border-slate-800/60">
+            <span className="text-slate-400">Field Partner or Promoter?</span>
+            <Link
+              href="/partner/login"
+              className="text-emerald-400 hover:text-emerald-300 font-semibold inline-flex items-center gap-1 transition-colors"
             >
               Go to Partner Portal
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
-          <div className="text-slate-500 text-[11px]">
+          <div className="text-slate-500 text-[11px] pt-1">
             Platform Administrator?{" "}
             <Link href="/hq/login" className="text-purple-400 hover:underline">
               HQ Sign In
@@ -244,7 +266,7 @@ function ConsumerLoginForm() {
         <form onSubmit={handleLoginSubmit} className="space-y-4">
           <div className="space-y-1.5 text-left">
             <label htmlFor="customer-identifier" className="block text-xs font-semibold text-slate-300">
-              Email, Username, or Mobile Number
+              Email or Username (or Mobile Number)
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -258,6 +280,7 @@ function ConsumerLoginForm() {
                 value={loginIdentifier}
                 onChange={(e) => setLoginIdentifier(e.target.value)}
                 disabled={isLoading}
+                autoFocus={!identifierQuery}
                 className="pl-10 h-12 rounded-xl bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
             </div>
@@ -271,6 +294,7 @@ function ConsumerLoginForm() {
             value={loginPassword}
             onChange={(e) => setLoginPassword(e.target.value)}
             disabled={isLoading}
+            autoFocus={Boolean(identifierQuery)}
           />
 
           <Button

@@ -853,20 +853,23 @@ export default function MarketingHomePage() {
               <Link href="/" className="hover:text-white transition-colors">
                 Home
               </Link>
-              <Link href="/dev" className="hover:text-white transition-colors">
-                Dev Launcher
-              </Link>
               <Link href="/login" className="hover:text-white transition-colors">
-                Universal Login
+                Consumer Lounge
+              </Link>
+              <Link href="/salon/login" className="hover:text-white transition-colors">
+                Salon Portal
+              </Link>
+              <Link href="/partner/login" className="hover:text-white transition-colors">
+                Field Partner
+              </Link>
+              <Link href="/hq/login" className="hover:text-white transition-colors">
+                HQ Super Admin
               </Link>
               <Link href="/register" className="hover:text-white transition-colors">
                 Register Salon
               </Link>
-              <Link href="/admin" className="hover:text-white transition-colors">
-                Super Admin
-              </Link>
-              <Link href="/owner" className="hover:text-white transition-colors">
-                Owner Hub
+              <Link href="/dev" className="hover:text-white transition-colors">
+                Dev Launcher
               </Link>
             </div>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { partnerApi } from "@/lib/partner-api";
@@ -25,13 +25,22 @@ function PartnerLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get("redirect");
+  const identifierQuery = searchParams.get("identifier") || searchParams.get("username") || searchParams.get("phone") || "";
 
   // Field Partner Form State
-  const [identifier, setIdentifier] = useState("");
+  const [identifier, setIdentifier] = useState(identifierQuery);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Auto-fill identifier when searchParams change
+  useEffect(() => {
+    const q = searchParams.get("identifier") || searchParams.get("username") || searchParams.get("phone");
+    if (q) {
+      setIdentifier(q);
+    }
+  }, [searchParams]);
 
   // Affiliate Partner Login
   const handlePartnerSubmit = async (e: React.FormEvent) => {
@@ -101,13 +110,17 @@ function PartnerLoginForm() {
               Apply as Field Partner
             </Link>
           </div>
-          <div className="flex items-center gap-3 pt-2 text-[11px] text-slate-400">
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2 text-[11px] text-slate-400">
             <Link href="/salon/login" className="text-slate-300 hover:text-emerald-400">
               Salon Owner &amp; Staff Login
             </Link>
             <span>•</span>
             <Link href="/login" className="text-slate-300 hover:text-emerald-400">
               Customer Portal
+            </Link>
+            <span>•</span>
+            <Link href="/hq/login" className="text-slate-300 hover:text-purple-400">
+              Platform Admin HQ
             </Link>
           </div>
         </div>
@@ -149,6 +162,7 @@ function PartnerLoginForm() {
                 placeholder="partner@example.com or 9876543210"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
+                autoFocus={!identifierQuery}
                 className="pl-9 h-11 bg-slate-800 border-slate-700 text-white rounded-xl placeholder:text-slate-500 text-sm min-h-[48px]"
                 required
               />
@@ -169,6 +183,7 @@ function PartnerLoginForm() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoFocus={Boolean(identifierQuery)}
                 className="pl-9 pr-10 h-11 bg-slate-800 border-slate-700 text-white rounded-xl placeholder:text-slate-500 text-sm min-h-[48px]"
                 required
               />

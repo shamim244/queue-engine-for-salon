@@ -610,7 +610,8 @@ export function UniversalSalonOnboardingWizard({
         const storeUrl = `${origin}/s/${provisioned.slug}`;
         const queueUrl = `${origin}/s/${provisioned.slug}/queue`;
         const tvUrl = `${origin}/s/${provisioned.slug}/tv`;
-        const ownerLoginUrl = `${origin}/owner/login?username=${encodeURIComponent(ownerUsername.trim().toLowerCase())}`;
+        const cleanUser = ownerUsername.trim().toLowerCase();
+        const ownerLoginUrl = `${origin}/salon/login?tab=owner&identifier=${encodeURIComponent(cleanUser)}&username=${encodeURIComponent(cleanUser)}`;
 
         let manualSubmitted: { submitted: boolean; utr?: string; orderId?: string } | null = null;
 
@@ -729,7 +730,8 @@ export function UniversalSalonOnboardingWizard({
     } else if (mode === "ADMIN") {
       router.push("/admin/tenants");
     } else {
-      router.push(`/owner/login?username=${encodeURIComponent(ownerUsername)}`);
+      const cleanUser = ownerUsername.trim().toLowerCase();
+      router.push(`/salon/login?tab=owner&identifier=${encodeURIComponent(cleanUser)}&username=${encodeURIComponent(cleanUser)}`);
     }
   };
 
