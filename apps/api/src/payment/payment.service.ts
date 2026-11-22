@@ -145,8 +145,12 @@ export class PaymentService {
         input.metadata.couponDiscount = couponRes.discountAmount;
       }
 
-      // Enforce authoritative server amount
-      input.amount = authoritativeAmount;
+      // Enforce authoritative server amount: prevent client price undercutting (DISC-02)
+      const walletDeducted = Number(input.metadata?.walletDeducted || 0);
+      const minPayable = Math.max(0, authoritativeAmount - walletDeducted);
+      if (input.amount < minPayable) {
+        input.amount = minPayable;
+      }
     }
 
     const internalOrderId = `po_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
