@@ -133,7 +133,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     try {
       await logout();
     } catch {}
-    router.push("/login");
+    router.push("/hq/login");
   };
 
   // Determine dynamic top header title based on route
@@ -651,13 +651,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Button>
           </div>
         ) : (
-          <Link href="/login?redirect=/admin" onClick={onItemClick} className="w-full block">
+          <Link href="/hq/login?redirect=/admin" onClick={onItemClick} className="w-full block">
             <Button
               variant="outline"
-              className="w-full text-xs gap-1.5 border-slate-700 hover:bg-slate-800 text-slate-200"
+              className="w-full text-xs gap-1.5 border-purple-500/30 hover:bg-purple-950/40 text-purple-200"
             >
-              <LogIn className="h-3.5 w-3.5 text-blue-400" />
-              Sign In to Platform
+              <LogIn className="h-3.5 w-3.5 text-purple-400" />
+              Sign In to Platform HQ
             </Button>
           </Link>
         )}

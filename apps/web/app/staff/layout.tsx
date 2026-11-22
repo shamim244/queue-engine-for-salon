@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { AuthGuard } from "@/components/auth-guard";
 import { api } from "@/lib/api";
@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 
 function StaffLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, staff, salon, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [dailyStats, setDailyStats] = useState<{ revenue: number; served: number } | null>(null);
@@ -334,9 +335,12 @@ function StaffLayoutContent({ children }: { children: React.ReactNode }) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => {
+          onClick={async () => {
             triggerHaptic("tap");
-            logout();
+            try {
+              await logout();
+            } catch {}
+            router.push("/salon/login?tab=staff");
           }}
           className="w-full text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-xl justify-start gap-2 h-9"
         >

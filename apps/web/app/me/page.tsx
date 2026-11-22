@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import type { Ticket, Appointment, Coupon } from "@/lib/api";
@@ -94,6 +95,7 @@ export default function CustomerAccountPage() {
 }
 
 function CustomerAccountContent() {
+  const router = useRouter();
   const { user, logout } = useAuth();
 
   // Active Sidebar Navigation Tab
@@ -456,7 +458,18 @@ function CustomerAccountContent() {
                 <p className="text-xs font-semibold text-white truncate">{user.username}</p>
                 <p className="text-[10px] text-slate-400">Authenticated Session</p>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => logout()} title="Logout" className="h-8 w-8">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={async () => {
+                  try {
+                    await logout();
+                  } catch {}
+                  router.push("/login");
+                }}
+                title="Logout"
+                className="h-8 w-8"
+              >
                 <LogOut className="h-4 w-4 text-slate-400 hover:text-rose-400" />
               </Button>
             </div>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api, request } from "@/lib/api";
 import type { StaffLeave } from "@/lib/api";
@@ -52,6 +53,7 @@ export default function StaffPreferencesPage() {
 type SettingsTab = "general" | "security" | "device";
 
 function StaffSettingsContent() {
+  const router = useRouter();
   const { user, staff, salon, logout, demoLogin } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 
@@ -450,7 +452,12 @@ function StaffSettingsContent() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => logout()}
+            onClick={async () => {
+              try {
+                await logout();
+              } catch {}
+              router.push("/salon/login?tab=staff");
+            }}
             className="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 gap-1.5 self-start sm:self-auto"
           >
             <LogOut className="h-3.5 w-3.5" />

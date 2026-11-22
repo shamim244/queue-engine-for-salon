@@ -51,6 +51,13 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
   const [salonsList, setSalonsList] = useState<Salon[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {}
+    router.push("/salon/login");
+  };
+
   const isLoginPage = pathname?.includes("/login");
 
   // Close mobile drawer on route change
@@ -289,12 +296,12 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
               </p>
               <p className="text-[10px] text-slate-400 uppercase tracking-wider">{user.role}</p>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => logout()} title="Logout" className="h-8 w-8">
+            <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout" className="h-8 w-8">
               <LogOut className="h-4 w-4 text-slate-400 hover:text-rose-400" />
             </Button>
           </div>
         ) : (
-          <Link href="/login?redirect=/owner" onClick={onItemClick} className="w-full block">
+          <Link href="/salon/login?redirect=/owner" onClick={onItemClick} className="w-full block">
             <Button
               variant="outline"
               className="w-full text-xs gap-1.5 border-slate-700 hover:bg-slate-800 text-slate-200"

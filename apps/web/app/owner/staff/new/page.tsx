@@ -440,7 +440,7 @@ function CreateStaffContent() {
               2. Login Credentials
             </CardTitle>
             <CardDescription>
-              Unique username and password used to sign in to the Barber Desk portal (`/staff/login`).
+              Unique username and password used to sign in to the Barber Desk portal (`/salon/login?tab=staff`).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
