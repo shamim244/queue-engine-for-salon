@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { getWsBaseUrl } from "./api";
+import { getWsBaseUrl, getAuthToken } from "./api";
 import type { Ticket } from "./api";
 export type ConnectionStatus = "connected" | "connecting" | "reconnecting" | "offline";
 
@@ -190,7 +190,9 @@ export function useSalonSocket(
       setStatus(reconnectAttemptsRef.current > 0 ? "reconnecting" : "connecting");
     }
 
-    const wsUrl = `${getWsBaseUrl()}?salonId=${encodeURIComponent(salonId)}`;
+    const authToken = getAuthToken();
+    const tokenQuery = authToken ? `&token=${encodeURIComponent(authToken)}` : "";
+    const wsUrl = `${getWsBaseUrl()}?salonId=${encodeURIComponent(salonId)}${tokenQuery}`;
     connectingStartedAtRef.current = Date.now();
     activeSalonIdRef.current = salonId;
 
@@ -216,7 +218,7 @@ export function useSalonSocket(
         lastSeenRef.current = Date.now();
 
         // Send subscribe and join room payload
-        send({ type: "JOIN_SALON", salonId, action: "subscribe" });
+        send({ type: "JOIN_SALON", salonId, action: "subscribe", token: authToken || undefined });
       };
 
       ws.onmessage = (event) => {

@@ -259,8 +259,9 @@ function CustomerAccountContent() {
     fetchCustomerData();
   }, [fetchCustomerData]);
 
-  // Real-time WebSocket hook: Subscribe to GLOBAL so updates from any salon are caught
-  useSalonSocket("GLOBAL", (event) => {
+  // Real-time WebSocket hook: Subscribe to current salon so customer ticket updates are caught live
+  const effectiveSalonId = activeTicket?.salonId || (user as any)?.salonId || undefined;
+  useSalonSocket(effectiveSalonId, (event) => {
     console.log("[Customer Portal /me] Socket event:", event.type);
     fetchCustomerData();
   });
