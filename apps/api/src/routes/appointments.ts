@@ -246,6 +246,7 @@ export const appointmentRoutes = new Elysia()
           targetType: 'SALON_SERVICE',
           orderAmount: rawTotalPrice,
           salonId: salon.id,
+          userId: (body as any).customerPhone ? String((body as any).customerPhone).trim() : undefined,
         });
 
         if (!couponRes.valid) {

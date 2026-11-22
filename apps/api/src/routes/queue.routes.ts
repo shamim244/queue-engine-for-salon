@@ -212,7 +212,7 @@ export const queueRoutes = new Elysia({ prefix: '/api/queue' })
       return { success: true, ticket };
     } catch (err: any) {
       console.error('[queueRoutes:finish] Error:', err);
-      set.status = 500;
+      set.status = err.message?.toLowerCase().includes('coupon') ? 400 : 500;
       return { success: false, message: err.message || 'Internal Server Error' };
     }
   }, {

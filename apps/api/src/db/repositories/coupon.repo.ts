@@ -335,7 +335,10 @@ export const couponRepo = {
       return record;
     }
 
-    const coupon = memoryStore.coupons.get(redemption.couponId);
+    let coupon = memoryStore.coupons.get(redemption.couponId);
+    if (!coupon) {
+      coupon = await this.getCouponById(redemption.couponId);
+    }
     if (!coupon) {
       throw new Error(`Coupon not found: ${redemption.couponId}`);
     }
@@ -344,23 +347,20 @@ export const couponRepo = {
       throw new Error(`Coupon usage limit reached (max: ${coupon.maxUses})`);
     }
 
+    // Atomically reserve use count synchronously before any await for memory safety
+    coupon.usedCount += 1;
+
     if (coupon.maxUsesPerUser != null) {
       if (!redemption.userId) {
+        coupon.usedCount = Math.max(0, coupon.usedCount - 1);
         throw new Error('User identifier is required for coupons with per-user limits');
       }
-      let userCount = 0;
-      for (const r of memoryStore.couponRedemptions.values()) {
-        if (r.couponId === redemption.couponId && r.userId === redemption.userId) {
-          userCount++;
-        }
-      }
+      const userCount = await this.getUserRedemptionCount(redemption.couponId, redemption.userId);
       if (userCount >= coupon.maxUsesPerUser) {
+        coupon.usedCount = Math.max(0, coupon.usedCount - 1);
         throw new Error(`You have already redeemed this coupon the maximum allowed times (${coupon.maxUsesPerUser})`);
       }
     }
-
-    // Atomically reserve use count synchronously before any await
-    coupon.usedCount += 1;
 
     const record: CouponRedemption = {
       id,
@@ -372,11 +372,18 @@ export const couponRepo = {
       redeemedAt: now,
     };
 
-    memoryStore.couponRedemptions.set(id, record);
-
     if (isMySqlConnected) {
       try {
         const db = getDb();
+        const [updateRes]: any = await db.query(
+          'UPDATE coupons SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)',
+          [redemption.couponId]
+        );
+        if (coupon.maxUses !== null && updateRes.affectedRows === 0) {
+          coupon.usedCount = Math.max(0, coupon.usedCount - 1);
+          throw new Error(`Coupon usage limit reached (max: ${coupon.maxUses})`);
+        }
+
         await db.query(
           `INSERT INTO coupon_redemptions (id, coupon_id, target_type, target_order_id, user_id, discount_applied)
            VALUES (?, ?, ?, ?, ?, ?)`,
@@ -389,14 +396,16 @@ export const couponRepo = {
             record.discountApplied,
           ]
         );
-
-        await db.query('UPDATE coupons SET used_count = used_count + 1 WHERE id = ?', [
-          redemption.couponId,
-        ]);
       } catch (err: any) {
+        coupon.usedCount = Math.max(0, coupon.usedCount - 1);
+        if (err.message.includes('usage limit reached')) {
+          throw err;
+        }
         console.warn(`[couponRepo.recordRedemption] MySQL error: ${err.message}`);
       }
     }
+
+    memoryStore.couponRedemptions.set(id, record);
 
     return record;
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { Salon, Organization, AdminStats, AuditLog } from "@/lib/api";
@@ -25,6 +25,13 @@ import {
   Zap,
   Clock,
   ShieldCheck,
+  Search,
+  List,
+  LayoutGrid,
+  QrCode,
+  Tv,
+  Armchair,
+  ArrowRight,
 } from "lucide-react";
 
 export default function AdminOverviewPage() {
@@ -34,6 +41,8 @@ export default function AdminOverviewPage() {
   const [recentAudit, setRecentAudit] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [tenantSearch, setTenantSearch] = useState("");
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
 
   const fetchData = async () => {
     try {
@@ -69,6 +78,49 @@ export default function AdminOverviewPage() {
   const totalStylists = salons.reduce((acc, s) => acc + (s.stylists?.length || 0), 0);
   const starterPlanCount = salons.filter((s) => (s as any).tier !== "PRO" && (s as any).tier !== "ENTERPRISE" && s.organizationId !== "org-aura").length;
   const proPlanCount = salons.filter((s) => (s as any).tier === "PRO" || s.organizationId === "org-aura").length;
+
+  const getPlanBadge = (salon: Salon) => {
+    const tier = (salon as any).tier || (salon.organizationId === "org-aura" ? "PRO" : "STARTER");
+    if (tier === "ENTERPRISE") {
+      return (
+        <Badge variant="warning" className="text-[10px] font-bold uppercase tracking-wider">
+          Enterprise
+        </Badge>
+      );
+    }
+    if (tier === "PRO") {
+      return (
+        <Badge variant="purple" className="text-[10px] font-bold uppercase tracking-wider">
+          Pro Plan
+        </Badge>
+      );
+    }
+    if (tier === "FREE") {
+      return (
+        <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider">
+          Free Tier
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="blue" className="text-[10px] font-bold uppercase tracking-wider">
+        Starter
+      </Badge>
+    );
+  };
+
+  const filteredSalons = useMemo(() => {
+    if (!tenantSearch.trim()) return salons;
+    const q = tenantSearch.toLowerCase().trim();
+    return salons.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.slug.toLowerCase().includes(q) ||
+        (s.phone && s.phone.includes(q))
+    );
+  }, [salons, tenantSearch]);
+
+  const displayedSalons = filteredSalons.slice(0, 5);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -257,92 +309,289 @@ export default function AdminOverviewPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Tenant Nodes (2 cols) */}
         <div className="lg:col-span-2 space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-4">
-              <div>
-                <CardTitle>Active Salon Tenants</CardTitle>
-                <CardDescription>Live deployment nodes running on the Bun engine cluster</CardDescription>
+          <Card className="bg-slate-900/60 border-slate-800">
+            <CardHeader className="pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-blue-400" />
+                      Salon Fleet Overview
+                    </CardTitle>
+                    <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-700">
+                      {salons.length} Total Registered
+                    </Badge>
+                  </div>
+                  <CardDescription className="text-xs text-slate-400 mt-0.5">
+                    Live operational deployment nodes running on the Bun engine cluster
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center bg-slate-950/80 p-0.5 rounded-lg border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("table")}
+                      className={`p-1.5 rounded-md text-xs font-medium transition-colors ${
+                        viewMode === "table"
+                          ? "bg-slate-800 text-white shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                      title="Compact Table View"
+                    >
+                      <List className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("grid")}
+                      className={`p-1.5 rounded-md text-xs font-medium transition-colors ${
+                        viewMode === "grid"
+                          ? "bg-slate-800 text-white shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                      title="Cards View"
+                    >
+                      <LayoutGrid className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <Link href="/admin/onboarding">
+                    <Button size="sm" className="text-xs gap-1 bg-blue-600 hover:bg-blue-500 h-8">
+                      <Sparkles className="h-3 w-3" />
+                      + Onboard
+                    </Button>
+                  </Link>
+                  <Link href="/admin/tenants">
+                    <Button variant="outline" size="sm" className="text-xs h-8 border-slate-700 hover:border-slate-600">
+                      View All
+                    </Button>
+                  </Link>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Link href="/admin/onboarding">
-                  <Button size="sm" className="text-xs gap-1">
-                    <Sparkles className="h-3 w-3" />
-                    + New Salon
-                  </Button>
-                </Link>
-                <Link href="/admin/tenants">
-                  <Button variant="outline" size="sm" className="text-xs">
-                    View All
-                  </Button>
-                </Link>
+
+              {/* Inline Quick Search */}
+              <div className="pt-3">
+                <div className="relative">
+                  <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={tenantSearch}
+                    onChange={(e) => setTenantSearch(e.target.value)}
+                    placeholder="Search fleet by salon name, slug handle, or phone..."
+                    className="w-full pl-9 pr-8 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/20 transition-all"
+                  />
+                  {tenantSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setTenantSearch("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 hover:text-white bg-slate-800 px-1.5 py-0.5 rounded"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
             </CardHeader>
+
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {salons.map((salon) => (
-                  <div
-                    key={salon.id}
-                    className="p-5 rounded-xl border border-slate-800 bg-slate-900/60 hover:border-slate-700 transition-all flex flex-col justify-between space-y-4"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-white text-base">{salon.name}</h4>
-                          <Badge
-                            variant="outline"
-                            className="text-[11px] border-slate-700 bg-slate-800/60 text-slate-300"
-                          >
-                            {`${salon.stylists?.length || 1} ${(salon.stylists?.length || 1) === 1 ? "Station" : "Stations"}`}
-                          </Badge>
+              {loading ? (
+                <div className="py-12 text-center text-slate-400 text-xs">
+                  Loading salon fleet nodes...
+                </div>
+              ) : displayedSalons.length === 0 ? (
+                <div className="py-10 text-center space-y-2">
+                  <p className="text-sm font-semibold text-slate-300">
+                    {tenantSearch ? `No salons matching "${tenantSearch}"` : "No salons registered yet"}
+                  </p>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    {tenantSearch
+                      ? "Try searching with a different keyword or slug name."
+                      : "Start by onboarding your first salon branch into the engine cluster."}
+                  </p>
+                  {tenantSearch && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTenantSearch("")}
+                      className="text-xs mt-2"
+                    >
+                      Reset Filter
+                    </Button>
+                  )}
+                </div>
+              ) : viewMode === "table" ? (
+                /* Compact Executive Table View */
+                <div className="overflow-x-auto rounded-xl border border-slate-800/80">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950/90 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800 font-semibold">
+                      <tr>
+                        <th className="py-2.5 px-3">Salon & Handle</th>
+                        <th className="py-2.5 px-3">Plan Tier</th>
+                        <th className="py-2.5 px-3">Stations</th>
+                        <th className="py-2.5 px-3">Node Status</th>
+                        <th className="py-2.5 px-3 text-right">Quick Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {displayedSalons.map((salon) => (
+                        <tr
+                          key={salon.id}
+                          className="hover:bg-slate-850/50 transition-colors group"
+                        >
+                          <td className="py-3 px-3">
+                            <div className="font-bold text-white text-sm group-hover:text-blue-300 transition-colors">
+                              {salon.name}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <code className="text-[11px] font-mono text-blue-400">
+                                /s/{salon.slug}
+                              </code>
+                              {salon.phone && (
+                                <span className="text-[11px] text-slate-500">
+                                  • {salon.phone}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            {getPlanBadge(salon)}
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="font-semibold text-slate-200">
+                              {salon.stylists?.length || 1} {(salon.stylists?.length || 1) === 1 ? "Station" : "Stations"}
+                            </div>
+                            <div className="text-[10px] text-slate-400 truncate max-w-[120px]">
+                              {salon.stylists && salon.stylists.length > 0
+                                ? salon.stylists.map((s) => s.name).slice(0, 2).join(", ") + (salon.stylists.length > 2 ? ` +${salon.stylists.length - 2}` : "")
+                                : "Default Chair"}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              Active Node
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Link
+                                href={`/s/${salon.slug}`}
+                                target="_blank"
+                                title="Open Door QR Storefront"
+                                className="p-1.5 rounded-lg bg-slate-800/70 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                              >
+                                <QrCode className="h-3.5 w-3.5" />
+                              </Link>
+                              <Link
+                                href={`/s/${salon.slug}/tv`}
+                                target="_blank"
+                                title="Open Lobby TV Mirror"
+                                className="p-1.5 rounded-lg bg-slate-800/70 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                              >
+                                <Tv className="h-3.5 w-3.5" />
+                              </Link>
+                              <Link
+                                href={`/s/${salon.slug}/station`}
+                                target="_blank"
+                                title="Open Station Chair View"
+                                className="p-1.5 rounded-lg bg-slate-800/70 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                              >
+                                <Armchair className="h-3.5 w-3.5" />
+                              </Link>
+                              <Link
+                                href={`/owner?salon=${salon.slug}`}
+                                className="ml-1 px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 font-semibold text-xs flex items-center gap-1 transition-colors"
+                              >
+                                <span>Owner Hub</span>
+                                <ArrowRight className="h-3 w-3" />
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                /* Compact Grid View */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {displayedSalons.map((salon) => (
+                    <div
+                      key={salon.id}
+                      className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 hover:border-slate-700 transition-all flex flex-col justify-between space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-white text-sm truncate">{salon.name}</h4>
+                            <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" title="Online Node" />
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                            <code className="text-blue-400 font-mono">/s/{salon.slug}</code>
+                            {salon.phone && ` · ${salon.phone}`}
+                          </p>
                         </div>
-                        <p className="text-xs text-slate-400 mt-1">
-                          Slug: <code className="text-blue-400 bg-blue-950/60 px-1 py-0.5 rounded">/s/{salon.slug}</code> · {salon.phone}
-                        </p>
+                        {getPlanBadge(salon)}
                       </div>
-                      <div className="text-right">
-                        <span className="text-xs text-slate-400">Chairs</span>
-                        <p className="text-base font-bold text-white">{salon.stylists?.length || 1}</p>
+
+                      <div className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-slate-900/80 border border-slate-800/60 text-slate-300">
+                        <span className="text-[11px] text-slate-400">Capacity</span>
+                        <span className="font-bold text-white text-xs">
+                          {salon.stylists?.length || 1} {(salon.stylists?.length || 1) === 1 ? "Station" : "Stations"}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-800/80 text-xs">
+                        <Link
+                          href={`/s/${salon.slug}`}
+                          target="_blank"
+                          className="px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1 text-[11px] transition-colors"
+                        >
+                          <QrCode className="h-3 w-3" />
+                          <span>QR</span>
+                        </Link>
+                        <Link
+                          href={`/s/${salon.slug}/tv`}
+                          target="_blank"
+                          className="px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1 text-[11px] transition-colors"
+                        >
+                          <Tv className="h-3 w-3" />
+                          <span>TV</span>
+                        </Link>
+                        <Link
+                          href={`/s/${salon.slug}/station`}
+                          target="_blank"
+                          className="px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1 text-[11px] transition-colors"
+                        >
+                          <Armchair className="h-3 w-3" />
+                          <span>Chair</span>
+                        </Link>
+                        <Link
+                          href={`/owner?salon=${salon.slug}`}
+                          className="ml-auto px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 font-semibold text-[11px] flex items-center gap-1 transition-colors"
+                        >
+                          <span>Manage</span>
+                          <ArrowRight className="h-3 w-3" />
+                        </Link>
                       </div>
                     </div>
+                  ))}
+                </div>
+              )}
 
-                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/80 text-xs">
-                      <Link
-                        href={`/s/${salon.slug}`}
-                        target="_blank"
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors"
-                      >
-                        <span>📱 Door QR</span>
-                        <ExternalLink className="h-3 w-3" />
-                      </Link>
-
-                      <Link
-                        href={`/s/${salon.slug}/tv`}
-                        target="_blank"
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors"
-                      >
-                        <span>📺 Lobby TV</span>
-                        <ExternalLink className="h-3 w-3" />
-                      </Link>
-
-                      <Link
-                        href={`/s/${salon.slug}/station`}
-                        target="_blank"
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors"
-                      >
-                        <span>💺 Chair UI</span>
-                        <ExternalLink className="h-3 w-3" />
-                      </Link>
-
-                      <Link
-                        href={`/owner?salon=${salon.slug}`}
-                        className="px-2.5 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 flex items-center gap-1.5 transition-colors ml-auto font-medium"
-                      >
-                        <span>Owner Hub →</span>
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {/* Sleek Forwarding Footer */}
+              {salons.length > 5 && (
+                <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+                  <span className="text-slate-400">
+                    Showing {displayedSalons.length} of {filteredSalons.length} {tenantSearch ? "filtered" : "active"} salons.
+                  </span>
+                  <Link
+                    href="/admin/tenants"
+                    className="font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+                  >
+                    <span>Open Full Tenant Hub ({salons.length} total)</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

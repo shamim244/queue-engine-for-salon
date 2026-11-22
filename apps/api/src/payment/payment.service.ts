@@ -116,6 +116,37 @@ export class PaymentService {
         planSlug: plan.slug,
         cycle,
       };
+
+      // Calculate authoritative plan base price (prevent client price tampering DISC-02)
+      let basePrice = Number(plan.price1m ?? (plan as any).price ?? 0);
+      if (cycle === '1m') basePrice = Number(plan.price1m ?? (plan as any).cycle1mPrice ?? (plan as any).price ?? 0);
+      else if (cycle === '3m') basePrice = Number(plan.price3m ?? (plan as any).cycle3mPrice ?? (basePrice * 3));
+      else if (cycle === '6m') basePrice = Number(plan.price6m ?? (plan as any).cycle6mPrice ?? (basePrice * 6));
+      else if (cycle === '1y') basePrice = Number(plan.price1y ?? (plan as any).cycle1yPrice ?? (basePrice * 12));
+
+      let authoritativeAmount = basePrice;
+
+      // Validate coupon if supplied in metadata
+      if (input.metadata?.couponCode && String(input.metadata.couponCode).trim()) {
+        const { couponService } = await import('../coupon/coupon.service');
+        const couponRes = await couponService.validateAndApplyCoupon({
+          code: String(input.metadata.couponCode).trim(),
+          targetType: 'SUBSCRIPTION',
+          orderAmount: basePrice,
+          organizationId: input.organizationId || undefined,
+        });
+
+        if (!couponRes.valid) {
+          throw new Error(couponRes.message || 'Invalid coupon code for subscription plan');
+        }
+
+        authoritativeAmount = couponRes.netPayable;
+        input.metadata.couponId = couponRes.coupon?.id;
+        input.metadata.couponDiscount = couponRes.discountAmount;
+      }
+
+      // Enforce authoritative server amount
+      input.amount = authoritativeAmount;
     }
 
     const internalOrderId = `po_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;

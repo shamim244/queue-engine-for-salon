@@ -499,19 +499,20 @@ export class CouponService {
       }
     }
 
-    // 8. Discount Calculation Math (Review Focus #1 & #5)
+    // 8. Discount Calculation Math (Review Focus #1 & #5 & #7)
     let rawDiscount = 0;
     if (coupon.discountType === 'PERCENT') {
-      rawDiscount = (input.orderAmount * coupon.discountValue) / 100;
+      const safePercent = Math.max(0, Math.min(100, coupon.discountValue));
+      rawDiscount = (input.orderAmount * safePercent) / 100;
       if (coupon.maxDiscountAmount !== null && coupon.maxDiscountAmount !== undefined) {
-        rawDiscount = Math.min(rawDiscount, coupon.maxDiscountAmount);
+        rawDiscount = Math.min(rawDiscount, Math.max(0, coupon.maxDiscountAmount));
       }
     } else {
-      rawDiscount = coupon.discountValue;
+      rawDiscount = Math.max(0, coupon.discountValue);
     }
 
-    // Cap discount so it never exceeds orderAmount
-    const discountAmount = Math.min(Math.round(rawDiscount * 100) / 100, input.orderAmount);
+    // Cap discount so it never exceeds orderAmount, round cleanly to 2 decimal places
+    const discountAmount = Math.min(Math.round(Math.max(0, rawDiscount) * 100) / 100, input.orderAmount);
     const netPayable = Math.max(0, Math.round((input.orderAmount - discountAmount) * 100) / 100);
 
     return {

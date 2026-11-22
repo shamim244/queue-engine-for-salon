@@ -226,6 +226,42 @@ export const couponRoutes = new Elysia({ prefix: '/api/coupons' })
         };
       }
 
+      if (user.role === 'SALON_OWNER') {
+        if ((body as any).targetType === 'SUBSCRIPTION') {
+          set.status = 403;
+          return {
+            success: false,
+            message: 'Forbidden: Salon owners cannot create subscription coupons',
+          };
+        }
+        const ownerSalonId = user.salonId || user.salon?.id;
+        const ownerOrgId = user.organizationId || user.organization?.id;
+        if (!ownerSalonId && !ownerOrgId) {
+          set.status = 403;
+          return {
+            success: false,
+            message: 'Forbidden: Salon owner is not associated with any salon',
+          };
+        }
+        if ((body as any).salonId && (body as any).salonId !== ownerSalonId) {
+          set.status = 403;
+          return {
+            success: false,
+            message: 'Forbidden: Cannot create coupons for other salons',
+          };
+        }
+        if ((body as any).organizationId && (body as any).organizationId !== ownerOrgId) {
+          set.status = 403;
+          return {
+            success: false,
+            message: 'Forbidden: Cannot create coupons for other organizations',
+          };
+        }
+        (body as any).salonId = ownerSalonId;
+        (body as any).organizationId = ownerOrgId;
+        (body as any).targetType = 'SALON_SERVICE';
+      }
+
       try {
         const coupon = await couponService.createCoupon(body as any);
         set.status = 201;
@@ -302,9 +338,25 @@ export const couponRoutes = new Elysia({ prefix: '/api/coupons' })
       }
 
       if (user.role === 'SALON_OWNER') {
+        const ownerSalonId = user.salonId || user.salon?.id;
+        const ownerOrgId = user.organizationId || user.organization?.id;
+        if (!existingCoupon.salonId && !existingCoupon.organizationId) {
+          set.status = 403;
+          return {
+            success: false,
+            message: 'Forbidden: Cannot modify global platform coupons',
+          };
+        }
+        if (existingCoupon.targetType === 'SUBSCRIPTION') {
+          set.status = 403;
+          return {
+            success: false,
+            message: 'Forbidden: Cannot modify subscription coupons',
+          };
+        }
         if (
-          (existingCoupon.salonId && existingCoupon.salonId !== user.salon?.id) ||
-          (existingCoupon.organizationId && existingCoupon.organizationId !== user.organization?.id)
+          (existingCoupon.salonId && existingCoupon.salonId !== ownerSalonId) ||
+          (existingCoupon.organizationId && existingCoupon.organizationId !== ownerOrgId)
         ) {
           set.status = 403;
           return {
@@ -395,9 +447,25 @@ export const couponRoutes = new Elysia({ prefix: '/api/coupons' })
       }
 
       if (user.role === 'SALON_OWNER') {
+        const ownerSalonId = user.salonId || user.salon?.id;
+        const ownerOrgId = user.organizationId || user.organization?.id;
+        if (!existingCoupon.salonId && !existingCoupon.organizationId) {
+          set.status = 403;
+          return {
+            success: false,
+            message: 'Forbidden: Cannot delete global platform coupons',
+          };
+        }
+        if (existingCoupon.targetType === 'SUBSCRIPTION') {
+          set.status = 403;
+          return {
+            success: false,
+            message: 'Forbidden: Cannot delete subscription coupons',
+          };
+        }
         if (
-          (existingCoupon.salonId && existingCoupon.salonId !== user.salon?.id) ||
-          (existingCoupon.organizationId && existingCoupon.organizationId !== user.organization?.id)
+          (existingCoupon.salonId && existingCoupon.salonId !== ownerSalonId) ||
+          (existingCoupon.organizationId && existingCoupon.organizationId !== ownerOrgId)
         ) {
           set.status = 403;
           return {

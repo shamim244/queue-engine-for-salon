@@ -322,8 +322,6 @@ export const queueEngine = {
       throw new Error(validation.reason || `Cannot transition ticket from ${ticket.status} to COMPLETED`);
     }
 
-    const amount = paymentAmount !== undefined ? paymentAmount : ticket.totalPrice;
-
     // Resolve coupon: if staff applied a coupon at checkout or ticket already has one
     let couponCode = ticket.couponCode || null;
     let couponDiscount = ticket.couponDiscount || 0;
@@ -343,13 +341,20 @@ export const queueEngine = {
           couponCode = res.coupon.code;
           couponDiscount = res.discountAmount;
           couponId = res.coupon.id;
+        } else {
+          // Reject invalid coupon code
+          throw new Error(res.message || 'Invalid coupon code applied at checkout');
         }
-      } catch (err) {
-        console.warn('[QueueEngine:finishService] Failed to validate checkout coupon:', err);
+      } catch (err: any) {
+        console.warn('[QueueEngine:finishService] Failed to validate checkout coupon:', err.message);
+        throw err;
       }
-    } else if (appliedCouponDiscount !== undefined && appliedCouponDiscount > 0) {
-      couponDiscount = appliedCouponDiscount;
+    } else if (appliedCouponDiscount && !appliedCouponCode && !ticket.couponCode) {
+      // Reject arbitrary discount injection without valid coupon code (DISC-01)
+      throw new Error('Cannot apply arbitrary coupon discount without a valid verified coupon code.');
     }
+
+    const amount = paymentAmount !== undefined ? paymentAmount : Math.max(0, ticket.totalPrice - couponDiscount);
 
     const updated = await repository.updateTicketStatus(ticketId, 'COMPLETED', {
       completedTime: new Date().toISOString(),
