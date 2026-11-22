@@ -146,6 +146,69 @@ describe('Staff Station, Consumer Lifecycle, and 4-Way Synchronization Suite', (
       expect(resShortPhone.status).toBe(400);
     });
 
+    it('should reject duplicate customer registrations cleanly without hijacking accounts', async () => {
+      // First registration
+      const payload = {
+        name: 'Rohan Unique',
+        phone: '9822233344',
+        email: 'rohan.unique@example.com',
+        password: 'Password@123',
+      };
+
+      const res1 = await app.handle(
+        new Request('http://localhost/api/auth/customer/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      );
+      expect(res1.status).toBe(200);
+
+      // Attempt second registration with same phone
+      const resDuplicatePhone = await app.handle(
+        new Request('http://localhost/api/auth/customer/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: 'Imposter Phone',
+            phone: '9822233344',
+            password: 'AnotherPassword@123',
+          }),
+        })
+      );
+      expect(resDuplicatePhone.status).toBe(400);
+      const errPhone = await resDuplicatePhone.json();
+      expect(errPhone.success).toBe(false);
+      expect(errPhone.message).toContain('already registered');
+
+      // Attempt second registration with same email
+      const resDuplicateEmail = await app.handle(
+        new Request('http://localhost/api/auth/customer/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: 'Imposter Email',
+            email: 'rohan.unique@example.com',
+            phone: '9855566677',
+            password: 'AnotherPassword@123',
+          }),
+        })
+      );
+      expect(resDuplicateEmail.status).toBe(400);
+      const errEmail = await resDuplicateEmail.json();
+      expect(errEmail.success).toBe(false);
+      expect(errEmail.message).toContain('already registered');
+
+      // Verify GET /api/admin/users?role=CUSTOMER lists the customer
+      const adminUsersRes = await app.handle(
+        new Request('http://localhost/api/admin/users?role=CUSTOMER')
+      );
+      expect(adminUsersRes.status).toBe(200);
+      const adminUsersData = await adminUsersRes.json();
+      expect(adminUsersData.success).toBe(true);
+      expect(adminUsersData.users.some((u: any) => u.email === 'rohan.unique@example.com')).toBe(true);
+    });
+
     it('should support customer login via phone number, username, and email', async () => {
       // 1. By username
       const byUser = await authService.authenticateUser('vikram_sharma', 'Customer@123');

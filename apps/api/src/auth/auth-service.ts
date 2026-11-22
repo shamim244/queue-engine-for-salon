@@ -141,13 +141,20 @@ export const authService = {
   async getUserByIdentifier(identifier: string): Promise<User | null> {
     const clean = identifier.trim().toLowerCase();
     const cleanPhone = identifier.trim().replace(/[^0-9+]/g, '');
+    const national10 = cleanPhone.replace(/\D/g, '').slice(-10);
 
     if (isMySqlConnected) {
       const db = getDb();
-      const [rows]: any = await db.query(
-        'SELECT * FROM users WHERE username = ? OR phone = ? OR email = ? LIMIT 1',
-        [clean, cleanPhone, clean]
-      );
+      let query = 'SELECT * FROM users WHERE username = ? OR email = ?';
+      const params: any[] = [clean, clean];
+
+      if (cleanPhone) {
+        query += ' OR phone = ? OR phone = ? OR phone LIKE ?';
+        params.push(cleanPhone, `+91${national10}`, `%${national10}`);
+      }
+      query += ' LIMIT 1';
+
+      const [rows]: any = await db.query(query, params);
       if (rows.length === 0) return null;
       return this.mapUserRow(rows[0]);
     }
@@ -155,10 +162,16 @@ export const authService = {
     // Check memory maps
     return (
       memoryUsers.get(clean) ||
-      memoryUsers.get(`phone:${cleanPhone}`) ||
+      (cleanPhone ? memoryUsers.get(`phone:${cleanPhone}`) : null) ||
+      (national10 ? memoryUsers.get(`phone:+91${national10}`) : null) ||
       memoryUsers.get(`email:${clean}`) ||
       Array.from(memoryUsers.values()).find(
-        (u) => u.username === clean || u.phone === cleanPhone || u.email === clean
+        (u) =>
+          u.username === clean ||
+          u.email === clean ||
+          (cleanPhone && u.phone === cleanPhone) ||
+          (national10 && u.phone === `+91${national10}`) ||
+          (national10.length === 10 && u.phone?.replace(/\D/g, '').endsWith(national10))
       ) ||
       null
     );

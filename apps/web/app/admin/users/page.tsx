@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import {
   Users,
+  User,
   UserPlus,
   KeyRound,
   Shield,
@@ -222,6 +223,7 @@ function AdminUsersContent() {
   const superAdminCount = users.filter((u) => u.role === "SUPER_ADMIN").length;
   const ownerCount = users.filter((u) => u.role === "SALON_OWNER").length;
   const staffCount = users.filter((u) => u.role === "STAFF").length;
+  const customerCount = users.filter((u) => u.role === "CUSTOMER").length;
   const activeCount = users.filter((u) => u.status === "ACTIVE").length;
 
   return (
@@ -292,7 +294,7 @@ function AdminUsersContent() {
       </div>
 
       {/* KPI Cards Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card className="bg-slate-900/60 border-slate-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs text-slate-400 uppercase font-semibold">Total Users</CardTitle>
@@ -336,6 +338,17 @@ function AdminUsersContent() {
             <p className="text-xs text-slate-400 mt-1">Mirror tablet & chair operators</p>
           </CardContent>
         </Card>
+
+        <Card className="bg-slate-900/60 border-slate-800 col-span-2 sm:col-span-1">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs text-slate-400 uppercase font-semibold">Customers</CardTitle>
+            <User className="h-4 w-4 text-cyan-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-black text-cyan-300">{customerCount}</div>
+            <p className="text-xs text-slate-400 mt-1">Consumer lounge accounts</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filter and Search Bar */}
@@ -361,6 +374,7 @@ function AdminUsersContent() {
               <option value="SUPER_ADMIN">Super Admins</option>
               <option value="SALON_OWNER">Salon Owners</option>
               <option value="STAFF">Stylists / Staff</option>
+              <option value="CUSTOMER">Customers / Consumers</option>
             </select>
 
             <select
@@ -418,6 +432,8 @@ function AdminUsersContent() {
                       ? "purple"
                       : u.role === "SALON_OWNER"
                       ? "default"
+                      : u.role === "CUSTOMER"
+                      ? "secondary"
                       : "success";
 
                   return (
@@ -443,6 +459,7 @@ function AdminUsersContent() {
                           {u.role === "SUPER_ADMIN" && <Shield className="h-3 w-3" />}
                           {u.role === "SALON_OWNER" && <Building2 className="h-3 w-3" />}
                           {u.role === "STAFF" && <Scissors className="h-3 w-3" />}
+                          {u.role === "CUSTOMER" && <User className="h-3 w-3 text-cyan-400" />}
                           {u.role}
                         </Badge>
                       </td>

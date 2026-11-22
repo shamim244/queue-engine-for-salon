@@ -244,7 +244,7 @@ function ConsumerLoginForm() {
         <form onSubmit={handleLoginSubmit} className="space-y-4">
           <div className="space-y-1.5 text-left">
             <label htmlFor="customer-identifier" className="block text-xs font-semibold text-slate-300">
-              Email or Username
+              Email, Username, or Mobile Number
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -254,7 +254,7 @@ function ConsumerLoginForm() {
                 id="customer-identifier"
                 type="text"
                 autoComplete="username"
-                placeholder="rohan@example.com or username"
+                placeholder="rohan@example.com, username, or 9876543210"
                 value={loginIdentifier}
                 onChange={(e) => setLoginIdentifier(e.target.value)}
                 disabled={isLoading}

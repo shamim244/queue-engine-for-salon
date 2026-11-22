@@ -649,36 +649,64 @@ export const authRoutes = new Elysia({ prefix: '/api/auth' })
     }
 
     const cleanName = name.trim();
-    const cleanUsername = (
-      username?.trim() ||
-      (cleanEmail ? cleanEmail.split('@')[0] : null) ||
-      (cleanPhone ? `cust_${cleanPhone.replace(/[^0-9]/g, '').slice(-6)}` : null) ||
-      `user_${Math.random().toString(36).substring(2, 7)}`
-    ).toLowerCase();
-
     const finalPassword = password && password.length >= 6 ? password : 'Customer@123';
 
     try {
-      // 1. Create User account with role 'CUSTOMER' (or retrieve if already exists)
-      let user = null;
-      if (cleanEmail) user = await authService.getUserByIdentifier(cleanEmail);
-      if (!user && cleanPhone) user = await authService.getUserByIdentifier(cleanPhone);
-      if (!user && cleanUsername) user = await authService.getUserByUsername(cleanUsername);
-
-      if (!user) {
-        user = await authService.createUser({
-          username: cleanUsername,
-          password: finalPassword,
-          fullName: cleanName,
-          phone: cleanPhone || '',
-          email: cleanEmail,
-          role: 'CUSTOMER',
-        });
+      // 1. Check if user with this email or phone already exists
+      if (cleanEmail) {
+        const existingEmail = await authService.getUserByEmail(cleanEmail);
+        if (existingEmail) {
+          set.status = 400;
+          return { success: false, message: `An account with email '${cleanEmail}' is already registered. Please sign in instead.` };
+        }
       }
 
-      // 2. Insert or update customers table
+      if (cleanPhone) {
+        const existingPhones = await authService.getUsersByPhone(cleanPhone);
+        if (existingPhones && existingPhones.length > 0) {
+          set.status = 400;
+          return { success: false, message: `Mobile phone number '${cleanPhone}' is already registered. Please sign in instead.` };
+        }
+      }
+
+      // 2. Resolve guaranteed unique username
+      let targetUsername = username?.trim().toLowerCase();
+      if (targetUsername) {
+        const existingUser = await authService.getUserByUsername(targetUsername);
+        if (existingUser) {
+          set.status = 400;
+          return { success: false, message: `Username '${targetUsername}' is already taken. Please choose another.` };
+        }
+      } else {
+        const base = (
+          (cleanEmail ? cleanEmail.split('@')[0] : null) ||
+          (cleanPhone ? `cust_${cleanPhone.replace(/[^0-9]/g, '').slice(-6)}` : null) ||
+          'user'
+        ).toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 15);
+        let candidate = `${base}_${Math.random().toString(36).substring(2, 6)}`;
+        let attempts = 0;
+        while (attempts < 5) {
+          const check = await authService.getUserByUsername(candidate);
+          if (!check) break;
+          candidate = `${base}_${Math.random().toString(36).substring(2, 6)}`;
+          attempts++;
+        }
+        targetUsername = candidate;
+      }
+
+      // 3. Create User account with role 'CUSTOMER'
+      const user = await authService.createUser({
+        username: targetUsername,
+        password: finalPassword,
+        fullName: cleanName,
+        phone: cleanPhone || '',
+        email: cleanEmail,
+        role: 'CUSTOMER',
+      });
+
+      // 4. Insert or update customers table
       const custId = 'cust-' + Math.random().toString(36).substring(2, 9);
-      const custPhone = cleanPhone || (cleanEmail ? cleanEmail.replace(/[@.]/g, '_').slice(0, 20) : `c_${custId.slice(-10)}`);
+      const custPhone = user.phone || cleanPhone || (cleanEmail ? cleanEmail.replace(/[@.]/g, '_').slice(0, 20) : `c_${custId.slice(-10)}`);
       if (isMySqlConnected) {
         const db = getDb();
         await db.query(

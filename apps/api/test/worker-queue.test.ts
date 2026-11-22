@@ -51,7 +51,7 @@ describe('SaaS Background Job Worker Pipeline', () => {
     expect(currentJob?.lastError).toContain('Simulated network timeout');
 
     // Wait for retryDelayMs
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Attempt 2 -> fails, reaches maxAttempts (2) -> marks FAILED
     await jobQueue.processNextJob();
