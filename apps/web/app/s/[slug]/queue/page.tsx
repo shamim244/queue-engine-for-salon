@@ -436,6 +436,9 @@ export default function DedicatedQueuePage({ params }: { params: Promise<{ slug:
         }
       } else {
         discount = appliedCoupon.discountValue;
+        if (appliedCoupon.maxDiscountAmount) {
+          discount = Math.min(discount, appliedCoupon.maxDiscountAmount);
+        }
       }
       const capped = Math.min(Math.round(discount * 100) / 100, price);
       setCouponDiscount(capped);

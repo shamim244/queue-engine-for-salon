@@ -208,7 +208,7 @@ describe("Deterministic Multi-Tenant Milestone Loyalty Engine", () => {
       updatedAt: new Date(),
     });
 
-    // A: Valid application at Salon A with customer's phone
+    // A: Valid application at Salon A with customer's phone (Full match: ₹250 order)
     const validRes = await couponService.validateAndApplyCoupon({
       code: "REW_ALPHA_TEST123",
       targetType: "SALON_SERVICE",
@@ -219,6 +219,33 @@ describe("Deterministic Multi-Tenant Milestone Loyalty Engine", () => {
     expect(validRes.valid).toBe(true);
     expect(validRes.discountAmount).toBe(250);
     expect(validRes.netPayable).toBe(0);
+    expect(validRes.coupon?.discountValue).toBe(250);
+
+    // A2: Seamless Downgrade (₹80 order) -> capped at orderAmount, preserves face value 250
+    const downgradeRes = await couponService.validateAndApplyCoupon({
+      code: "REW_ALPHA_TEST123",
+      targetType: "SALON_SERVICE",
+      orderAmount: 80,
+      salonId: salonA.id,
+      userId: customerPhone,
+    });
+    expect(downgradeRes.valid).toBe(true);
+    expect(downgradeRes.discountAmount).toBe(80);
+    expect(downgradeRes.netPayable).toBe(0);
+    expect(downgradeRes.coupon?.discountValue).toBe(250);
+
+    // A3: Seamless Upgrade (₹400 order) -> deducts ₹250 face value, customer pays remaining ₹150
+    const upgradeRes = await couponService.validateAndApplyCoupon({
+      code: "REW_ALPHA_TEST123",
+      targetType: "SALON_SERVICE",
+      orderAmount: 400,
+      salonId: salonA.id,
+      userId: customerPhone,
+    });
+    expect(upgradeRes.valid).toBe(true);
+    expect(upgradeRes.discountAmount).toBe(250);
+    expect(upgradeRes.netPayable).toBe(150);
+    expect(upgradeRes.coupon?.discountValue).toBe(250);
 
     // B: Invalid application at Salon B (Cross-Salon isolation)
     const foreignRes = await couponService.validateAndApplyCoupon({

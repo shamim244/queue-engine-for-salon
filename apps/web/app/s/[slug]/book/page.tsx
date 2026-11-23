@@ -241,6 +241,32 @@ export default function BookAppointmentPage({
     setCouponInput("");
   };
 
+  // Dynamically recalculate coupon discount whenever user changes selected service before booking
+  useEffect(() => {
+    if (appliedCoupon && totalPrice >= 0) {
+      if (appliedCoupon.minOrderAmount && totalPrice < appliedCoupon.minOrderAmount) {
+        setCouponDiscount(0);
+        setCouponError(`Min order of ₹${appliedCoupon.minOrderAmount} required for coupon ${appliedCoupon.code}`);
+        return;
+      }
+      setCouponError(null);
+      let discount = 0;
+      if (appliedCoupon.discountType === "PERCENT") {
+        discount = (totalPrice * appliedCoupon.discountValue) / 100;
+        if (appliedCoupon.maxDiscountAmount) {
+          discount = Math.min(discount, appliedCoupon.maxDiscountAmount);
+        }
+      } else {
+        discount = appliedCoupon.discountValue;
+        if (appliedCoupon.maxDiscountAmount) {
+          discount = Math.min(discount, appliedCoupon.maxDiscountAmount);
+        }
+      }
+      const capped = Math.min(Math.round(discount * 100) / 100, totalPrice);
+      setCouponDiscount(capped);
+    }
+  }, [totalPrice, appliedCoupon]);
+
   // Minimum required advance deposit computed from policy set by salon owner / admin
   const minRequiredAdvance = useMemo(() => {
     if (!policy.enabled || policy.policyType === "FREE") return 0;

@@ -269,9 +269,8 @@ export class CouponService {
         }
 
         // Calculate 100% deduction on the reward service or up to orderAmount
-        const discountAmount = voucher.rewardServicePrice > 0
-          ? Math.min(voucher.rewardServicePrice, input.orderAmount)
-          : input.orderAmount;
+        const rewardFaceValue = voucher.rewardServicePrice > 0 ? voucher.rewardServicePrice : input.orderAmount;
+        const discountAmount = Math.min(rewardFaceValue, input.orderAmount);
         const netPayable = Math.max(0, Math.round((input.orderAmount - discountAmount) * 100) / 100);
 
         return {
@@ -280,8 +279,8 @@ export class CouponService {
             id: `voucher_${voucher.id}`,
             code: voucher.voucherCode,
             discountType: 'FLAT',
-            discountValue: discountAmount,
-            maxDiscountAmount: null,
+            discountValue: rewardFaceValue,
+            maxDiscountAmount: rewardFaceValue,
             minOrderAmount: 0,
           },
           discountAmount,
