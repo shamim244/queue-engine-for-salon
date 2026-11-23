@@ -342,4 +342,28 @@ describe('Engine Que System - Core Queue State Machine Tests', () => {
     const active = await repository.getActiveTickets('salon-rural-01');
     expect(active.some((t) => t.id === ticket.id)).toBe(false);
   });
+
+  it('should sanitize foreign stylist ID and auto-bind to valid salon stylist when seated in chair', async () => {
+    // 1. Check in client at ramesh-barber (salon-rural-01)
+    const ticket = await queueEngine.checkIn({
+      salonSlug: 'ramesh-barber',
+      customerName: 'Foreign Stylist Test',
+      customerPhone: '9876543209',
+      serviceId: 'srv-r-1',
+    });
+    expect(ticket.status).toBe('WAITING');
+
+    // 2. Attempt to seat client with a foreign stylist ID from a different salon
+    const seated = await queueEngine.seatCustomer(ticket.id, 'stylist-foreign-salon-999');
+    expect(seated).not.toBeNull();
+    expect(seated?.status).toBe('IN_CHAIR');
+    // Must NOT be foreign stylist; must be resolved to ramesh-barber's stylist
+    expect(seated?.stylistId).toBe('stylist-ramesh-01');
+
+    // 3. Verify getActiveTickets self-heals any malformed stylist IDs
+    const active = await repository.getActiveTickets('salon-rural-01');
+    const seatedInActive = active.find((t) => t.id === ticket.id);
+    expect(seatedInActive).toBeDefined();
+    expect(seatedInActive?.stylistId).toBe('stylist-ramesh-01');
+  });
 });

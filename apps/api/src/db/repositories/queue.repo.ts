@@ -107,6 +107,26 @@ export const queueRepo = {
         .sort((a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime());
     }
 
+    // Self-healing guard: ensure any in-chair or summoned ticket with invalid/foreign stylistId is aligned to salon
+    if (tickets.length > 0) {
+      try {
+        const { salonRepo } = await import('./salon.repo');
+        const salon = await salonRepo.getSalonById(salonId);
+        if (salon?.stylists && salon.stylists.length > 0) {
+          const validIds = new Set(salon.stylists.map((s) => s.id));
+          for (const t of tickets) {
+            if ((t.status === 'IN_CHAIR' || t.status === 'SUMMONED') && (!t.stylistId || !validIds.has(t.stylistId))) {
+              const fallbackStylist = salon.stylists.find((s) => s.isActive) || salon.stylists[0];
+              t.stylistId = fallbackStylist.id;
+              if (isMySqlConnected) {
+                getDb().query('UPDATE queue_tickets SET stylist_id = ? WHERE id = ?', [fallbackStylist.id, t.id]).catch(() => {});
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+
     return await this.enrichTicketsIntelligence(tickets, salonId);
   },
 

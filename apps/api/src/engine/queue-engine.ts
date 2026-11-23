@@ -286,8 +286,24 @@ export const queueEngine = {
       throw new Error(validation.reason || `Cannot transition ticket from ${ticket.status} to IN_CHAIR`);
     }
 
+    const salon = await repository.getSalonById(ticket.salonId);
+    let resolvedStylistId: string | undefined = undefined;
+
+    // Strict Stylist Validation & Chair Binding:
+    // 1. If explicit stylistId passed, verify it strictly belongs to THIS salon
+    if (stylistId && salon?.stylists?.some((s) => s.id === stylistId)) {
+      resolvedStylistId = stylistId;
+    } else if (ticket.stylistId && salon?.stylists?.some((s) => s.id === ticket.stylistId)) {
+      // 2. Fall back to ticket's existing stylist preference if valid for this salon
+      resolvedStylistId = ticket.stylistId;
+    } else if (salon?.stylists && salon.stylists.length > 0) {
+      // 3. Auto-bind to first active stylist of this salon (single or multi-chair)
+      const activeStylist = salon.stylists.find((s) => s.isActive) || salon.stylists[0];
+      resolvedStylistId = activeStylist.id;
+    }
+
     const updated = await repository.updateTicketStatus(ticketId, 'IN_CHAIR', {
-      stylistId: stylistId || ticket.stylistId || undefined,
+      stylistId: resolvedStylistId,
       startedTime: new Date().toISOString(),
     });
 
@@ -500,7 +516,7 @@ export const queueEngine = {
       await repository.updateTicketStatus(prev.id, 'SOFT_BUMPED');
     }
 
-    const finalStylistId = stylistId || ticket.stylistId || stylist?.id;
+    const finalStylistId = stylist?.id || ticket.stylistId;
     const updated = await repository.updateTicketStatus(ticketId, 'SUMMONED', {
       stylistId: finalStylistId,
       summonedTime: new Date().toISOString(),

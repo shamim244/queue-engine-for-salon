@@ -25,6 +25,17 @@ export function ChairsFloorGrid({
   onOpenSeatModal,
   onSoftBump,
 }: ChairsFloorGridProps) {
+  // Safety net: Identify any in-chair tickets that did not match any configured chair
+  const matchedTicketIds = new Set(
+    (stylists || []).map((s) => {
+      const seated = inServiceTickets.find(
+        (t) => t.stylistId === s.id || (stylists.length === 1 && inServiceTickets.length === 1)
+      );
+      return seated?.id;
+    }).filter(Boolean)
+  );
+  const unmatchedInService = inServiceTickets.filter((t) => !matchedTicketIds.has(t.id));
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -37,10 +48,43 @@ export function ChairsFloorGrid({
         </span>
       </div>
 
+      {/* Safety Net Banner for Unassigned In-Service Clients */}
+      {unmatchedInService.length > 0 && (
+        <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/50 text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-2.5">
+            <Armchair className="h-5 w-5 text-amber-400 shrink-0" />
+            <div>
+              <p className="font-bold text-sm text-white">
+                {unmatchedInService.length} Client{unmatchedInService.length > 1 ? "s" : ""} Active in Chair
+              </p>
+              <p className="text-amber-300/80">
+                Ticket #{unmatchedInService.map((t) => `${t.ticketNumber} (${t.customerName})`).join(", #")} is in service.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {unmatchedInService.map((t) => (
+              <Button
+                key={t.id}
+                size="sm"
+                onClick={() => onOpenCheckout(t)}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs min-h-[44px] sm:min-h-[32px]"
+              >
+                Finish & Bill #{t.ticketNumber}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {(stylists || []).map((stylist, idx) => {
-          const seatedTicket = inServiceTickets.find((t) => t.stylistId === stylist.id);
-          const summonedTicket = summonedTickets.find((t) => t.stylistId === stylist.id);
+          const seatedTicket = inServiceTickets.find(
+            (t) => t.stylistId === stylist.id || (stylists.length === 1 && inServiceTickets.length === 1)
+          );
+          const summonedTicket = summonedTickets.find(
+            (t) => t.stylistId === stylist.id || (stylists.length === 1 && summonedTickets.length === 1)
+          );
 
           return (
             <Card

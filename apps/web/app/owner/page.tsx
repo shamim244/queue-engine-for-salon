@@ -60,13 +60,16 @@ function OwnerDashboardContent() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const currentSlug = salon?.slug || searchParams.get("salon") || "ramesh-barber";
+  const paramSlug = searchParams.get("salon");
+  const currentSlug = paramSlug || salon?.slug || "ramesh-barber";
+  const [currentSalon, setCurrentSalon] = useState<Salon | null>(null);
 
   const refreshData = useCallback(async () => {
-    if (!salon && !currentSlug) return;
+    if (!currentSlug) return;
     try {
       const salonRes = await api.salons.get(currentSlug);
       if (salonRes.salon) {
+        setCurrentSalon(salonRes.salon);
         setSelectedSalon(salonRes.salon);
       }
       const [metricsRes, queueRes] = await Promise.all([
@@ -310,12 +313,12 @@ function OwnerDashboardContent() {
         waitingCount={waitingTickets.length}
         summonedCount={summonedTickets.length}
         inServiceCount={inServiceTickets.length}
-        totalStylists={salon?.stylists?.length || 1}
+        totalStylists={currentSalon?.stylists?.length || salon?.stylists?.length || 1}
       />
 
       {/* Chairs & Stations Real-Time Visual Floor Grid */}
       <ChairsFloorGrid
-        stylists={salon?.stylists || []}
+        stylists={currentSalon?.stylists || salon?.stylists || []}
         inServiceTickets={inServiceTickets}
         summonedTickets={summonedTickets}
         waitingTickets={waitingTickets}
@@ -353,15 +356,15 @@ function OwnerDashboardContent() {
         isOpen={isQuickAddOpen}
         onClose={() => setIsQuickAddOpen(false)}
         salonSlug={currentSlug}
-        services={salon?.services}
-        stylists={salon?.stylists}
+        services={currentSalon?.services || salon?.services}
+        stylists={currentSalon?.stylists || salon?.stylists}
         onSuccess={() => refreshData()}
         showToast={showToast}
       />
 
       <SeatClientModal
         ticket={seatTicket}
-        stylists={salon?.stylists}
+        stylists={currentSalon?.stylists || salon?.stylists}
         inServiceTickets={inServiceTickets}
         onClose={() => setSeatTicket(null)}
         onSuccess={() => refreshData()}

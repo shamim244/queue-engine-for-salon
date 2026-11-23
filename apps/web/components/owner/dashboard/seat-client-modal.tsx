@@ -28,8 +28,9 @@ export function SeatClientModal({
 
   useEffect(() => {
     if (ticket) {
-      const defaultStylist = stylists?.[0]?.id || "";
-      setSelectedStylistId(ticket.stylistId || defaultStylist);
+      const isTicketStylistValid = stylists?.some((st) => st.id === ticket.stylistId);
+      const defaultStylist = (isTicketStylistValid ? ticket.stylistId : null) || stylists?.[0]?.id || "";
+      setSelectedStylistId(defaultStylist);
     }
   }, [ticket, stylists]);
 

@@ -225,22 +225,28 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
       const tickets = queueRes.tickets || [];
       setActiveTickets(tickets);
 
-      // Strict Chair Isolation: Only show ticket currently serving or called at THIS chair
+      // Strict Chair Isolation with Single-Chair & Orphaned Ticket Safety Resilience
       const inService =
-        tickets.find(
-          (t) =>
-            (t.status === "IN_SERVICE" || t.status === "IN_CHAIR") &&
-            targetStylist &&
-            (t.stylistId === targetStylist.id || t.servedByStylistId === targetStylist.id)
-        ) || null;
+        tickets.find((t) => {
+          if (t.status !== "IN_SERVICE" && t.status !== "IN_CHAIR") return false;
+          if (!targetStylist) return false;
+          if (t.stylistId === targetStylist.id || t.servedByStylistId === targetStylist.id) return true;
+          // Single-chair salon: all in-chair clients are at this single chair
+          if (salonRes.salon.stylists?.length === 1) return true;
+          // Orphaned ticket resilience: if ticket has an unmatched/foreign stylist ID, adopt it so it is never lost
+          const isValidStylist = salonRes.salon.stylists?.some((s: Stylist) => s.id === t.stylistId);
+          return !isValidStylist;
+        }) || null;
 
       const called =
-        tickets.find(
-          (t) =>
-            (t.status === "CALLED" || t.status === "SUMMONED") &&
-            targetStylist &&
-            (t.stylistId === targetStylist.id || t.servedByStylistId === targetStylist.id)
-        ) || null;
+        tickets.find((t) => {
+          if (t.status !== "CALLED" && t.status !== "SUMMONED") return false;
+          if (!targetStylist) return false;
+          if (t.stylistId === targetStylist.id || t.servedByStylistId === targetStylist.id) return true;
+          if (salonRes.salon.stylists?.length === 1) return true;
+          const isValidStylist = salonRes.salon.stylists?.some((s: Stylist) => s.id === t.stylistId);
+          return !isValidStylist;
+        }) || null;
 
       setCurrentlyServing((prev) => (prev?.id === inService?.id ? inService : inService));
       setSummonedTicket((prev) => (prev?.id === called?.id ? called : called));
@@ -323,14 +329,20 @@ export default function StaffStationPage({ params }: { params: Promise<{ slug: s
           if (Array.isArray(cached.tickets)) {
             setActiveTickets(cached.tickets);
             const target = activeStylistRef.current || cached.activeStylist;
-            const inService = cached.tickets.find((t: any) =>
-              (t.status === "IN_SERVICE" || t.status === "IN_CHAIR") &&
-              target && (t.stylistId === target.id || t.servedByStylistId === target.id)
-            ) || null;
-            const called = cached.tickets.find((t: any) =>
-              (t.status === "CALLED" || t.status === "SUMMONED") &&
-              target && (t.stylistId === target.id || t.servedByStylistId === target.id)
-            ) || null;
+            const inService = cached.tickets.find((t: any) => {
+              if (t.status !== "IN_SERVICE" && t.status !== "IN_CHAIR") return false;
+              if (!target) return false;
+              if (t.stylistId === target.id || t.servedByStylistId === target.id) return true;
+              if (cached.salon?.stylists?.length === 1) return true;
+              return !cached.salon?.stylists?.some((s: any) => s.id === t.stylistId);
+            }) || null;
+            const called = cached.tickets.find((t: any) => {
+              if (t.status !== "CALLED" && t.status !== "SUMMONED") return false;
+              if (!target) return false;
+              if (t.stylistId === target.id || t.servedByStylistId === target.id) return true;
+              if (cached.salon?.stylists?.length === 1) return true;
+              return !cached.salon?.stylists?.some((s: any) => s.id === t.stylistId);
+            }) || null;
             setCurrentlyServing(inService);
             setSummonedTicket(called);
           }
