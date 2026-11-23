@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { repository, seedDemoData } from '../src/db/repository';
+import { cacheService } from '../src/cache/cache.service';
 
 describe('Salon Catalog Caching & Invalidation Suite', () => {
   beforeEach(() => {
@@ -85,11 +86,27 @@ describe('Salon Catalog Caching & Invalidation Suite', () => {
     expect(initial).not.toBeNull();
 
     // Invalidate
-    repository.invalidateSalonCache('ramesh-barber');
+    await repository.invalidateSalonCache('ramesh-barber');
 
     // Should fetch and re-populate
     const repopulated = await repository.getSalonBySlug('ramesh-barber');
     expect(repopulated).not.toBeNull();
     expect(repopulated?.id).toBe(initial?.id);
+  });
+
+  it('should treat distributed cache miss as authoritative and not serve stale local RAM data across cluster workers', async () => {
+    const testKey = 'test:cluster:key';
+    await cacheService.set(testKey, { version: 1 }, 60);
+
+    // Verify key exists
+    const initial = await cacheService.get<{ version: number }>(testKey);
+    expect(initial?.version).toBe(1);
+
+    // Simulate another worker deleting the key from distributed cache
+    await cacheService.del(testKey);
+
+    // Next get must return null (cache miss), not stale data from local in-memory fallback
+    const miss = await cacheService.get<{ version: number }>(testKey);
+    expect(miss).toBeNull();
   });
 });

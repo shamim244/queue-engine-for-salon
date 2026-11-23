@@ -284,10 +284,9 @@ export class CentralizedCacheManager {
   async get<T>(key: string): Promise<T | null> {
     const active = this.getActiveAdapter();
     if (active !== this.inMemoryFallback) {
-      const val = await active.get<T>(key);
-      if (val !== null) return val;
+      return await active.get<T>(key);
     }
-    // Fallback to in-memory store
+    // Fallback to in-memory store only when no distributed cache adapter is active
     return this.inMemoryFallback.get<T>(key);
   }
 
