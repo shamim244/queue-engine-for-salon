@@ -6,7 +6,7 @@ export interface DispatchedNotification {
   ticketId: string;
   recipientPhone: string;
   recipientName: string;
-  type: 'TICKET_CONFIRMATION' | '10_MIN_WARNING' | 'CHAIR_READY' | 'SOFT_BUMP_ALERT' | 'ABSENCE_QUEUE_REASSIGNMENT';
+  type: 'TICKET_CONFIRMATION' | '10_MIN_WARNING' | 'CHAIR_READY' | 'SOFT_BUMP_ALERT' | 'ABSENCE_QUEUE_REASSIGNMENT' | 'LOYALTY_REWARD_UNLOCKED';
   channel: 'WHATSAPP' | 'SMS';
   message: string;
   sentAt: string;
@@ -22,15 +22,22 @@ export const notificationService = {
     ticketId: string;
     recipientPhone: string;
     recipientName: string;
-    type: 'TICKET_CONFIRMATION' | '10_MIN_WARNING' | 'CHAIR_READY' | 'SOFT_BUMP_ALERT' | 'ABSENCE_QUEUE_REASSIGNMENT';
-    ticketNumber: number;
+    type: 'TICKET_CONFIRMATION' | '10_MIN_WARNING' | 'CHAIR_READY' | 'SOFT_BUMP_ALERT' | 'ABSENCE_QUEUE_REASSIGNMENT' | 'LOYALTY_REWARD_UNLOCKED';
+    ticketNumber?: number;
     estimatedWaitMinutes?: number;
     stylistName?: string;
     customMessage?: string;
+    rewardName?: string;
+    voucherCode?: string;
+    rewardPrice?: number;
+    expiresAt?: string;
   }): Promise<DispatchedNotification> {
     let messageText = '';
 
     switch (params.type) {
+      case 'LOYALTY_REWARD_UNLOCKED':
+        messageText = `🎉 *CONGRATULATIONS - ${params.salonName}*\n\nNamaste ${params.recipientName}! You've reached your VIP loyalty milestone!\n\n🎁 *Reward:* Free ${params.rewardName || 'Haircut'} (or ₹${params.rewardPrice || 150} credit towards any service)\n🎟️ *Voucher Code:* *${params.voucherCode}*\n⏳ *Valid until:* ${params.expiresAt || '90 days'}\n\nPresent this code or your phone number on your next visit to claim your reward!`;
+        break;
       case 'TICKET_CONFIRMATION':
         messageText = `💈 *${params.salonName}*\n\nNamaste ${params.recipientName}! Your Queue Ticket is *#${params.ticketNumber}*.\n⏳ Estimated wait: *${params.estimatedWaitMinutes || 15} mins*.\n\nYou can grab tea or relax nearby. We will alert you on WhatsApp when you are next!`;
         break;

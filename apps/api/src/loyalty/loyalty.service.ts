@@ -140,6 +140,7 @@ export class LoyaltyService {
             type: 'LOYALTY_REWARD_UNLOCKED',
             ticketId,
             rewardName: rewardServiceName,
+            rewardPrice: rewardServicePrice,
             voucherCode,
             expiresAt: expiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
           },

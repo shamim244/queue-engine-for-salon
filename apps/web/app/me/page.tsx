@@ -994,7 +994,11 @@ function CustomerAccountContent() {
                             </div>
                             <CardDescription className="text-xs mt-1">
                               Reward: <strong className="text-amber-300">Free {cardItem.rewardServiceName || "Haircut / Styling"}</strong>{" "}
-                              {cardItem.rewardServicePrice > 0 && `(Worth ₹${cardItem.rewardServicePrice})`}
+                              {cardItem.rewardServicePrice > 0 && (
+                                <span className="text-slate-400">
+                                  (Worth ₹{cardItem.rewardServicePrice} or credit towards any service)
+                                </span>
+                              )}
                             </CardDescription>
                           </div>
 
@@ -1042,7 +1046,7 @@ function CustomerAccountContent() {
                                     )}
                                   </p>
                                   <p className="text-[10px] text-slate-400 mt-0.5">
-                                    Valid at {cardItem.salonName} · Present code or phone at door check-in.
+                                    Valid at {cardItem.salonName} · Free {voucher.rewardServiceName || "Haircut"} or ₹{voucher.rewardServicePrice || 150} credit towards any service. Present code or phone at check-in.
                                   </p>
                                 </div>
 
