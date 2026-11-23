@@ -37,7 +37,7 @@ export const stylistRepo = {
         [stylist.id, stylist.salonId, stylist.name, stylist.phone, stylist.isActive, stylist.historicalAvgDurationMinutes]
       );
     }
-    invalidateSalonCache(salonId);
+    await invalidateSalonCache(salonId);
     return stylist;
   },
 
@@ -69,10 +69,10 @@ export const stylistRepo = {
         stylist.isActive = updates.isActive;
       }
       if (stylist.salonId) {
-        invalidateSalonCache(stylist.salonId);
+        await invalidateSalonCache(stylist.salonId);
       }
     } else {
-      invalidateSalonCache();
+      await invalidateSalonCache();
     }
     return true;
   },
@@ -141,7 +141,7 @@ export const stylistRepo = {
         }
       }
     }
-    invalidateSalonCache(salonId);
+    await invalidateSalonCache(salonId);
     return true;
   },
 
@@ -246,7 +246,7 @@ export const stylistRepo = {
       }
     }
 
-    invalidateSalonCache(params.salonId);
+    await invalidateSalonCache(params.salonId);
     return leave;
   },
 
@@ -298,7 +298,7 @@ export const stylistRepo = {
           await this.updateStylistPreference(leave.stylistId, { isActive: true });
         }
       }
-      invalidateSalonCache(leave.salonId);
+      await invalidateSalonCache(leave.salonId);
     }
 
     return leave;
@@ -425,7 +425,7 @@ export const stylistRepo = {
       });
     }
 
-    invalidateSalonCache(params.salonId);
+    await invalidateSalonCache(params.salonId);
 
     // Dynamic import queueEngine for queue recalculation without circular static binding
     try {

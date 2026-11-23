@@ -238,30 +238,35 @@ export interface SalonCacheEntry {
 export const salonCache = new Map<string, SalonCacheEntry>();
 export const CACHE_TTL_MS = 60000;
 
-export function invalidateSalonCache(salonIdOrSlug?: string): void {
-  // Always bust platform-wide salons list cache
-  cacheService.del('salons:all').catch(() => {});
-  cacheService.delPattern('salons:*').catch(() => {});
+export async function invalidateSalonCache(salonIdOrSlug?: string): Promise<void> {
+  const promises: Promise<any>[] = [
+    cacheService.del('salons:all'),
+    cacheService.delPattern('salons:*'),
+  ];
 
   if (!salonIdOrSlug) {
     salonCache.clear();
-    cacheService.delPattern('salon:catalog:*').catch(() => {});
+    promises.push(cacheService.delPattern('salon:catalog:*'));
+    await Promise.allSettled(promises);
     return;
   }
+
+  // Clear in-memory Map caches immediately
+  salonCache.delete(salonIdOrSlug);
+  promises.push(cacheService.del(`salon:catalog:${salonIdOrSlug}`));
+
   const entry = salonCache.get(salonIdOrSlug);
   if (entry) {
     salonCache.delete(entry.salon.slug);
     salonCache.delete(entry.salon.id);
-    cacheService.del(`salon:catalog:${entry.salon.slug}`).catch(() => {});
-    cacheService.del(`salon:catalog:${entry.salon.id}`).catch(() => {});
-  } else {
-    salonCache.delete(salonIdOrSlug);
-    cacheService.del(`salon:catalog:${salonIdOrSlug}`).catch(() => {});
-    for (const [key, val] of salonCache.entries()) {
-      if (val.salon.id === salonIdOrSlug || val.salon.slug === salonIdOrSlug) {
-        salonCache.delete(key);
-        cacheService.del(`salon:catalog:${key}`).catch(() => {});
-      }
+    promises.push(cacheService.del(`salon:catalog:${entry.salon.slug}`));
+    promises.push(cacheService.del(`salon:catalog:${entry.salon.id}`));
+  }
+
+  for (const [key, val] of salonCache.entries()) {
+    if (val.salon.id === salonIdOrSlug || val.salon.slug === salonIdOrSlug) {
+      salonCache.delete(key);
+      promises.push(cacheService.del(`salon:catalog:${key}`));
     }
   }
 
@@ -270,9 +275,28 @@ export function invalidateSalonCache(salonIdOrSlug?: string): void {
   if (memorySalon) {
     salonCache.delete(memorySalon.slug);
     salonCache.delete(memorySalon.id);
-    cacheService.del(`salon:catalog:${memorySalon.slug}`).catch(() => {});
-    cacheService.del(`salon:catalog:${memorySalon.id}`).catch(() => {});
+    promises.push(cacheService.del(`salon:catalog:${memorySalon.slug}`));
+    promises.push(cacheService.del(`salon:catalog:${memorySalon.id}`));
   }
+
+  // Cross-reference MySQL to guarantee both id and slug keys are purged in distributed cache
+  if (isMySqlConnected) {
+    try {
+      const db = getDb();
+      const [rows]: any = await db.query(
+        'SELECT id, slug FROM salons WHERE id = ? OR slug = ? LIMIT 1',
+        [salonIdOrSlug, salonIdOrSlug]
+      );
+      if (Array.isArray(rows) && rows.length > 0) {
+        salonCache.delete(rows[0].id);
+        salonCache.delete(rows[0].slug);
+        promises.push(cacheService.del(`salon:catalog:${rows[0].id}`));
+        promises.push(cacheService.del(`salon:catalog:${rows[0].slug}`));
+      }
+    } catch {}
+  }
+
+  await Promise.allSettled(promises);
 }
 
 export function toMySqlDatetime(val?: string | Date | null): string | null {

@@ -29,7 +29,7 @@ export const serviceRepo = {
         ]
       );
     }
-    invalidateSalonCache(service.salonId);
+    await invalidateSalonCache(service.salonId);
     return service;
   },
 
@@ -48,9 +48,9 @@ export const serviceRepo = {
     }
 
     if (targetSalonId) {
-      invalidateSalonCache(targetSalonId);
+      await invalidateSalonCache(targetSalonId);
     } else {
-      invalidateSalonCache();
+      await invalidateSalonCache();
     }
     return true;
   },
@@ -100,9 +100,9 @@ export const serviceRepo = {
     }
 
     if (targetSalonId) {
-      invalidateSalonCache(targetSalonId);
+      await invalidateSalonCache(targetSalonId);
     } else {
-      invalidateSalonCache();
+      await invalidateSalonCache();
     }
     return true;
   },

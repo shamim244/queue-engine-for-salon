@@ -240,8 +240,8 @@ export const salonRepo = {
       }
     }
 
-    this.invalidateSalonCache(newSalon.id);
-    this.invalidateSalonCache(newSalon.slug);
+    await this.invalidateSalonCache(newSalon.id);
+    await this.invalidateSalonCache(newSalon.slug);
     return newSalon;
   },
 
@@ -257,7 +257,7 @@ export const salonRepo = {
         s.operatingMode = mode || 'STANDARD';
       }
     }
-    this.invalidateSalonCache(salonId);
+    await this.invalidateSalonCache(salonId);
   },
 
   async updateSalon(salonId: string, updates: {
@@ -373,8 +373,8 @@ export const salonRepo = {
         ]
       );
     }
-    this.invalidateSalonCache(salon.id);
-    this.invalidateSalonCache(salon.slug);
+    await this.invalidateSalonCache(salon.id);
+    await this.invalidateSalonCache(salon.slug);
     await cacheService.del('salons:all').catch(() => {});
     await cacheService.delPattern('salons:*').catch(() => {});
     return salon;
@@ -394,8 +394,8 @@ export const salonRepo = {
       await db.query('DELETE FROM stylists WHERE salon_id = ?', [salon.id]);
       await db.query('DELETE FROM salons WHERE id = ?', [salon.id]);
     }
-    this.invalidateSalonCache(salon.id);
-    this.invalidateSalonCache(salon.slug);
+    await this.invalidateSalonCache(salon.id);
+    await this.invalidateSalonCache(salon.slug);
     await cacheService.del('salons:all').catch(() => {});
     await cacheService.delPattern('salons:*').catch(() => {});
     return true;
