@@ -95,6 +95,7 @@ export default function BookAppointmentPage({
     discountType: string;
     discountValue: number;
     maxDiscountAmount?: number | null;
+    minOrderAmount?: number;
   } | null>(null);
   const [couponDiscount, setCouponDiscount] = useState<number>(0);
   const [couponError, setCouponError] = useState<string | null>(null);
