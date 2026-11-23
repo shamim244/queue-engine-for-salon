@@ -175,6 +175,9 @@ function OwnerLoyaltyContent() {
         rewardDescription,
       });
       if (res?.success) {
+        if (res.salon?.loyaltyStampGoal) {
+          setStampGoal(Number(res.salon.loyaltyStampGoal));
+        }
         setSavedSuccess(true);
         setTimeout(() => setSavedSuccess(false), 3000);
       }

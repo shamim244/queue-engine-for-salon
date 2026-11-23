@@ -239,6 +239,10 @@ export const salonCache = new Map<string, SalonCacheEntry>();
 export const CACHE_TTL_MS = 60000;
 
 export function invalidateSalonCache(salonIdOrSlug?: string): void {
+  // Always bust platform-wide salons list cache
+  cacheService.del('salons:all').catch(() => {});
+  cacheService.delPattern('salons:*').catch(() => {});
+
   if (!salonIdOrSlug) {
     salonCache.clear();
     cacheService.delPattern('salon:catalog:*').catch(() => {});
@@ -259,6 +263,15 @@ export function invalidateSalonCache(salonIdOrSlug?: string): void {
         cacheService.del(`salon:catalog:${key}`).catch(() => {});
       }
     }
+  }
+
+  // Also check memoryStore to invalidate both id and slug
+  const memorySalon = memoryStore.salons.get(salonIdOrSlug);
+  if (memorySalon) {
+    salonCache.delete(memorySalon.slug);
+    salonCache.delete(memorySalon.id);
+    cacheService.del(`salon:catalog:${memorySalon.slug}`).catch(() => {});
+    cacheService.del(`salon:catalog:${memorySalon.id}`).catch(() => {});
   }
 }
 

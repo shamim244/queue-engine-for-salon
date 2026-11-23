@@ -317,4 +317,36 @@ describe("Deterministic Multi-Tenant Milestone Loyalty Engine", () => {
     expect(updated!.wifiSsid).toBe("AlphaGuestWiFi");
     expect(updated!.enableLoungeWifi).toBe(true);
   });
+
+  it("8. Real-Time Cache Invalidation: customer hub immediately reflects updated stamp goal with zero lag", async () => {
+    // Award initial stamp so card exists
+    await loyaltyService.awardStamp({
+      salonId: salonA.id,
+      customerPhone,
+      customerName,
+      ticketId: "tkt_test_8",
+      finalPrice: 200,
+    });
+
+    // 1. Owner updates stamp goal to 8
+    await salonRepo.updateSalon(salonA.id, { loyaltyStampGoal: 8 });
+    const hub1 = await loyaltyService.getCustomerLoyaltyHub(customerPhone);
+    const card1 = hub1.cards.find((c) => c.salonId === salonA.id);
+    expect(card1).toBeDefined();
+    expect(card1!.stampGoal).toBe(8);
+
+    // 2. Owner updates stamp goal to 7
+    await salonRepo.updateSalon(salonA.id, { loyaltyStampGoal: 7 });
+    const hub2 = await loyaltyService.getCustomerLoyaltyHub(customerPhone);
+    const card2 = hub2.cards.find((c) => c.salonId === salonA.id);
+    expect(card2).toBeDefined();
+    expect(card2!.stampGoal).toBe(7);
+
+    // 3. Owner updates stamp goal to 9
+    await salonRepo.updateSalon(salonA.id, { loyaltyStampGoal: 9 });
+    const hub3 = await loyaltyService.getCustomerLoyaltyHub(customerPhone);
+    const card3 = hub3.cards.find((c) => c.salonId === salonA.id);
+    expect(card3).toBeDefined();
+    expect(card3!.stampGoal).toBe(9);
+  });
 });

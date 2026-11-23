@@ -292,8 +292,7 @@ export const salonRepo = {
     loyaltyRefereeDiscount?: number;
     loyaltyRewardDescription?: string;
   }): Promise<Salon | null> {
-    const all = await this.getAllSalons();
-    const salon = all.find((s) => s.id === salonId || s.slug === salonId);
+    const salon = (await this.getSalonById(salonId, { skipCache: true })) || (await this.getAllSalons()).find((s) => s.id === salonId || s.slug === salonId);
     if (!salon) return null;
 
     if (updates.name !== undefined) salon.name = updates.name.trim();
@@ -376,12 +375,13 @@ export const salonRepo = {
     }
     this.invalidateSalonCache(salon.id);
     this.invalidateSalonCache(salon.slug);
+    await cacheService.del('salons:all').catch(() => {});
+    await cacheService.delPattern('salons:*').catch(() => {});
     return salon;
   },
 
   async deleteSalon(salonId: string): Promise<boolean> {
-    const all = await this.getAllSalons();
-    const salon = all.find((s) => s.id === salonId || s.slug === salonId);
+    const salon = (await this.getSalonById(salonId, { skipCache: true })) || (await this.getAllSalons()).find((s) => s.id === salonId || s.slug === salonId);
     if (!salon) return false;
 
     memoryStore.salons.delete(salon.id);
@@ -396,6 +396,8 @@ export const salonRepo = {
     }
     this.invalidateSalonCache(salon.id);
     this.invalidateSalonCache(salon.slug);
+    await cacheService.del('salons:all').catch(() => {});
+    await cacheService.delPattern('salons:*').catch(() => {});
     return true;
   },
 

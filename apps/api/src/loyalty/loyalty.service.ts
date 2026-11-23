@@ -171,16 +171,28 @@ export class LoyaltyService {
       return { success: false, cards: [], activeVouchers: [] };
     }
 
-    const [cards, allVouchers, allSalons] = await Promise.all([
+    const [cards, allVouchers] = await Promise.all([
       loyaltyRepo.getCardsByPhone(cleanPhone),
       loyaltyRepo.getVouchersByPhone(cleanPhone),
-      salonRepo.getAllSalons(),
     ]);
 
     const activeVouchers = allVouchers.filter((v) => v.status === 'ACTIVE');
 
+    // Fetch real-time salon settings for the specific salons the customer has cards for
+    const uniqueSalonIds = Array.from(new Set(cards.map((c) => c.salonId)));
+    const salonsList = await Promise.all(
+      uniqueSalonIds.map((id) => salonRepo.getSalonById(id))
+    );
+    const salonMap = new Map<string, any>();
+    for (const s of salonsList) {
+      if (s) {
+        salonMap.set(s.id, s);
+        salonMap.set(s.slug, s);
+      }
+    }
+
     const enrichedCards = cards.map((c) => {
-      const salon = allSalons.find((s) => s.id === c.salonId);
+      const salon = salonMap.get(c.salonId);
       const goal = salon?.loyaltyStampGoal && salon.loyaltyStampGoal > 0 ? salon.loyaltyStampGoal : 6;
       let rewardServiceName = salon?.loyaltyRewardServiceName || salon?.loyaltyRewardDescription || 'Free Haircut';
       let rewardServicePrice = 0;
