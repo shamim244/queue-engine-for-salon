@@ -1,8 +1,20 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Link from "next/link";
-import { MessageSquare, Armchair, ExternalLink, Play, CheckCircle2, RotateCcw } from "lucide-react";
+import {
+  MessageSquare,
+  Armchair,
+  ExternalLink,
+  Play,
+  CheckCircle2,
+  RotateCcw,
+  Volume2,
+  VolumeX,
+  Sparkles,
+  Scissors,
+  Check
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { SectionProps } from "./types";
@@ -13,17 +25,68 @@ export const QueueSimulator: React.FC<SectionProps> = ({ config }) => {
   const [nextTicket, setNextTicket] = useState(104);
   const [nextName, setNextName] = useState("Amit Sharma");
   const [alertDispatched, setAlertDispatched] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [recentEvents, setRecentEvents] = useState<string[]>([
+    "Chair #1: Ramesh Kumar started Haircut for Vikram (#103)",
+    "Entrance QR: Amit Sharma (#104) joined live queue",
+    "TV Mirror: Queue departure board synchronized in lobby"
+  ]);
+
+  // Client-side Web Audio API audio synthesis (Zero server streaming waste)
+  const playAirportChime = () => {
+    if (!soundEnabled || typeof window === "undefined") return;
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+
+      // Note 1: 587.33 Hz (D5)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(587.33, ctx.currentTime);
+      gain1.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(ctx.currentTime);
+      osc1.stop(ctx.currentTime + 0.45);
+
+      // Note 2: 880 Hz (A5)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(880, ctx.currentTime + 0.18);
+      gain2.gain.setValueAtTime(0.18, ctx.currentTime + 0.18);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.75);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(ctx.currentTime + 0.18);
+      osc2.stop(ctx.currentTime + 0.75);
+    } catch {
+      // AudioContext blocked by user-gesture policy or unavailable
+    }
+  };
 
   const handleCallNext = () => {
+    playAirportChime();
     setAlertDispatched(true);
-    setCurrentServing(nextTicket);
-    setCustomerName(nextName);
+
+    const prevNextTicket = nextTicket;
+    const prevNextName = nextName;
+    const pool = ["Pooja Rao", "Rohan Mehta", "Deepak Verma", "Karan Patel", "Sneha Joshi"];
+    const upcomingName = pool[Math.floor(Math.random() * pool.length)];
+
+    setCurrentServing(prevNextTicket);
+    setCustomerName(prevNextName);
     setNextTicket((prev) => prev + 1);
-    setNextName(
-      ["Pooja Rao", "Rohan Mehta", "Deepak Verma", "Karan Patel"][
-        Math.floor(Math.random() * 4)
-      ]
-    );
+    setNextName(upcomingName);
+
+    // Prepend new activity
+    setRecentEvents((prev) => [
+      `⚡ Chair #1: Summoned ${prevNextName} (#${prevNextTicket}) · WhatsApp ping sent`,
+      ...prev.slice(0, 2)
+    ]);
 
     setTimeout(() => {
       setAlertDispatched(false);
@@ -36,6 +99,11 @@ export const QueueSimulator: React.FC<SectionProps> = ({ config }) => {
     setNextTicket(104);
     setNextName("Amit Sharma");
     setAlertDispatched(false);
+    setRecentEvents([
+      "Simulation reset to initial state",
+      "Chair #1: Ramesh Kumar ready",
+      "Entrance QR: Ready for scan"
+    ]);
   };
 
   return (
@@ -49,39 +117,65 @@ export const QueueSimulator: React.FC<SectionProps> = ({ config }) => {
             Test the Real-Time Queue Engine Live
           </h2>
           <p className="text-sm sm:text-base text-slate-400 mt-3">
-            Click &ldquo;Call Next Customer&rdquo; below to simulate a barber tapping their chair tablet. Watch how customer pocket tickets and WhatsApp alerts synchronize in real time.
+            Click &ldquo;Call Next Customer&rdquo; below to simulate a barber tapping their chair tablet. Hear the synthesized chime and watch tickets and WhatsApp alerts synchronize in real time.
           </p>
         </div>
 
         {/* Simulator Card */}
         <div className="max-w-4xl mx-auto rounded-3xl bg-slate-950 border border-slate-800 p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+          {/* Subtle Ambient Radial Highlight */}
+          <div className="absolute top-0 right-1/4 w-80 h-40 bg-emerald-500/10 blur-[80px] pointer-events-none rounded-full" />
+
           {/* Controls Bar */}
           <div className="flex flex-col sm:flex-row items-center justify-between pb-6 mb-6 border-b border-slate-800 gap-4">
             <div className="flex items-center gap-3">
               <span className="h-3 w-3 rounded-full bg-emerald-400 animate-pulse" />
               <div>
-                <h4 className="text-sm font-bold text-white">Barber Cutting Station Chair #1</h4>
-                <p className="text-xs text-slate-400">Stylist: Ramesh Kumar (Active)</p>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  Barber Cutting Station Chair #1
+                  <span className="text-[10px] font-normal text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+                    Online
+                  </span>
+                </h4>
+                <p className="text-xs text-slate-400">Stylist: Ramesh Kumar (Senior Stylist)</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
+              {/* Sound Toggle */}
+              <Button
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                size="sm"
+                variant="outline"
+                className={`border-slate-800 text-xs h-11 px-3 ${
+                  soundEnabled ? "text-emerald-400 bg-slate-900" : "text-slate-500 bg-slate-950"
+                }`}
+                title={soundEnabled ? "Audio Chime Enabled" : "Audio Chime Muted"}
+              >
+                {soundEnabled ? (
+                  <Volume2 className="h-4 w-4" />
+                ) : (
+                  <VolumeX className="h-4 w-4" />
+                )}
+              </Button>
+
               <Button
                 onClick={handleCallNext}
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-2 text-xs h-10 px-4 shadow-lg shadow-emerald-600/25"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-2 text-xs h-11 px-5 shadow-lg shadow-emerald-600/25 active:scale-95 transition-transform"
               >
                 <Play className="h-3.5 w-3.5 fill-current" />
                 Call Next Customer
               </Button>
+
               <Button
                 onClick={handleReset}
                 size="sm"
                 variant="outline"
-                className="border-slate-800 text-slate-400 hover:text-white text-xs h-10 px-3"
+                className="border-slate-800 text-slate-400 hover:text-white text-xs h-11 px-3.5"
                 title="Reset Simulation"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
+                <RotateCcw className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -89,12 +183,12 @@ export const QueueSimulator: React.FC<SectionProps> = ({ config }) => {
           {/* Dual Panel Simulation */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Left: Chair Status & Live Bill */}
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4">
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4 shadow-inner">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono text-emerald-400 uppercase tracking-wider font-semibold">
                   Station Touch Panel
                 </span>
-                <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400">
+                <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
                   Chair Seated
                 </Badge>
               </div>
@@ -102,8 +196,8 @@ export const QueueSimulator: React.FC<SectionProps> = ({ config }) => {
               <div>
                 <p className="text-xs text-slate-400">Currently in Chair</p>
                 <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-3xl font-black text-white">#{currentServing}</span>
-                  <span className="text-base font-semibold text-slate-300">{customerName}</span>
+                  <span className="text-4xl font-black text-white tracking-tight">#{currentServing}</span>
+                  <span className="text-lg font-bold text-slate-200">{customerName}</span>
                 </div>
               </div>
 
@@ -113,18 +207,18 @@ export const QueueSimulator: React.FC<SectionProps> = ({ config }) => {
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-400">Live Bill Total:</span>
-                <span className="text-emerald-400 font-bold text-sm">₹140 (Cash / UPI)</span>
+                <span className="text-emerald-400 font-bold text-sm font-mono">₹140 (Cash / UPI)</span>
               </div>
             </div>
 
             {/* Right: Next Customer Pocket Ticket & WhatsApp Alert */}
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4">
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4 shadow-inner">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono text-teal-400 uppercase tracking-wider font-semibold">
                   Next Customer Telemetry
                 </span>
                 {alertDispatched ? (
-                  <Badge variant="default" className="text-[10px] bg-emerald-500/20 text-emerald-300 animate-pulse">
+                  <Badge variant="default" className="text-[10px] bg-emerald-500/20 text-emerald-300 animate-pulse border border-emerald-500/40">
                     ⚡ WhatsApp Alert Sent!
                   </Badge>
                 ) : (
@@ -137,13 +231,19 @@ export const QueueSimulator: React.FC<SectionProps> = ({ config }) => {
               <div>
                 <p className="text-xs text-slate-400">Next Ticket in Queue</p>
                 <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-3xl font-black text-white">#{nextTicket}</span>
-                  <span className="text-base font-semibold text-slate-300">{nextName}</span>
+                  <span className="text-4xl font-black text-white tracking-tight">#{nextTicket}</span>
+                  <span className="text-lg font-bold text-slate-200">{nextName}</span>
                 </div>
               </div>
 
               {/* Dynamic Notification Bubble */}
-              <div className="p-3 rounded-xl bg-slate-950 border border-emerald-500/30 text-xs text-slate-300 space-y-1">
+              <div
+                className={`p-3 rounded-xl border text-xs text-slate-300 space-y-1 transition-all ${
+                  alertDispatched
+                    ? "bg-[#075E54]/40 border-emerald-500/60 shadow-lg shadow-emerald-950/50"
+                    : "bg-slate-950 border-slate-800"
+                }`}
+              >
                 <div className="flex items-center gap-1.5 font-semibold text-emerald-400">
                   <MessageSquare className="h-3.5 w-3.5" />
                   <span>Automated WhatsApp Dispatch:</span>
@@ -152,6 +252,28 @@ export const QueueSimulator: React.FC<SectionProps> = ({ config }) => {
                   &ldquo;Namaste {nextName}! Your chair is ready with Ramesh Kumar. Please step in within 3 minutes! ✂️&rdquo;
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Real-Time Activity Feed Ticker */}
+          <div className="mt-6 pt-4 border-t border-slate-800/80">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                Live Salon Event Stream
+              </span>
+              <span className="text-[10px] font-mono text-slate-500">Bun WebSocket Dispatch</span>
+            </div>
+            <div className="space-y-1.5">
+              {recentEvents.map((evt, idx) => (
+                <div
+                  key={idx}
+                  className="text-xs font-mono text-slate-300 bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-800/80 flex items-center justify-between"
+                >
+                  <span className="truncate">{evt}</span>
+                  <span className="text-[10px] text-emerald-400/80 shrink-0 ml-2">Just Now</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
