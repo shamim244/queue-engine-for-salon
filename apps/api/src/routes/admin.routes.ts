@@ -7,6 +7,7 @@ import { executeMidnightQueueReset } from '../worker/handlers/reset.handler';
 import { compressionManager } from '../engine/compression-manager';
 import { phoneValidator } from '../security/phone-validator';
 import { resolvePartner } from './partner.routes';
+import { cacheService } from '../cache/cache.service';
 
 export const adminRoutes = new Elysia({ prefix: '/api/admin' })
   // 1. System Telemetry & Health Statistics
@@ -27,12 +28,13 @@ export const adminRoutes = new Elysia({ prefix: '/api/admin' })
   // 3. Platform Configuration Settings (POST)
   .post(
     '/settings',
-    ({ body, set }) => {
+    async ({ body, set }) => {
       try {
         const payload = (body as any).settings
           ? { ...(body as any).settings, ...body }
           : body;
         const updated = repository.updatePlatformSettings(payload);
+        await cacheService.del('landing_page_config');
         return {
           success: true,
           settings: updated,
@@ -85,6 +87,27 @@ export const adminRoutes = new Elysia({ prefix: '/api/admin' })
             rewardCalculationBasis: t.Optional(t.Union([t.Literal('NET_PAID'), t.Literal('ORIGINAL_PRICE')])),
             maxUsesPerReferee: t.Optional(t.Number()),
             enabled: t.Optional(t.Boolean()),
+          })
+        ),
+        landingPageConfig: t.Optional(
+          t.Object({
+            activeTemplate: t.Optional(t.Union([t.Literal('2_5D_SCROLL'), t.Literal('BENTO_OBSIDIAN'), t.Literal('MINIMALIST_LUXE')])),
+            enabledSections: t.Optional(t.Array(t.String())),
+            brandName: t.Optional(t.String()),
+            tagline: t.Optional(t.String()),
+            heroBadge: t.Optional(t.String()),
+            heroHeadline: t.Optional(t.String()),
+            heroSubheadline: t.Optional(t.String()),
+            heroCtaText: t.Optional(t.String()),
+            pricingStarterMonthly: t.Optional(t.Number()),
+            pricingProMonthly: t.Optional(t.Number()),
+            pricingEliteMonthly: t.Optional(t.Number()),
+            partnerCommissionPct: t.Optional(t.Number()),
+            supportWhatsapp: t.Optional(t.String()),
+            supportEmail: t.Optional(t.String()),
+            socialInstagram: t.Optional(t.String()),
+            socialTwitter: t.Optional(t.String()),
+            socialLinkedin: t.Optional(t.String()),
           })
         ),
         settings: t.Optional(t.Any()),

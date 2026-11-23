@@ -556,6 +556,27 @@ export interface PlatformSettings {
   pwa?: {
     autoInstallPrompt: boolean;
   };
+  landingPageConfig?: LandingPageConfig;
+}
+
+export interface LandingPageConfig {
+  activeTemplate: '2_5D_SCROLL' | 'BENTO_OBSIDIAN' | 'MINIMALIST_LUXE';
+  enabledSections?: string[];
+  brandName: string;
+  tagline: string;
+  heroBadge: string;
+  heroHeadline: string;
+  heroSubheadline: string;
+  heroCtaText: string;
+  pricingStarterMonthly: number;
+  pricingProMonthly: number;
+  pricingEliteMonthly: number;
+  partnerCommissionPct: number;
+  supportWhatsapp: string;
+  supportEmail: string;
+  socialInstagram: string;
+  socialTwitter: string;
+  socialLinkedin: string;
 }
 
 export interface AuditLog {

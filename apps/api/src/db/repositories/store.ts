@@ -70,6 +70,34 @@ export const defaultPlatformSettings: PlatformSettings = {
   pwa: {
     autoInstallPrompt: false,
   },
+  landingPageConfig: {
+    activeTemplate: '2_5D_SCROLL',
+    enabledSections: [
+      'hero',
+      'simulator',
+      'tv_mirror',
+      'upi_showcase',
+      'roi_calculator',
+      'pricing',
+      'partner_banner',
+      'faq',
+    ],
+    brandName: 'SalonView',
+    tagline: 'Total Clarity. Effortless Operations.',
+    heroBadge: '💈 The Real-Time Salon Operating Engine',
+    heroHeadline: 'Turn Weekend Walk-Outs Into Daily Cash.',
+    heroSubheadline: 'Zero-app QR waitlists, live TV lounge mirrors, and instant 0% fee UPI payouts. Built to scale from local barbershops to luxury multi-chair chains.',
+    heroCtaText: 'Start Free 14-Day Trial',
+    pricingStarterMonthly: 699,
+    pricingProMonthly: 1499,
+    pricingEliteMonthly: 3499,
+    partnerCommissionPct: 30,
+    supportWhatsapp: '+919876543210',
+    supportEmail: 'support@salonview.in',
+    socialInstagram: 'salonviewapp',
+    socialTwitter: 'salonviewapp',
+    socialLinkedin: 'salonviewapp',
+  },
 };
 
 export const defaultPartnerProgramSettings: PartnerProgramSettings = {

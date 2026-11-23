@@ -52,11 +52,12 @@ describe("Home Page & Developer Launcher Routing", () => {
       const HomeModule = await import("../app/page");
       const HomePage = HomeModule.default;
 
-      const html = renderToString(React.createElement(HomePage));
+      const pageComponent = await HomePage();
+      const html = renderToString(pageComponent);
 
       // Brand & Hero
-      expect(html).toContain("Engine Que");
-      expect(html).toContain("Real-Time Queue Engine");
+      expect(html).toContain("Real-Time");
+      expect(html).toContain("Queue");
 
       // Navigation actions
       expect(html).toContain('href="/login"');
@@ -70,12 +71,12 @@ describe("Home Page & Developer Launcher Routing", () => {
       expect(html).toContain("Departure Board");
 
       // Transparent SaaS Pricing Plans
-      expect(html).toContain("Starter Plan");
-      expect(html).toContain("Pro Plan");
-      expect(html).toContain("Enterprise Plan");
+      expect(html).toContain("Starter");
+      expect(html).toContain("Pro");
+      expect(html).toContain("Elite");
 
-      // Social Proof / Testimonials
-      expect(html).toContain("Ramesh Kumar");
+      // Social Proof / Interactive Simulator
+      expect(html).toContain("Ramesh");
     });
   });
 

@@ -9,6 +9,7 @@ import { migration_006_security_settings } from './migrations/006_security_setti
 import { migration_007_milestone_loyalty_and_specs } from './migrations/007_milestone_loyalty_and_specs';
 import { migration_008_queue_tickets_coupons } from './migrations/008_queue_tickets_coupons';
 import { migration_009_salon_wifi_and_loyalty_settings } from './migrations/009_salon_wifi_and_loyalty_settings';
+import { migration_010_platform_settings_and_landing_config } from './migrations/010_platform_settings_and_landing_config';
 
 import { seedDemoData, syncDemoToMySql, memoryStore } from './repository';
 import { authService } from '../auth/auth-service';
@@ -23,6 +24,7 @@ export const allMigrations: Migration[] = [
   migration_007_milestone_loyalty_and_specs,
   migration_008_queue_tickets_coupons,
   migration_009_salon_wifi_and_loyalty_settings,
+  migration_010_platform_settings_and_landing_config,
 ];
 
 export async function ensureMigrationsTable(db: mysql.Pool): Promise<void> {

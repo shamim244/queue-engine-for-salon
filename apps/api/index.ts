@@ -5,7 +5,7 @@ import { staticPlugin } from '@elysiajs/static';
 import path from 'path';
 import { config } from './src/config';
 import { initDatabase } from './src/db/mysql';
-import { seedDemoData } from './src/db/repository';
+import { seedDemoData, repository, defaultPlatformSettings } from './src/db/repository';
 import { authService } from './src/auth/auth-service';
 import { websocketHub } from './src/websocket/hub';
 import {
@@ -135,6 +135,35 @@ const app = new Elysia()
     timestamp: Date.now(),
     uptime: process.uptime(),
   }))
+  // Public Dynamic Landing Page Configuration (Sub-10ms Cached)
+  .get('/api/public/landing-config', async () => {
+    return await cacheService.getOrSet(
+      'landing_page_config',
+      async () => {
+        const settings = repository.getPlatformSettings();
+        const landingConfig = settings.landingPageConfig || defaultPlatformSettings.landingPageConfig;
+        return {
+          success: true,
+          data: landingConfig,
+        };
+      },
+      60
+    );
+  })
+  .get('/api/v1/public/landing-config', async () => {
+    return await cacheService.getOrSet(
+      'landing_page_config',
+      async () => {
+        const settings = repository.getPlatformSettings();
+        const landingConfig = settings.landingPageConfig || defaultPlatformSettings.landingPageConfig;
+        return {
+          success: true,
+          data: landingConfig,
+        };
+      },
+      60
+    );
+  })
   .get('/api/system/cache', async ({ headers, query }) => {
     const token = headers.authorization?.replace(/^Bearer\s+/i, '');
     const adminKey = (headers as any)['x-admin-key'] || (query as any)?.adminKey;

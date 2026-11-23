@@ -4,20 +4,27 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 import { PwaInstallBanner } from "@/components/pwa-install-banner";
+import { SITE_CONFIG } from "@/config/site";
 
 export const metadata: Metadata = {
-  title: "Engine Que System | Enterprise Salon Queue Management",
-  description:
-    "Real-time high-concurrency queue engine and operational portal for salons, barbershops, and multi-branch studios.",
+  title: {
+    default: SITE_CONFIG.meta.defaultTitle,
+    template: SITE_CONFIG.meta.titleTemplate,
+  },
+  description: SITE_CONFIG.description,
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Engine Que",
+    title: SITE_CONFIG.name,
+  },
+  icons: {
+    icon: "/icons/icon-192x192.png",
+    apple: "/icons/icon-192x192.png",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#020617",
+  themeColor: SITE_CONFIG.meta.themeColor,
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,

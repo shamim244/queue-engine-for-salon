@@ -293,6 +293,12 @@ export const analyticsRepo = {
         ...updates.b2bReferral,
       };
     }
+    if (updates.landingPageConfig) {
+      memoryStore.settings.landingPageConfig = {
+        ...(memoryStore.settings.landingPageConfig || defaultPlatformSettings.landingPageConfig!),
+        ...updates.landingPageConfig,
+      };
+    }
     this.addAuditLog(
       'SETTINGS_UPDATED',
       actor,
