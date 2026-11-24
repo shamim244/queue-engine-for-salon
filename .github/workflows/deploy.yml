@@ -40,7 +40,7 @@ jobs:
         run: mkdir -p ~/.ssh && ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
       - name: Pull Latest Changes on VPS
         if: steps.changes.outputs.run_any == 'true'
-        run: ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "cd /home/ubuntu/queue-engine-for-salon && git pull origin main"
+        run: ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "cd /home/ubuntu/queue-engine-for-salon && git checkout -- apps/web/next-env.d.ts && git pull origin main"
       - name: Deploy Gateway
         if: steps.changes.outputs.run_gateway == 'true'
         uses: ./.github/actions/deploy-gateway
