@@ -87,6 +87,9 @@ describe("Salon Thematic 2.5D Components Suite (TDD)", () => {
     expect(html).toContain("WhatsApp Summon Pill");
     expect(html).toContain("Chair Mirror Touchpad");
     expect(html).toContain("2.5D Architectural Salon Station Diagram");
+    expect(html).toContain("Simulate 1-Tap Barber Call Next");
+    expect(html).toContain("Quick Focus:");
+    expect(html).toContain("Zero Wash-Hand Friction");
   });
 
   it("should render RoiCalculator with sliding number tally and salon economics", async () => {
