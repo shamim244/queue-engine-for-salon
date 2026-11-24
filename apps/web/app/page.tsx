@@ -34,34 +34,13 @@ export default async function MarketingHomePage() {
         {/* Dynamic Hero based on Active Template */}
         <HeroComponent config={config} />
 
-        {/* Modular Section Pipeline */}
-        {enabledSections.has("simulator") && (
-          <SECTION_REGISTRY.simulator config={config} />
-        )}
-
-        {enabledSections.has("tv_mirror") && (
-          <SECTION_REGISTRY.tv_mirror config={config} />
-        )}
-
-        {enabledSections.has("upi_showcase") && (
-          <SECTION_REGISTRY.upi_showcase config={config} />
-        )}
-
-        {enabledSections.has("roi_calculator") && (
-          <SECTION_REGISTRY.roi_calculator config={config} />
-        )}
-
-        {enabledSections.has("pricing") && (
-          <SECTION_REGISTRY.pricing config={config} />
-        )}
-
-        {enabledSections.has("partner_banner") && (
-          <SECTION_REGISTRY.partner_banner config={config} />
-        )}
-
-        {enabledSections.has("faq") && (
-          <SECTION_REGISTRY.faq config={config} />
-        )}
+        {/* Dynamic Modular Section Pipeline */}
+        {template.defaultSections.map((sectionId) => {
+          if (!enabledSections.has(sectionId)) return null;
+          const SectionComponent = SECTION_REGISTRY[sectionId];
+          if (!SectionComponent) return null;
+          return <SectionComponent key={sectionId} config={config} />;
+        })}
       </main>
 
       {/* 3. Global Brand Footer */}

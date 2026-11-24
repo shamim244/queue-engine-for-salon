@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { QrCode, Zap, CheckCircle2, ShieldCheck, IndianRupee, Smartphone, Sparkles, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { generateUpiUri } from "@/lib/utils";
+import QRCode from "qrcode";
 import type { SectionProps } from "./types";
 
 export const UpiShowcase: React.FC<SectionProps> = ({ config }) => {
@@ -11,6 +13,7 @@ export const UpiShowcase: React.FC<SectionProps> = ({ config }) => {
   const [selectedService, setSelectedService] = useState("Haircut + Beard Styling");
   const [isSimulatingPayment, setIsSimulatingPayment] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
 
   const packages = [
     { name: "Haircut & Wash", amount: 180 },
@@ -18,6 +21,24 @@ export const UpiShowcase: React.FC<SectionProps> = ({ config }) => {
     { name: "De-Tan Facial + Massage", amount: 450 },
     { name: "Full Wedding Grooming", amount: 750 },
   ];
+
+  // Dynamic NPCI-compliant UPI QR Code generation client-side
+  useEffect(() => {
+    const upiUri = generateUpiUri({
+      upiId: "ramesh.salon@okhdfcbank",
+      payeeName: "Ramesh Traditional Barber",
+      amount: billAmount,
+      note: `${selectedService} - Table Chair #1`,
+    });
+
+    QRCode.toDataURL(upiUri, {
+      width: 280,
+      margin: 1,
+      color: { dark: "#0f172a", light: "#ffffff" },
+    })
+      .then((url) => setQrDataUrl(url))
+      .catch(() => {});
+  }, [billAmount, selectedService]);
 
   // Synthesize soft pleasant payment ping via Web Audio API (Zero server waste)
   const playPaymentPing = () => {
@@ -153,9 +174,17 @@ export const UpiShowcase: React.FC<SectionProps> = ({ config }) => {
                 }}
               />
 
-              <div className="h-44 w-44 rounded-xl border-4 border-slate-900 bg-white flex flex-col items-center justify-center p-2 relative">
-                <QrCode className="h-32 w-32 text-slate-900" />
-                <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest mt-1">
+              <div className="h-44 w-44 rounded-xl border-4 border-slate-900 bg-white flex flex-col items-center justify-center p-2 relative overflow-hidden">
+                {qrDataUrl ? (
+                  <img
+                    src={qrDataUrl}
+                    alt="NPCI Dynamic UPI QR"
+                    className="h-36 w-36 object-contain"
+                  />
+                ) : (
+                  <QrCode className="h-32 w-32 text-slate-900 animate-pulse" />
+                )}
+                <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest mt-0.5">
                   NPCI · BHIM UPI
                 </span>
               </div>
