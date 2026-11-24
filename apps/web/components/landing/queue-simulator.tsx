@@ -136,6 +136,24 @@ export const QueueSimulator: React.FC<SectionProps> = ({ config }) => {
           {/* Subtle Walnut Trim Bar */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500/40 via-emerald-500/40 to-teal-500/40" />
 
+          {/* Authentic Mirror Tablet Mount Visual */}
+          <div className="relative mb-6 rounded-2xl overflow-hidden border border-slate-800 shadow-xl max-h-56 group">
+            <img
+              src="/landing/barber_station_mirror_touchpad.jpg"
+              alt="Barber Station Mirror Touchpad Tablet with Live Bill and Call Next"
+              className="w-full h-56 object-cover object-center group-hover:scale-102 transition-transform duration-500"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent pointer-events-none" />
+            <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs text-white">
+              <span className="bg-slate-950/85 backdrop-blur-md px-2.5 py-1 rounded-lg border border-amber-500/40 font-mono text-amber-300 text-[11px]">
+                💈 Physical Mount: Barber Mirror Android Touchscreen
+              </span>
+              <span className="hidden sm:inline bg-emerald-950/85 backdrop-blur-md px-2.5 py-1 rounded-lg border border-emerald-500/40 text-emerald-300 font-mono text-[11px]">
+                Real-Time Chair Telemetry · PIN: 1234
+              </span>
+            </div>
+          </div>
+
           {/* Controls Bar */}
           <div className="flex flex-col sm:flex-row items-center justify-between pb-6 mb-6 border-b border-slate-800/80 gap-4">
             <div className="flex items-center gap-3">

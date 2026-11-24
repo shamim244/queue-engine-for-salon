@@ -35,6 +35,7 @@ import type { SectionProps } from "./types";
 export const Hero2Point5D: React.FC<SectionProps> = ({ config }) => {
   // Client-side ticking countdown for the ticket preview (Zero server waste)
   const [countdownSeconds, setCountdownSeconds] = useState(745); // 12m 25s
+  const [activeStationTab, setActiveStationTab] = useState<"photo" | "blueprint">("photo");
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -159,10 +160,9 @@ export const Hero2Point5D: React.FC<SectionProps> = ({ config }) => {
           <div className="relative rounded-[2.5rem] bg-gradient-to-b from-slate-900 via-slate-950 to-[#0a0f0d] border-4 border-slate-700/80 p-4 sm:p-7 shadow-2xl backdrop-blur-2xl text-left overflow-hidden">
             {/* Authentic High-Resolution Salon Interior Scrim */}
             <div
-              className="absolute inset-0 opacity-15 pointer-events-none bg-cover bg-center mix-blend-luminosity"
+              className="absolute inset-0 opacity-25 pointer-events-none bg-cover bg-center mix-blend-luminosity"
               style={{
-                backgroundImage:
-                  "url('https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1400&q=80')",
+                backgroundImage: "url('/landing/hero_salon_station_2_5d.jpg')",
               }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f0d] via-slate-950/90 to-slate-900/80 pointer-events-none" />
@@ -190,18 +190,66 @@ export const Hero2Point5D: React.FC<SectionProps> = ({ config }) => {
               </div>
             </div>
 
-            {/* 5. Bespoke 2.5D Isometric Illustrated Salon Bay Artwork */}
-            <div className="relative z-10 mb-6 bg-slate-950/70 rounded-2xl border border-slate-800/90 overflow-hidden p-2 sm:p-4">
-              <div className="flex items-center justify-between px-3 py-1.5 mb-2 border-b border-slate-800/60 text-xs">
+            {/* 5. Bespoke 2.5D Realistic Salon Bay & Architectural Blueprint */}
+            <div className="relative z-10 mb-6 bg-slate-950/80 rounded-2xl border border-slate-800/90 overflow-hidden shadow-2xl">
+              <div className="flex flex-wrap items-center justify-between px-3.5 py-2 border-b border-slate-800/70 bg-slate-900/70 text-xs gap-2">
                 <span className="font-mono text-[11px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
                   <Scissors className="h-3.5 w-3.5" />
                   2.5D Architectural Salon Station Diagram
                 </span>
-                <span className="text-[10px] text-slate-400 font-mono">
-                  Live Haircut · Amit Sharma (#104) Seated Next
-                </span>
+                {/* View Switcher: 2.5D Diorama Photo vs Vector Blueprint */}
+                <div className="flex items-center rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setActiveStationTab("photo")}
+                    className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                      activeStationTab === "photo"
+                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    📸 2.5D Station Diorama
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveStationTab("blueprint")}
+                    className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                      activeStationTab === "blueprint"
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    📐 Vector Architecture
+                  </button>
+                </div>
               </div>
-              <SalonStationIsometricIllustration activeTicket="#103" liveBill="₹140" />
+
+              {/* Station Visual Showcase */}
+              {activeStationTab === "photo" ? (
+                <div className="relative aspect-[16/9] w-full overflow-hidden group">
+                  <img
+                    src="/landing/hero_salon_station_2_5d.jpg"
+                    alt="2.5D Cutaway Salon Cutting Station with Vintage Leather Chair and Mirror Tablet"
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-slate-950/30 pointer-events-none" />
+
+                  {/* Overlay Badges for Realism */}
+                  <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+                    <div className="bg-slate-950/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/40 text-xs text-white flex items-center gap-2 shadow-xl">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Styling Bay #1 · Vintage Emerald Leather Chair &amp; Walnut Counter</span>
+                    </div>
+                    <div className="bg-slate-950/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-emerald-500/40 text-xs font-mono text-emerald-300 shadow-xl">
+                      Live Mirror Tablet: #103 Vikram · ₹140
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2 sm:p-4">
+                  <SalonStationIsometricIllustration activeTicket="#103" liveBill="₹140" />
+                </div>
+              )}
             </div>
 
             {/* 6. 4-Layer Tactile 3D Card Architecture (Granite/Leather Base + Ticket + Tools + WhatsApp Summon) */}

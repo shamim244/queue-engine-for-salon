@@ -101,6 +101,26 @@ export const UpiShowcase: React.FC<SectionProps> = ({ config }) => {
           </p>
         </div>
 
+        {/* Counter Acrylic Stand Visual Preview */}
+        <div className="max-w-4xl mx-auto mb-8 rounded-[2rem] overflow-hidden border border-slate-800 shadow-2xl relative group">
+          <div className="aspect-[16/9] max-h-72 w-full relative overflow-hidden">
+            <img
+              src="/landing/salon_counter_upi_stand.jpg"
+              alt="Salon Reception Counter with Acrylic NPCI UPI QR Stand and Soundbox Speaker"
+              className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-700"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent pointer-events-none" />
+            <div className="absolute bottom-4 left-4 right-4 flex flex-wrap items-center justify-between gap-2">
+              <span className="bg-slate-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/40 text-xs text-amber-300 font-mono">
+                💈 Front-Desk Counter: Acrylic NPCI Stand &amp; Soundbox
+              </span>
+              <span className="bg-emerald-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-emerald-500/40 text-xs text-emerald-300 font-mono">
+                100% Direct-To-Bank · 0% Payment Deduction
+              </span>
+            </div>
+          </div>
+        </div>
+
         <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
           {/* Left: Interactive Bill Adjuster */}
           <div className="space-y-6">

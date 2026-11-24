@@ -48,6 +48,26 @@ export const TvMirrorPreview: React.FC<SectionProps> = ({ config }) => {
           </p>
         </div>
 
+        {/* Waiting Lounge Real-World Environment Card */}
+        <div className="max-w-5xl mx-auto mb-8 rounded-[2rem] overflow-hidden border border-slate-800 shadow-2xl relative group">
+          <div className="aspect-[16/9] max-h-72 w-full relative overflow-hidden">
+            <img
+              src="/landing/salon_lounge_departure_tv.jpg"
+              alt="Luxury Salon Waiting Lounge with 65-inch 4K OLED Departure TV and Emerald Chesterfield Sofa"
+              className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-700"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent pointer-events-none" />
+            <div className="absolute bottom-4 left-4 right-4 flex flex-wrap items-center justify-between gap-2">
+              <span className="bg-slate-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/40 text-xs text-amber-300 font-mono">
+                💈 Lounge Ambient View: 65&Prime; OLED Mounted Mirror
+              </span>
+              <span className="bg-emerald-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-emerald-500/40 text-xs text-emerald-300 font-mono">
+                Eliminates 100% of Reception Front-Desk Crowding
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Ambient Backlight Behind TV */}
         <div className="max-w-5xl mx-auto relative group">
           <div className="absolute -inset-4 bg-gradient-to-r from-amber-600/20 via-emerald-600/20 to-teal-600/20 rounded-[3rem] blur-2xl opacity-60 group-hover:opacity-80 transition-opacity" />

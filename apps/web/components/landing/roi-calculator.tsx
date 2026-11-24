@@ -75,6 +75,26 @@ export const RoiCalculator: React.FC<SectionProps> = ({ config }) => {
           </div>
         </div>
 
+        {/* Weekend Walkout Elimination Real-Life Context Card */}
+        <div className="max-w-5xl mx-auto mb-8 rounded-[2rem] overflow-hidden border border-slate-800 shadow-2xl relative group">
+          <div className="aspect-[16/9] max-h-72 w-full relative overflow-hidden">
+            <img
+              src="/landing/salon_busy_weekend_bench.jpg"
+              alt="Salon Customer Tracking Pocket Ticket #104 While Relaxing at Nearby Cafe During Peak Rush"
+              className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-700"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent pointer-events-none" />
+            <div className="absolute bottom-4 left-4 right-4 flex flex-wrap items-center justify-between gap-2">
+              <span className="bg-slate-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/40 text-xs text-amber-300 font-mono">
+                💈 Real Experience: Customer Stepping Out for Chai with Live Pocket Ticket
+              </span>
+              <span className="bg-emerald-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-emerald-500/40 text-xs text-emerald-300 font-mono">
+                Zero Lost Walk-Outs · +₹18,500 Monthly Cash Retained
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Polished Salon Station Dark Granite / Leather Container */}
         <div className="max-w-5xl mx-auto rounded-[2.5rem] bg-gradient-to-b from-slate-900/95 via-slate-950 to-[#080c0a] border-2 border-slate-800/80 p-6 sm:p-10 shadow-2xl backdrop-blur-2xl relative overflow-hidden">
           {/* Subtle Leather Stitching & Brass Glow Border */}

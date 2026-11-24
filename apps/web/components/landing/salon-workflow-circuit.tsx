@@ -127,6 +127,26 @@ export const SalonWorkflowCircuit: React.FC<SectionProps> = ({ config }) => {
           </p>
         </div>
 
+        {/* 3D Isometric Salon Architectural Floorplan Preview */}
+        <div className="max-w-6xl mx-auto mb-8 rounded-[2rem] overflow-hidden border border-slate-800 shadow-2xl relative group">
+          <div className="relative aspect-[16/9] max-h-80 w-full overflow-hidden">
+            <img
+              src="/landing/salon_operational_pipeline_isometric.jpg"
+              alt="3D Isometric Salon Floorplan: Door QR, Bun Engine, Barber Chair Station, WhatsApp Summon, and 4K TV"
+              className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-700"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/25 to-transparent pointer-events-none" />
+            <div className="absolute bottom-4 left-4 right-4 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+              <span className="bg-slate-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/40 text-xs text-amber-300 font-mono">
+                💈 Physical Salon Floorplan: 5 Real-World Touchpoints
+              </span>
+              <span className="bg-emerald-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-emerald-500/40 text-xs text-emerald-300 font-mono">
+                Synchronized via Sub-15ms Bun State Engine
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* 5-Node Telemetry Container */}
         <div
           ref={containerRef}

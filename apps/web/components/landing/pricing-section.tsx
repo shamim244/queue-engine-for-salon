@@ -29,6 +29,31 @@ export const PricingSection: React.FC<SectionProps> = ({ config }) => {
           </p>
         </div>
 
+        {/* Master Hydraulic Styling Chair Visual Insignia Banner */}
+        <div className="max-w-7xl mx-auto mb-10 rounded-[2rem] overflow-hidden border border-slate-800 shadow-2xl relative group">
+          <div className="aspect-[21/9] max-h-56 w-full relative overflow-hidden">
+            <img
+              src="/landing/barber_chair.jpg"
+              alt="Artisan Vintage Emerald Green Hydraulic Barber Chair"
+              className="w-full h-full object-cover object-center group-hover:scale-102 transition-transform duration-700"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/70 to-slate-950/30 pointer-events-none" />
+            <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-10 z-10 pointer-events-none">
+              <div className="max-w-xl">
+                <span className="text-[11px] font-mono text-amber-400 uppercase tracking-widest font-bold">
+                  Artisan Hardware Standard
+                </span>
+                <h3 className="text-xl sm:text-2xl font-bold text-white mt-1">
+                  Priced by Active Hydraulic Chairs, Not Unfair Sales Cuts
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300 mt-1">
+                  Keep 100% of your grooming revenue. Upgrade chair tiers seamlessly as your salon scales.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Plan 1: Starter */}
           <div className="p-8 rounded-[2.5rem] bg-gradient-to-b from-slate-900/90 via-slate-950 to-[#080d0a] border-2 border-slate-800 hover:border-amber-500/50 transition-all flex flex-col justify-between shadow-xl group">
