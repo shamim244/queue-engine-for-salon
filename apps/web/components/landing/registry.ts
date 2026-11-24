@@ -18,6 +18,9 @@ import { PartnerBanner } from "./partner-banner";
 import { FaqAccordion } from "./faq-accordion";
 import { SalonWorkflowCircuit } from "./salon-workflow-circuit";
 import { SalonServicesMarquee } from "./salon-services-marquee";
+import { SalonCrowdHero } from "./salon-crowd-hero";
+import { SalonGlassFolders } from "./salon-glass-folders";
+import { SalonProductRail } from "./salon-product-rail";
 
 export type {
   LandingPageConfig,
@@ -29,7 +32,10 @@ export type {
 
 export const SECTION_REGISTRY: Record<SectionId, React.ComponentType<SectionProps>> = {
   hero: Hero2Point5D, // Fallback default hero in registry
+  crowd_hero: SalonCrowdHero,
   workflow_circuit: SalonWorkflowCircuit,
+  glass_folders: SalonGlassFolders,
+  hardware_rail: SalonProductRail,
   services_marquee: SalonServicesMarquee,
   simulator: QueueSimulator,
   tv_mirror: TvMirrorPreview,
@@ -48,7 +54,10 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateId, TemplateDefinition> = {
       "Hardware-accelerated CSS perspective depth, floating ticket #104, and live TV screen preview.",
     heroComponent: Hero2Point5D,
     defaultSections: [
+      "crowd_hero",
       "workflow_circuit",
+      "glass_folders",
+      "hardware_rail",
       "services_marquee",
       "simulator",
       "tv_mirror",

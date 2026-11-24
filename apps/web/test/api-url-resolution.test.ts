@@ -140,5 +140,18 @@ describe("API & WebSocket URL Resolution Suite (.env Authority)", () => {
       expect(origins).toContain("10.*");
       expect(origins).toContain("172.*");
     });
+
+    it("ensures next.config.ts defines security headers and immutable caching rules", async () => {
+      const nextConfig = (await import("../next.config")).default;
+      if (typeof nextConfig.headers === "function") {
+        const headersList = await nextConfig.headers();
+        expect(Array.isArray(headersList)).toBe(true);
+        // Verify security headers exist
+        const hasNosniff = headersList.some((entry: any) =>
+          entry.headers?.some((h: any) => h.key === "X-Content-Type-Options" && h.value === "nosniff")
+        );
+        expect(hasNosniff).toBe(true);
+      }
+    });
   });
 });

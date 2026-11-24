@@ -30,11 +30,20 @@ const nextConfig: NextConfig = {
     ];
   },
   async headers() {
+    const securityHeaders = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
+      { key: "X-XSS-Protection", value: "1; mode=block" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
+    ];
+
     if (process.env.NODE_ENV !== "production") {
       return [
         {
           source: "/:path*",
           headers: [
+            ...securityHeaders,
             {
               key: "Cache-Control",
               value: "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
@@ -52,6 +61,28 @@ const nextConfig: NextConfig = {
       ];
     }
     return [
+      {
+        source: "/:path*",
+        headers: securityHeaders,
+      },
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        source: "/landing/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=604800, stale-while-revalidate=86400",
+          },
+        ],
+      },
       {
         source: "/:all*(svg|png|jpg|jpeg|webp|ico)",
         headers: [

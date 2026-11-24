@@ -4,8 +4,11 @@ export type TemplateId = "2_5D_SCROLL" | "BENTO_OBSIDIAN" | "MINIMALIST_LUXE";
 
 export type SectionId =
   | "hero"
+  | "crowd_hero"
   | "workflow_circuit"
   | "services_marquee"
+  | "glass_folders"
+  | "hardware_rail"
   | "simulator"
   | "tv_mirror"
   | "upi_showcase"

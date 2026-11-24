@@ -5,7 +5,10 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   activeTemplate: "2_5D_SCROLL",
   enabledSections: [
     "hero",
+    "crowd_hero",
     "workflow_circuit",
+    "glass_folders",
+    "hardware_rail",
     "services_marquee",
     "simulator",
     "tv_mirror",
