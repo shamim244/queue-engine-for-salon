@@ -102,8 +102,15 @@ export function StaffChairCockpit({
                   {myInChairTicket.serviceName}
                 </Badge>
                 <p className="text-lg font-black text-white mt-1">
-                  {formatCurrency(myInChairTicket.totalPrice || 100)}
+                  {formatCurrency(
+                    Math.max(0, (myInChairTicket.totalPrice ?? 100) - (myInChairTicket.couponDiscount || 0))
+                  )}
                 </p>
+                {myInChairTicket.couponCode && (
+                  <span className="text-[10px] font-mono text-amber-300 block">
+                    🎟️ {myInChairTicket.couponCode} (-₹{myInChairTicket.couponDiscount || 0})
+                  </span>
+                )}
               </div>
             </div>
 

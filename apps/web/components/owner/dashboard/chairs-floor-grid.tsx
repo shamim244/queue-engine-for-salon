@@ -132,7 +132,13 @@ export function ChairsFloorGrid({
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-400 truncate">
-                      {seatedTicket.serviceName || "Haircut"} · {formatCurrency(seatedTicket.totalPrice || 100)}
+                      {seatedTicket.serviceName || "Haircut"} ·{" "}
+                      {formatCurrency(
+                        Math.max(0, (seatedTicket.totalPrice ?? 100) - (seatedTicket.couponDiscount || 0))
+                      )}
+                      {seatedTicket.couponCode && (
+                        <span className="text-amber-300 ml-1">({seatedTicket.couponCode})</span>
+                      )}
                     </p>
                     <Button
                       size="sm"

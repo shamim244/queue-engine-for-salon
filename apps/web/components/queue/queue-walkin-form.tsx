@@ -358,7 +358,9 @@ export function QueueWalkinForm({
                       🎉 ₹{couponDiscount} discount applied!
                     </span>
                     <span className="text-emerald-400/80 text-[11px]">
-                      Locked into your queue pass · automatically credited at station checkout.
+                      {appliedCoupon.code.toUpperCase().startsWith("REW_") || finalPrice <= 0
+                        ? "Reward redemption pass · free reward visits do not add a stamp to your next cycle."
+                        : "Locked into your queue pass · automatically credited at station checkout."}
                     </span>
                   </div>
                 </div>

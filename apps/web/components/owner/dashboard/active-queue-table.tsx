@@ -130,8 +130,13 @@ export function ActiveQueueTable({
                         {ticket.customerPhone ? maskPhone(ticket.customerPhone) : "Walk-in Guest"} ·{" "}
                         <span className="text-slate-300">{ticket.serviceName || "Haircut"}</span> ·{" "}
                         <span className="text-emerald-400 font-semibold font-mono">
-                          {formatCurrency(ticket.totalPrice || 100)}
-                        </span>{" "}
+                          {formatCurrency(Math.max(0, (ticket.totalPrice ?? 100) - (ticket.couponDiscount || 0)))}
+                        </span>
+                        {ticket.couponCode && (
+                          <span className="text-[10px] text-amber-300 ml-1 font-mono">
+                            ({ticket.couponCode})
+                          </span>
+                        )}{" "}
                         {ticket.estimatedWaitMinutes > 0 && (
                           <>
                             · wait: <span className="text-blue-400 font-mono">{ticket.estimatedWaitMinutes}m</span>

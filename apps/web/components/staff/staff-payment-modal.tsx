@@ -29,13 +29,16 @@ export function StaffPaymentModal({
 
   useEffect(() => {
     if (ticket) {
-      const amount = ticket.totalPrice || 100;
+      const amount = Math.max(0, (ticket.totalPrice ?? 100) - (ticket.couponDiscount || 0));
       setFinalAmount(amount);
       setTenderAmount(amount);
     }
   }, [ticket]);
 
   if (!isOpen || !ticket) return null;
+
+  const isRewardOrZeroBill =
+    Boolean(ticket.couponCode?.toUpperCase().startsWith("REW_")) || finalAmount <= 0;
 
   const changeDue = Math.max(0, tenderAmount - finalAmount);
 
@@ -64,12 +67,27 @@ export function StaffPaymentModal({
           </DialogHeader>
 
           {/* Amount Box */}
-          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase">Bill Amount</span>
-            <div className="flex items-center gap-1 font-mono text-2xl font-black text-emerald-400">
-              <IndianRupee className="h-5 w-5" />
-              <span>{finalAmount}</span>
+          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-400 uppercase">Net Payable Bill</span>
+              <div className="flex items-center gap-1 font-mono text-2xl font-black text-emerald-400">
+                <IndianRupee className="h-5 w-5" />
+                <span>{finalAmount}</span>
+              </div>
             </div>
+            {ticket.couponCode && (
+              <div className="flex items-center justify-between text-[11px] text-amber-300 pt-1 border-t border-slate-800/80">
+                <span>🎟️ {ticket.couponCode} applied</span>
+                <span className="font-mono">
+                  ₹{ticket.totalPrice ?? 0} − ₹{ticket.couponDiscount || 0} off
+                </span>
+              </div>
+            )}
+            {isRewardOrZeroBill && (
+              <p className="text-[11px] text-slate-400">
+                Free reward redemption / ₹0 checkout — does not add a loyalty stamp.
+              </p>
+            )}
           </div>
 
           {/* Payment Method Switcher (Cash vs UPI) */}

@@ -90,6 +90,15 @@ export const queueEngine = {
         });
 
         if (couponResult.valid && couponResult.coupon) {
+          if (couponResult.coupon.id.startsWith('voucher_')) {
+            const activeTicketsForVoucher = await repository.getActiveTickets(salon.id);
+            const inFlightDuplicate = activeTicketsForVoucher.some(
+              (t) => t.couponCode && t.couponCode.toUpperCase() === couponResult.coupon!.code.toUpperCase()
+            );
+            if (inFlightDuplicate) {
+              throw new Error(`Loyalty voucher "${couponResult.coupon.code}" is already attached to an active queue ticket.`);
+            }
+          }
           couponCode = couponResult.coupon.code;
           couponDiscount = couponResult.discountAmount;
           couponId = couponResult.coupon.id;
@@ -383,8 +392,8 @@ export const queueEngine = {
 
     if (!updated) return null;
 
-    // Record redemption if coupon was applied
-    if (couponId) {
+    // Record redemption if non-voucher coupon was applied (loyalty vouchers are burned atomically in loyalty_vouchers)
+    if (couponId && !couponId.startsWith('voucher_')) {
       try {
         const { couponRepo } = await import('../db/repositories/coupon.repo');
         await couponRepo.recordRedemption({
@@ -400,16 +409,22 @@ export const queueEngine = {
     }
 
     // Burn loyalty milestone voucher if applied to this ticket
+    let redeemedLoyaltyVoucher: any = null;
     if (couponCode) {
       try {
         const { loyaltyRepo } = await import('../db/repositories/loyalty.repo');
-        await loyaltyRepo.redeemVoucher(couponCode, ticket.salonId, ticket.id);
+        redeemedLoyaltyVoucher = await loyaltyRepo.redeemVoucher(couponCode, ticket.salonId, ticket.id);
       } catch (voucherErr: any) {
         console.warn('[QueueEngine:finishService] Loyalty voucher redeem check:', voucherErr?.message);
       }
     }
 
-    // Award digital loyalty stamp and check milestone completion
+    // Award digital loyalty stamp ONLY on qualifying paid visits (never on reward voucher redemptions or ₹0 checkouts)
+    const isRewardRedemption = Boolean(
+      redeemedLoyaltyVoucher ||
+        (couponId && couponId.startsWith('voucher_')) ||
+        (couponCode && couponCode.trim().toUpperCase().startsWith('REW_'))
+    );
     if (ticket.customerPhone) {
       try {
         const { loyaltyService } = await import('../loyalty/loyalty.service');
@@ -419,6 +434,9 @@ export const queueEngine = {
           customerName: ticket.customerName,
           ticketId: ticket.id,
           finalPrice: amount,
+          isRewardRedemption,
+          couponCode,
+          couponId,
         });
       } catch (loyaltyErr: any) {
         console.warn('[QueueEngine:finishService] Loyalty stamp award warning:', loyaltyErr?.message);

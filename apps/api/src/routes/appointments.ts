@@ -413,8 +413,27 @@ export const appointmentRoutes = new Elysia()
         });
       }
 
-      // If free booking auto-confirmed, trigger queue recalculation and notification
+      // If free booking auto-confirmed, burn any applied coupon/loyalty voucher and trigger queue/notification
       if (initialStatus === 'CONFIRMED') {
+        if (appliedCoupon) {
+          try {
+            if (appliedCoupon.id?.startsWith('voucher_') || appliedCoupon.code?.toUpperCase().startsWith('REW_')) {
+              const { loyaltyRepo } = await import('../db/repositories/loyalty.repo');
+              await loyaltyRepo.redeemVoucher(appliedCoupon.code, salon.id, apptId);
+            } else {
+              const { couponRepo } = await import('../db/repositories/coupon.repo');
+              await couponRepo.recordRedemption({
+                couponId: appliedCoupon.id,
+                targetType: 'SALON_SERVICE',
+                targetOrderId: apptId,
+                userId: cleanPhone,
+                discountApplied: couponDiscountAmount,
+              });
+            }
+          } catch (couponErr) {
+            console.warn('[appointments.initiate] Free booking coupon/voucher redemption warning:', couponErr);
+          }
+        }
         try {
           await queueEngine.recalculateQueue(salon.id);
           websocketHub.broadcastToSalon(salon.id, {
@@ -530,18 +549,25 @@ export const appointmentRoutes = new Elysia()
             }
             await paymentRepo.updateOrderStatus(order.id, 'COMPLETED', cleanPaymentId, new Date());
 
-            if (order.metadata?.couponId) {
+            if (order.metadata?.couponId || order.metadata?.couponCode) {
               try {
-                const { couponRepo } = await import('../db/repositories/coupon.repo');
-                await couponRepo.recordRedemption({
-                  couponId: order.metadata.couponId,
-                  targetType: 'SALON_SERVICE',
-                  targetOrderId: appt.id,
-                  userId: appt.customerPhone,
-                  discountApplied: Number(order.metadata.couponDiscount || 0),
-                });
+                const cId = String(order.metadata.couponId || '');
+                const cCode = String(order.metadata.couponCode || '');
+                if (cId.startsWith('voucher_') || cCode.toUpperCase().startsWith('REW_')) {
+                  const { loyaltyRepo } = await import('../db/repositories/loyalty.repo');
+                  await loyaltyRepo.redeemVoucher(cCode, appt.salonId, appt.id);
+                } else if (cId) {
+                  const { couponRepo } = await import('../db/repositories/coupon.repo');
+                  await couponRepo.recordRedemption({
+                    couponId: cId,
+                    targetType: 'SALON_SERVICE',
+                    targetOrderId: appt.id,
+                    userId: appt.customerPhone,
+                    discountApplied: Number(order.metadata.couponDiscount || 0),
+                  });
+                }
               } catch (redemptionErr) {
-                console.warn('[appointments.confirm] Coupon redemption record warning:', redemptionErr);
+                console.warn('[appointments.confirm] Coupon/voucher redemption record warning:', redemptionErr);
               }
             }
           }
@@ -789,10 +815,44 @@ export const appointmentRoutes = new Elysia()
         return { success: false, error: 'Appointment not found' };
       }
 
+      const wasCompleted = appt.status === 'COMPLETED';
       const updated = await repository.updateAppointment(params.id, {
         status: 'COMPLETED',
         escrowStatus: 'RELEASED_TO_OWNER',
       });
+
+      // Award loyalty stamp on first completion if paid (> ₹0) and NOT a loyalty voucher redemption
+      if (!wasCompleted && appt.customerPhone) {
+        try {
+          const { loyaltyRepo } = await import('../db/repositories/loyalty.repo');
+          const { loyaltyService } = await import('../loyalty/loyalty.service');
+
+          let couponCode: string | undefined;
+          let couponId: string | undefined;
+          if (appt.gatewayOrderId) {
+            const order = await paymentRepo.getOrderById(appt.gatewayOrderId);
+            if (order?.metadata) {
+              couponCode = order.metadata.couponCode || undefined;
+              couponId = order.metadata.couponId || undefined;
+            }
+          }
+          const vouchers = await loyaltyRepo.getVouchersByPhone(appt.customerPhone, appt.salonId);
+          const redeemedForAppt = vouchers.some((v) => v.redeemedTicketId === appt.id);
+
+          await loyaltyService.awardStamp({
+            salonId: appt.salonId,
+            customerPhone: appt.customerPhone,
+            customerName: appt.customerName,
+            ticketId: appt.id,
+            finalPrice: appt.totalPrice,
+            isRewardRedemption: redeemedForAppt,
+            couponCode,
+            couponId,
+          });
+        } catch (loyaltyErr) {
+          console.warn('[appointments.complete] Loyalty stamp check warning:', loyaltyErr);
+        }
+      }
 
       await queueEngine.recalculateQueue(appt.salonId);
 

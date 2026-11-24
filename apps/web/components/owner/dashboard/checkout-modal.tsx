@@ -25,12 +25,16 @@ export function CheckoutModal({
 
   useEffect(() => {
     if (ticket) {
-      setCheckoutAmount(ticket.totalPrice || 100);
+      const netAmount = Math.max(0, (ticket.totalPrice ?? 100) - (ticket.couponDiscount || 0));
+      setCheckoutAmount(netAmount);
       setPaymentMethod("CASH_PAID");
     }
   }, [ticket]);
 
   if (!ticket) return null;
+
+  const isRewardOrZeroBill =
+    Boolean(ticket.couponCode?.toUpperCase().startsWith("REW_")) || Number(checkoutAmount) <= 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +63,17 @@ export function CheckoutModal({
         </DialogHeader>
 
         <div className="space-y-4 my-4">
+          {ticket.couponCode && (
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs">
+              <span className="text-emerald-300 font-semibold">
+                🎟️ Coupon {ticket.couponCode} applied
+              </span>
+              <span className="font-mono font-bold text-emerald-400">
+                Bill ₹{ticket.totalPrice ?? 0} − ₹{ticket.couponDiscount || 0}
+              </span>
+            </div>
+          )}
+
           <div>
             <label className="text-xs font-semibold text-slate-300 block mb-1">
               Final Bill Amount (₹)
@@ -72,7 +87,10 @@ export function CheckoutModal({
               required
             />
             <span className="text-[11px] text-slate-500 mt-1 block">
-              Service: {ticket.serviceName || "Haircut"}. Flexible pricing: adjust for cash discounts or add-ons.
+              Service: {ticket.serviceName || "Haircut"}.{" "}
+              {isRewardOrZeroBill
+                ? "Reward redemption / ₹0 bill — does not add a loyalty stamp."
+                : "Flexible pricing: adjust for cash discounts or add-ons."}
             </span>
           </div>
 

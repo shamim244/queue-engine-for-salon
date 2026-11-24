@@ -193,34 +193,53 @@ export default function BookAppointmentPage({
     const params = new URLSearchParams(window.location.search);
     const codeParam = params.get("coupon");
     if (codeParam && salon?.id && totalPrice > 0 && !appliedCoupon) {
-      setCouponInput(codeParam.trim().toUpperCase());
+      const cleanCode = codeParam.trim().toUpperCase();
+      setCouponInput(cleanCode);
+      const cleanDigits = customerPhone.replace(/\D/g, "").slice(-10);
+      if (cleanCode.startsWith("REW_") && cleanDigits.length < 10) {
+        setCouponError("Please enter your 10-digit phone number above, then click Apply to verify your loyalty voucher.");
+        return;
+      }
       api.coupons
         .apply({
-          code: codeParam.trim().toUpperCase(),
+          code: cleanCode,
           targetType: "SALON_SERVICE",
           orderAmount: totalPrice,
           salonId: salon.id,
+          userId: cleanDigits.length === 10 ? cleanDigits : undefined,
         })
         .then((res) => {
           if (res.valid && res.coupon) {
             setAppliedCoupon(res.coupon);
             setCouponDiscount(res.discountAmount);
+            setCouponError(null);
+          } else if (res.message) {
+            setCouponError(res.message);
           }
         })
-        .catch(() => {});
+        .catch((err) => {
+          if (err?.message) setCouponError(err.message);
+        });
     }
-  }, [salon?.id, totalPrice, appliedCoupon]);
+  }, [salon?.id, totalPrice, appliedCoupon, customerPhone]);
 
   const handleApplyCoupon = async () => {
     if (!couponInput.trim() || !salon?.id) return;
+    const cleanCode = couponInput.trim().toUpperCase();
+    const cleanDigits = customerPhone.replace(/\D/g, "").slice(-10);
+    if (cleanCode.startsWith("REW_") && cleanDigits.length < 10) {
+      setCouponError("Please enter your 10-digit mobile phone number above to verify loyalty voucher ownership.");
+      return;
+    }
     setApplyingCoupon(true);
     setCouponError(null);
     try {
       const res = await api.coupons.apply({
-        code: couponInput.trim().toUpperCase(),
+        code: cleanCode,
         targetType: "SALON_SERVICE",
         orderAmount: totalPrice,
         salonId: salon.id,
+        userId: cleanDigits.length === 10 ? cleanDigits : undefined,
       });
       if (res.valid && res.coupon) {
         setAppliedCoupon(res.coupon);
@@ -745,6 +764,8 @@ export default function BookAppointmentPage({
                       {appliedCoupon.discountType === "PERCENT"
                         ? `${appliedCoupon.discountValue}% discount applied`
                         : `₹${appliedCoupon.discountValue} flat discount applied`}
+                      {(appliedCoupon.code.toUpperCase().startsWith("REW_") || discountedPrice <= 0) &&
+                        " · Reward redemption (does not add a loyalty stamp)"}
                     </p>
                   </div>
                   <Button

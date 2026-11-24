@@ -244,6 +244,15 @@ export class CouponService {
           };
         }
 
+        if (voucher.expiresAt && new Date(voucher.expiresAt).getTime() < Date.now()) {
+          return {
+            valid: false,
+            message: `This loyalty reward voucher (${voucher.voucherCode}) has expired.`,
+            discountAmount: 0,
+            netPayable: input.orderAmount,
+          };
+        }
+
         // Multi-salon isolation check: vouchers are bound to the salon where stamps were earned
         if (input.salonId && voucher.salonId !== input.salonId) {
           return {
@@ -254,18 +263,24 @@ export class CouponService {
           };
         }
 
-        // Customer Phone check if provided
-        if (input.userId) {
-          const rawVoucherPhone = voucher.customerPhone.replace(/\D/g, '').slice(-10);
-          const rawUserPhone = input.userId.replace(/\D/g, '').slice(-10);
-          if (rawVoucherPhone && rawUserPhone && rawVoucherPhone !== rawUserPhone) {
-            return {
-              valid: false,
-              message: 'This loyalty voucher is locked to another customer phone number.',
-              discountAmount: 0,
-              netPayable: input.orderAmount,
-            };
-          }
+        // Strict Customer Phone ownership check: prevent unauthenticated phone omission bypass
+        const rawVoucherPhone = voucher.customerPhone.replace(/\D/g, '').slice(-10);
+        const rawUserPhone = (input.userId || '').replace(/\D/g, '').slice(-10);
+        if (!rawUserPhone || rawUserPhone.length < 10) {
+          return {
+            valid: false,
+            message: 'Customer mobile phone number is required to verify and apply this loyalty voucher.',
+            discountAmount: 0,
+            netPayable: input.orderAmount,
+          };
+        }
+        if (rawVoucherPhone && rawVoucherPhone !== rawUserPhone) {
+          return {
+            valid: false,
+            message: 'This loyalty voucher is locked to another customer phone number.',
+            discountAmount: 0,
+            netPayable: input.orderAmount,
+          };
         }
 
         // Calculate 100% deduction on the reward service or up to orderAmount

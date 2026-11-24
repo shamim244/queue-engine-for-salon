@@ -301,10 +301,17 @@ export function StationCheckoutModal({
             </div>
 
             {appliedCoupon ? (
-              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs">
-                <span className="text-emerald-300 font-semibold">
-                  🎉 Discount of ₹{couponDiscount} applied
-                </span>
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs gap-2">
+                <div>
+                  <span className="text-emerald-300 font-semibold block">
+                    🎉 Discount of ₹{couponDiscount} applied
+                  </span>
+                  {(appliedCoupon.code.toUpperCase().startsWith("REW_") || effectiveTotal <= 0) && (
+                    <span className="text-[10px] text-amber-300/90 block mt-0.5">
+                      Reward redemption / ₹0 bill — does not add a loyalty stamp for next cycle.
+                    </span>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => {

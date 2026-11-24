@@ -945,7 +945,7 @@ function CustomerAccountContent() {
                   <span>Multi-Salon Loyalty Stamp Cards</span>
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Each salon you visit tracks your haircut milestones independently. Earn 1 stamp per checkout.
+                  Each salon you visit tracks your haircut milestones independently. Earn 1 stamp per paid checkout (free reward redemptions start the next cycle from 0).
                 </p>
               </div>
               <Badge variant="warning" className="text-xs font-bold">

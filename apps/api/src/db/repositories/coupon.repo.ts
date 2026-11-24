@@ -298,8 +298,13 @@ export const couponRepo = {
     const id = `red_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date();
 
-    // Handle Partner / B2B Referral Coupon redemptions
-    if (redemption.couponId.startsWith('partner_') || redemption.couponId.startsWith('b2b_')) {
+    // Handle Partner / B2B / C2C Referral / Voucher redemptions (not stored in coupons table)
+    if (
+      redemption.couponId.startsWith('partner_') ||
+      redemption.couponId.startsWith('b2b_') ||
+      redemption.couponId.startsWith('c2c_ref_') ||
+      redemption.couponId.startsWith('voucher_')
+    ) {
       const record: CouponRedemption = {
         id,
         couponId: redemption.couponId,

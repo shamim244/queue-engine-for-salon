@@ -19,13 +19,25 @@ export class LoyaltyService {
     customerName?: string;
     ticketId: string;
     finalPrice?: number;
+    isRewardRedemption?: boolean;
+    couponCode?: string | null;
+    couponId?: string | null;
   }): Promise<{
     stampAwarded: boolean;
     card?: LoyaltyCard;
     voucherUnlocked?: LoyaltyVoucher | null;
     message?: string;
   }> {
-    const { salonId, customerPhone, customerName, ticketId } = params;
+    const {
+      salonId,
+      customerPhone,
+      customerName,
+      ticketId,
+      finalPrice,
+      isRewardRedemption,
+      couponCode,
+      couponId,
+    } = params;
     const cleanPhone = normalizePhone(customerPhone);
     if (!cleanPhone || cleanPhone.length < 10) {
       return { stampAwarded: false, message: 'Invalid customer phone number' };
@@ -39,6 +51,33 @@ export class LoyaltyService {
     // Check if salon has loyalty enabled (defaults to true)
     if (salon.loyaltyEnabled === false) {
       return { stampAwarded: false, message: 'Loyalty program is disabled for this salon' };
+    }
+
+    // Qualifying Paid Visit Gate:
+    // 1. Free/upgraded milestone reward voucher redemptions never earn a stamp for the next cycle
+    // 2. ₹0 complimentary checkouts never earn a paid-visit stamp
+    const normalizedCoupon = (couponCode || '').trim().toUpperCase();
+    const isVoucherRedemption = Boolean(
+      isRewardRedemption ||
+        (couponId && couponId.startsWith('voucher_')) ||
+        normalizedCoupon.startsWith('REW_')
+    );
+    if (isVoucherRedemption) {
+      const existingCard = await loyaltyRepo.getCard(salon.id, cleanPhone);
+      return {
+        stampAwarded: false,
+        card: existingCard || undefined,
+        message: 'Milestone reward redemptions do not earn a loyalty stamp.',
+      };
+    }
+
+    if (typeof finalPrice === 'number' && finalPrice <= 0) {
+      const existingCard = await loyaltyRepo.getCard(salon.id, cleanPhone);
+      return {
+        stampAwarded: false,
+        card: existingCard || undefined,
+        message: 'Complimentary (₹0) visits do not earn a paid loyalty stamp.',
+      };
     }
 
     let card = await loyaltyRepo.getCard(salon.id, cleanPhone);

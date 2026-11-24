@@ -362,7 +362,7 @@ function OwnerLoyaltyContent() {
                     className="bg-slate-950 border-slate-800 text-white min-h-[44px]"
                   />
                   <span className="text-[11px] text-slate-500 mt-1 block">
-                    Visits needed to unlock a free service voucher (e.g. 6 cuts).
+                    Paid visits needed to unlock a free service voucher (e.g. 6 cuts; free reward redemptions start next cycle at 0).
                   </span>
                 </div>
 
