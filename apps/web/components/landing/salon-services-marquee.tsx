@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Scissors, Sparkles, Clock, Check, Star, ShieldCheck } from "lucide-react";
+import { Scissors, Sparkles, Clock, Check, Star, ShieldCheck, Armchair, Flame } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Marquee } from "@/components/ui/marquee";
 import type { SectionProps } from "./types";
@@ -15,6 +15,8 @@ export const SalonServicesMarquee: React.FC<SectionProps> = ({ config }) => {
       duration: "25 mins",
       stylist: "Rahul V.",
       tag: "Top Walk-In Choice",
+      image: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=600&q=80",
+      alt: "Barber performing classic fade haircut with precision clippers",
     },
     {
       name: "Beard Sculpting & Razor Finish",
@@ -23,14 +25,18 @@ export const SalonServicesMarquee: React.FC<SectionProps> = ({ config }) => {
       duration: "15 mins",
       stylist: "Ramesh Kumar",
       tag: "Express Service",
+      image: "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=600&q=80",
+      alt: "Hot towel straight razor beard sculpting in vintage barber chair",
     },
     {
-      name: "Haircut + Beard Styling Combo",
+      name: "Classic Fade & Beard Sculpt Combo",
       category: "Signature Combo",
       price: "₹250",
       duration: "35 mins",
       stylist: "Ramesh Kumar",
       tag: "Best Value",
+      image: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=600&q=80",
+      alt: "Full haircut and beard trim styling station with illuminated vanity mirror",
     },
     {
       name: "De-Tan Facial + Charcoal Scrub",
@@ -39,6 +45,8 @@ export const SalonServicesMarquee: React.FC<SectionProps> = ({ config }) => {
       duration: "40 mins",
       stylist: "Suresh P.",
       tag: "High Margin",
+      image: "https://images.unsplash.com/photo-1512290900672-1f4190885e3d?auto=format&fit=crop&w=600&q=80",
+      alt: "Salon revitalizing facial mask and skin treatment",
     },
     {
       name: "Keratin Hair Spa Treatment",
@@ -47,22 +55,28 @@ export const SalonServicesMarquee: React.FC<SectionProps> = ({ config }) => {
       duration: "60 mins",
       stylist: "Pooja Rao",
       tag: "Luxury Salon",
+      image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=600&q=80",
+      alt: "Deep conditioning keratin hair spa and wash basin",
     },
     {
-      name: "Aromatic Hot Oil Head Massage",
-      category: "Relaxation",
-      price: "₹350",
-      duration: "30 mins",
+      name: "Head Massage & De-Tan Facial",
+      category: "Relaxation Combo",
+      price: "₹450",
+      duration: "45 mins",
       stylist: "Deepak V.",
       tag: "Weekend Favorite",
+      image: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80",
+      alt: "Aromatic herbal oil head massage and wellness session",
     },
     {
-      name: "Royal Groom & Wedding Package",
+      name: "Bride / Groom Royal Wedding Package",
       category: "Bridal / Groom",
-      price: "₹1,800",
+      price: "₹1,500",
       duration: "90 mins",
       stylist: "Master Stylist",
-      tag: "Full Studio",
+      tag: "Full Studio VIP",
+      image: "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=600&q=80",
+      alt: "Luxury royal grooming package with master barber styling",
     },
   ];
 
@@ -94,97 +108,138 @@ export const SalonServicesMarquee: React.FC<SectionProps> = ({ config }) => {
   ];
 
   return (
-    <section className="py-20 bg-slate-900/40 border-y border-slate-800/80 relative overflow-hidden">
-      {/* Subtle Glows */}
-      <div className="absolute top-1/2 left-1/3 -translate-y-1/2 w-[600px] h-[300px] bg-emerald-600/10 blur-[130px] pointer-events-none rounded-full" />
+    <section className="py-24 bg-[#0a0f0d] border-y border-slate-800/80 relative overflow-hidden">
+      {/* Warm Ambient Salon Halos */}
+      <div className="absolute top-1/2 left-1/3 -translate-y-1/2 w-[650px] h-[350px] bg-gradient-to-r from-amber-600/10 via-emerald-600/15 to-transparent blur-[140px] pointer-events-none rounded-full" />
+      <div className="absolute top-10 right-10 w-[300px] h-[300px] bg-amber-500/5 blur-[120px] pointer-events-none rounded-full" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="text-center max-w-3xl mx-auto mb-12">
+        <div className="text-center max-w-3xl mx-auto mb-14">
           <Badge
             variant="outline"
-            className="mb-3 px-3 py-1 text-xs border-emerald-500/30 text-emerald-400 bg-emerald-500/10"
+            className="mb-3 px-3.5 py-1 text-xs border-amber-500/40 text-amber-300 bg-amber-500/10 shadow-lg shadow-amber-950/40"
           >
-            Customized Service Engine
+            💈 Authentic Grooming Packages · 3D Menu Ribbon
           </Badge>
-          <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-            Engineered For Authentic Indian Salon Services
+          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight">
+            Designed for Real Salon Catalogs &amp; Combos
           </h2>
-          <p className="text-sm sm:text-base text-slate-400 mt-3 leading-relaxed">
-            From quick 15-minute beard trims to 90-minute royal grooming combos, the queue engine auto-calculates dynamic wait times based on services selected at the chair.
+          <p className="text-sm sm:text-base text-slate-300 mt-4 leading-relaxed">
+            From ₹180 quick fades to ₹1,500 bridal grooming packages, our engine calculates queue durations dynamically based on the exact services selected by walk-in guests.
           </p>
         </div>
 
-        {/* Row 1: Services Stream */}
-        <div className="relative mb-6">
-          <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-slate-950 to-transparent z-10 pointer-events-none" />
-          <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-slate-950 to-transparent z-10 pointer-events-none" />
+        {/* 3D Perspective Marquee Ribbon with Authentic Salon Photography */}
+        <div
+          className="relative py-4"
+          style={{
+            perspective: "1200px",
+          }}
+        >
+          <div
+            style={{
+              transform: "rotateX(6deg)",
+              transformStyle: "preserve-3d",
+            }}
+          >
+            <Marquee pauseOnHover className="[--duration:36s]">
+              {servicePackages.map((pkg, idx) => (
+                <div
+                  key={idx}
+                  className="w-72 sm:w-80 mx-3 rounded-2xl bg-gradient-to-b from-slate-900/95 via-slate-950 to-[#080d0a] border-2 border-slate-800/90 hover:border-amber-500/60 transition-all duration-300 shadow-2xl flex flex-col justify-between overflow-hidden group hover:scale-[1.02]"
+                >
+                  {/* Photo Vignette */}
+                  <div className="relative h-36 w-full overflow-hidden bg-slate-900">
+                    <img
+                      src={pkg.image}
+                      alt={pkg.alt}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+                    <div className="absolute top-2.5 left-2.5">
+                      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-950/80 border border-amber-500/40 text-amber-300 backdrop-blur-md">
+                        {pkg.category}
+                      </span>
+                    </div>
+                    <div className="absolute bottom-2.5 right-2.5">
+                      <span className="text-xs font-bold text-white bg-emerald-600/90 px-2 py-0.5 rounded-md backdrop-blur-md">
+                        {pkg.duration}
+                      </span>
+                    </div>
+                  </div>
 
-          <Marquee pauseOnHover className="[--duration:35s]">
-            {servicePackages.map((pkg, idx) => (
-              <div
-                key={idx}
-                className="w-72 sm:w-80 rounded-2xl bg-slate-950/90 border border-slate-800 p-4 shadow-xl hover:border-emerald-500/40 transition-colors mx-2 shrink-0 group"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-mono text-emerald-400 font-bold uppercase tracking-wider">
-                    {pkg.category}
-                  </span>
-                  <span className="text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800 font-medium">
-                    {pkg.tag}
-                  </span>
+                  {/* Card Content */}
+                  <div className="p-4 flex flex-col justify-between flex-1 space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-amber-400 font-semibold mb-1">
+                        <span className="flex items-center gap-1">
+                          <Scissors className="h-3.5 w-3.5" />
+                          <span>{pkg.tag}</span>
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          Stylist: {pkg.stylist}
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-bold text-white group-hover:text-amber-200 transition-colors">
+                        {pkg.name}
+                      </h4>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                      <span className="text-xl font-black text-emerald-400 font-mono">
+                        {pkg.price}
+                      </span>
+                      <span className="text-[11px] text-slate-400 flex items-center gap-1 font-mono">
+                        <Clock className="h-3 w-3 text-slate-500" />
+                        <span>Dynamic Queue Time</span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
-
-                <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
-                  {pkg.name}
-                </h4>
-
-                <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                  <span className="text-slate-400 flex items-center gap-1">
-                    <Clock className="h-3 w-3 text-amber-400" />
-                    {pkg.duration}
-                  </span>
-                  <span className="text-base font-black text-white font-mono">
-                    {pkg.price}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </Marquee>
+              ))}
+            </Marquee>
+          </div>
         </div>
 
-        {/* Row 2: Testimonials & Proof Stream */}
-        <div className="relative">
-          <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-slate-950 to-transparent z-10 pointer-events-none" />
-          <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-slate-950 to-transparent z-10 pointer-events-none" />
-
-          <Marquee reverse pauseOnHover className="[--duration:45s]">
-            {testimonials.map((t, idx) => (
-              <div
-                key={idx}
-                className="w-80 sm:w-96 rounded-2xl bg-slate-950/90 border border-slate-800 p-5 shadow-xl hover:border-teal-500/40 transition-colors mx-2 shrink-0"
-              >
-                <div className="flex items-center gap-1 text-amber-400 mb-2">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-3.5 w-3.5 fill-current" />
-                  ))}
+        {/* Real Indian Salon Owner Testimonials */}
+        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6">
+          {testimonials.map((t, i) => (
+            <div
+              key={i}
+              className="rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950 border border-slate-800 p-6 flex flex-col justify-between space-y-4 shadow-xl hover:border-emerald-500/40 transition-colors relative overflow-hidden"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <Scissors className="h-3.5 w-3.5 text-amber-400" />
+                    {t.salon}
+                  </span>
+                  <div className="flex text-amber-400">
+                    {[...Array(5)].map((_, sIdx) => (
+                      <Star key={sIdx} className="h-3 w-3 fill-amber-400 text-amber-400" />
+                    ))}
+                  </div>
                 </div>
-
-                <p className="text-xs text-slate-300 italic leading-relaxed mb-4">
+                <p className="text-xs sm:text-sm text-slate-300 italic leading-relaxed">
                   &ldquo;{t.quote}&rdquo;
                 </p>
-
-                <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                  <div>
-                    <p className="font-bold text-white text-xs">{t.owner}</p>
-                    <p className="text-[10px] text-slate-400">{t.salon} · {t.location}</p>
-                  </div>
-                  <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
-                    {t.metric}
-                  </span>
-                </div>
               </div>
-            ))}
-          </Marquee>
+
+              <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                <div>
+                  <p className="font-bold text-white">{t.owner}</p>
+                  <p className="text-[11px] text-slate-400 font-mono">{t.location}</p>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] border-emerald-500/40 text-emerald-300 bg-emerald-500/10 font-mono font-semibold"
+                >
+                  {t.metric}
+                </Badge>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </section>

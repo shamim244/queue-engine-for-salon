@@ -16,8 +16,7 @@ mock.module("next/navigation", () => ({
 }));
 
 describe("Salon Thematic 2.5D Components Suite (TDD)", () => {
-  it("should render SalonWorkflowCircuit with the 5 physical salon touchpoint nodes", async () => {
-    // Dynamic import: will fail until salon-workflow-circuit.tsx is implemented
+  it("should render SalonWorkflowCircuit with the 5 physical salon touchpoint nodes and animated pipeline", async () => {
     const { SalonWorkflowCircuit } = await import("../components/landing/salon-workflow-circuit");
 
     const html = renderToString(
@@ -31,10 +30,10 @@ describe("Salon Thematic 2.5D Components Suite (TDD)", () => {
     expect(html).toContain("WhatsApp Summon");
     expect(html).toContain("Lobby Departure TV");
     expect(html).toContain("Sub-15ms");
+    expect(html).toContain("Acrylic Door Stand");
   });
 
   it("should render SalonServicesMarquee with authentic grooming packages and pricing", async () => {
-    // Dynamic import: will fail until salon-services-marquee.tsx is implemented
     const { SalonServicesMarquee } = await import("../components/landing/salon-services-marquee");
 
     const html = renderToString(
@@ -46,9 +45,10 @@ describe("Salon Thematic 2.5D Components Suite (TDD)", () => {
     expect(html).toContain("De-Tan Facial");
     expect(html).toContain("Keratin");
     expect(html).toContain("₹");
+    expect(html).toContain("Indiranagar, Bengaluru");
   });
 
-  it("should render Hero2Point5D with authentic barbershop tokens and live station tablet", async () => {
+  it("should render Hero2Point5D with authentic barbershop tokens, live station tablet and 2.5D scroll unfolding", async () => {
     const { Hero2Point5D } = await import("../components/landing/hero-2point5d.tsx");
 
     const html = renderToString(
@@ -59,5 +59,22 @@ describe("Salon Thematic 2.5D Components Suite (TDD)", () => {
     expect(html).toContain("#104");
     expect(html).toContain("Haircut");
     expect(html).toContain("PIN: 1234");
+    expect(html).toContain("Paper Token Stub");
+    expect(html).toContain("WhatsApp Summon Pill");
+    expect(html).toContain("Chair Mirror Touchpad");
+  });
+
+  it("should render RoiCalculator with sliding number tally and salon economics", async () => {
+    const { RoiCalculator } = await import("../components/landing/roi-calculator.tsx");
+
+    const html = renderToString(
+      <RoiCalculator config={DEFAULT_LANDING_CONFIG} />
+    );
+
+    expect(html).toContain("How Much Cash Are You Losing to Waiting Benches?");
+    expect(html).toContain("Active Styling Chairs");
+    expect(html).toContain("Lost Walk-Outs on Saturday / Sunday");
+    expect(html).toContain("Estimated Monthly Cash Recovered");
+    expect(html).toContain("₹");
   });
 });
