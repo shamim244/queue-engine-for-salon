@@ -23,7 +23,6 @@ describe("Salon Thematic 2.5D Components Suite (TDD)", () => {
       <SalonWorkflowCircuit config={DEFAULT_LANDING_CONFIG} />
     );
 
-    // Verify the 5 nodes
     expect(html).toContain("Entrance Door QR");
     expect(html).toContain("Bun Queue Engine");
     expect(html).toContain("Barber Chair Station");
@@ -76,5 +75,76 @@ describe("Salon Thematic 2.5D Components Suite (TDD)", () => {
     expect(html).toContain("Lost Walk-Outs on Saturday / Sunday");
     expect(html).toContain("Estimated Monthly Cash Recovered");
     expect(html).toContain("₹");
+  });
+
+  it("should render QueueSimulator with interactive barber chair controls and Web Audio chime triggers", async () => {
+    const { QueueSimulator } = await import("../components/landing/queue-simulator.tsx");
+
+    const html = renderToString(
+      <QueueSimulator config={DEFAULT_LANDING_CONFIG} />
+    );
+
+    expect(html).toContain("Barber Cutting Station Chair #1");
+    expect(html).toContain("Call Next Customer");
+    expect(html).toContain("Station Touch Panel");
+    expect(html).toContain("Next Customer Telemetry");
+  });
+
+  it("should render TvMirrorPreview with lounge departure board and chair columns", async () => {
+    const { TvMirrorPreview } = await import("../components/landing/tv-mirror-preview.tsx");
+
+    const html = renderToString(
+      <TvMirrorPreview config={DEFAULT_LANDING_CONFIG} />
+    );
+
+    expect(html).toContain("Live Departure Board");
+    expect(html).toContain("CHAIR #1");
+    expect(html).toContain("CHAIR #2");
+    expect(html).toContain("SUMMONED");
+    expect(html).toContain("Kiosk Mode");
+  });
+
+  it("should render UpiShowcase with dynamic NPCI UPI QR code and 0% gateway fee guarantee", async () => {
+    const { UpiShowcase } = await import("../components/landing/upi-showcase.tsx");
+
+    const html = renderToString(
+      <UpiShowcase config={DEFAULT_LANDING_CONFIG} />
+    );
+
+    expect(html).toContain("Dynamic Salon Bill QR");
+    expect(html).toContain("Stylist Chair Billing");
+    expect(html).toContain("Direct-To-Bank Credit");
+    expect(html).toContain("Ramesh Traditional Barber");
+  });
+
+  it("should render PricingSection with clear salon tiering and chair allocations", async () => {
+    const { PricingSection } = await import("../components/landing/pricing-section.tsx");
+
+    const html = renderToString(
+      <PricingSection config={DEFAULT_LANDING_CONFIG} />
+    );
+
+    expect(html).toContain("Starter Edition");
+    expect(html).toContain("Pro Edition");
+    expect(html).toContain("Elite Enterprise");
+    expect(html).toContain("Neighborhood Tier");
+    expect(html).toContain("Busy Studio Tier");
+  });
+
+  it("should render LandingNavbar and LandingFooter with salon branding and navigation links", async () => {
+    const { LandingNavbar } = await import("../components/landing/navbar.tsx");
+    const { LandingFooter } = await import("../components/landing/footer.tsx");
+
+    const navHtml = renderToString(
+      <LandingNavbar config={DEFAULT_LANDING_CONFIG} />
+    );
+    expect(navHtml).toContain("Salon OS");
+    expect(navHtml).toContain("Chair Simulator");
+
+    const footerHtml = renderToString(
+      <LandingFooter config={DEFAULT_LANDING_CONFIG} />
+    );
+    expect(footerHtml).toContain("Bun Core Engine");
+    expect(footerHtml).toContain("Partner Franchise");
   });
 });
