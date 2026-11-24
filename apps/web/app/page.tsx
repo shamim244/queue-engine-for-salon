@@ -2,6 +2,7 @@ import React from "react";
 import { getLandingConfig } from "@/lib/landing-config";
 import { LandingNavbar } from "@/components/landing/navbar";
 import { LandingFooter } from "@/components/landing/footer";
+import { SalonBackgroundPattern } from "@/components/landing/salon-vector-art";
 import {
   TEMPLATE_DEFINITIONS,
   SECTION_REGISTRY,
@@ -25,12 +26,15 @@ export default async function MarketingHomePage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950">
+    <div className="min-h-screen bg-[#070b09] text-slate-100 flex flex-col justify-between relative selection:bg-emerald-500 selection:text-slate-950 overflow-x-hidden">
+      {/* Global Illustrated Salon Vector Wallpaper Pattern (Never Just a Solid Color) */}
+      <SalonBackgroundPattern opacity={0.14} className="fixed inset-0 z-0 pointer-events-none" />
+
       {/* 1. Global Navigation Header */}
       <LandingNavbar config={config} />
 
       {/* 2. Dynamic Modular Main Flow */}
-      <main className="flex-1">
+      <main className="flex-1 relative z-10">
         {/* Dynamic Hero based on Active Template */}
         <HeroComponent config={config} />
 

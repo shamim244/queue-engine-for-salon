@@ -16,6 +16,31 @@ mock.module("next/navigation", () => ({
 }));
 
 describe("Salon Thematic 2.5D Components Suite (TDD)", () => {
+  it("should render SalonBackgroundPattern with illustrated vector wallpaper motifs", async () => {
+    const { SalonBackgroundPattern, SalonStationIsometricIllustration, ScissorsShearsVector, BarberChairVector } =
+      await import("../components/landing/salon-vector-art");
+
+    const patternHtml = renderToString(<SalonBackgroundPattern opacity={0.14} />);
+    expect(patternHtml).toContain("salon-artisan-pattern");
+    expect(patternHtml).toContain("<pattern");
+
+    const stationHtml = renderToString(
+      <SalonStationIsometricIllustration activeTicket="#103" liveBill="₹140" />
+    );
+    expect(stationHtml).toContain("#103");
+    expect(stationHtml).toContain("₹140");
+    expect(stationHtml).toContain("CHAIR #1");
+    expect(stationHtml).toContain("TOKEN #104");
+    expect(stationHtml).toContain("Amit Sharma");
+    expect(stationHtml).toContain("SCAN QR");
+
+    const shearsHtml = renderToString(<ScissorsShearsVector size={48} />);
+    expect(shearsHtml).toContain("<svg");
+
+    const chairHtml = renderToString(<BarberChairVector size={56} />);
+    expect(chairHtml).toContain("<svg");
+  });
+
   it("should render SalonWorkflowCircuit with the 5 physical salon touchpoint nodes and animated pipeline", async () => {
     const { SalonWorkflowCircuit } = await import("../components/landing/salon-workflow-circuit");
 
@@ -47,7 +72,7 @@ describe("Salon Thematic 2.5D Components Suite (TDD)", () => {
     expect(html).toContain("Indiranagar, Bengaluru");
   });
 
-  it("should render Hero2Point5D with authentic barbershop tokens, live station tablet and 2.5D scroll unfolding", async () => {
+  it("should render Hero2Point5D with authentic barbershop tokens, live station tablet, 2.5D scroll unfolding and architectural illustration", async () => {
     const { Hero2Point5D } = await import("../components/landing/hero-2point5d.tsx");
 
     const html = renderToString(
@@ -61,6 +86,7 @@ describe("Salon Thematic 2.5D Components Suite (TDD)", () => {
     expect(html).toContain("Paper Token Stub");
     expect(html).toContain("WhatsApp Summon Pill");
     expect(html).toContain("Chair Mirror Touchpad");
+    expect(html).toContain("2.5D Architectural Salon Station Diagram");
   });
 
   it("should render RoiCalculator with sliding number tally and salon economics", async () => {

@@ -18,6 +18,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AnimatedBeam } from "@/components/ui/animated-beam";
+import {
+  SalonBackgroundPattern,
+  BarberChairVector,
+  ScissorsShearsVector,
+  BarberPoleVector,
+  HairClipperVector,
+} from "./salon-vector-art";
 import type { SectionProps } from "./types";
 
 export const SalonWorkflowCircuit: React.FC<SectionProps> = ({ config }) => {
@@ -58,6 +65,7 @@ export const SalonWorkflowCircuit: React.FC<SectionProps> = ({ config }) => {
       subtitle: "Mirror Stylist Tablet",
       desc: "Mounted at styling mirrors. Barber enters PIN: 1234, taps 'Call Next', and manages live haircut bill total.",
       icon: Armchair,
+      vector: BarberChairVector,
       color: "text-amber-400 bg-amber-500/10 border-amber-500/30",
       badge: "1-Tap Touchpad",
       tag: "Styling Chair Touchpad",
@@ -87,10 +95,21 @@ export const SalonWorkflowCircuit: React.FC<SectionProps> = ({ config }) => {
   ];
 
   return (
-    <section className="py-24 bg-[#0a0f0d] relative overflow-hidden">
+    <section id="circuit" className="py-24 bg-[#0a0f0d] relative overflow-hidden">
+      {/* Illustrated Salon Vector Wallpaper Pattern */}
+      <SalonBackgroundPattern opacity={0.14} className="absolute inset-0 z-0 pointer-events-none" />
+
       {/* Background Ambient Studio Halos */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[850px] h-[350px] bg-gradient-to-r from-amber-600/10 via-emerald-600/15 to-transparent blur-[150px] pointer-events-none rounded-full" />
-      <div className="absolute bottom-10 right-10 w-[300px] h-[300px] bg-amber-500/5 blur-[120px] pointer-events-none rounded-full" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[850px] h-[350px] bg-gradient-to-r from-amber-600/10 via-emerald-600/15 to-transparent blur-[150px] pointer-events-none rounded-full z-0" />
+      <div className="absolute bottom-10 right-10 w-[300px] h-[300px] bg-amber-500/5 blur-[120px] pointer-events-none rounded-full z-0" />
+
+      {/* Decorative Illustrated Salon Watermarks */}
+      <div className="hidden xl:block absolute -left-6 top-1/2 -translate-y-1/2 opacity-15 pointer-events-none">
+        <HairClipperVector size={220} className="text-teal-400" />
+      </div>
+      <div className="hidden xl:block absolute -right-6 top-1/2 -translate-y-1/2 opacity-15 pointer-events-none">
+        <BarberPoleVector size={200} className="text-amber-400" />
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center max-w-3xl mx-auto mb-14">
@@ -179,8 +198,12 @@ export const SalonWorkflowCircuit: React.FC<SectionProps> = ({ config }) => {
                     </div>
 
                     <div className="flex items-center gap-2.5 mb-2">
-                      <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-amber-300 group-hover:text-emerald-400 group-hover:border-emerald-500/40 transition-colors shrink-0 shadow-inner">
-                        <Icon className="h-4 w-4" />
+                      <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-300 group-hover:text-emerald-400 group-hover:border-emerald-500/40 transition-colors shrink-0 shadow-inner">
+                        {node.vector ? (
+                          <node.vector size={20} className="text-amber-400 group-hover:text-emerald-400" />
+                        ) : (
+                          <Icon className="h-4 w-4" />
+                        )}
                       </div>
                       <div>
                         <h4 className="text-xs sm:text-sm font-bold text-white tracking-tight group-hover:text-amber-200 transition-colors">
