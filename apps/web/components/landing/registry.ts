@@ -16,6 +16,8 @@ import { RoiCalculator } from "./roi-calculator";
 import { PricingSection } from "./pricing-section";
 import { PartnerBanner } from "./partner-banner";
 import { FaqAccordion } from "./faq-accordion";
+import { SalonWorkflowCircuit } from "./salon-workflow-circuit";
+import { SalonServicesMarquee } from "./salon-services-marquee";
 
 export type {
   LandingPageConfig,
@@ -27,6 +29,8 @@ export type {
 
 export const SECTION_REGISTRY: Record<SectionId, React.ComponentType<SectionProps>> = {
   hero: Hero2Point5D, // Fallback default hero in registry
+  workflow_circuit: SalonWorkflowCircuit,
+  services_marquee: SalonServicesMarquee,
   simulator: QueueSimulator,
   tv_mirror: TvMirrorPreview,
   upi_showcase: UpiShowcase,
@@ -44,6 +48,8 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateId, TemplateDefinition> = {
       "Hardware-accelerated CSS perspective depth, floating ticket #104, and live TV screen preview.",
     heroComponent: Hero2Point5D,
     defaultSections: [
+      "workflow_circuit",
+      "services_marquee",
       "simulator",
       "tv_mirror",
       "upi_showcase",
@@ -60,8 +66,10 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateId, TemplateDefinition> = {
       "High-contrast Linear/Vercel styling with telemetry cards, micro-glows, and status badges.",
     heroComponent: HeroBento,
     defaultSections: [
+      "workflow_circuit",
       "simulator",
       "roi_calculator",
+      "services_marquee",
       "tv_mirror",
       "upi_showcase",
       "pricing",
